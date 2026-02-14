@@ -1,6 +1,7 @@
 import os
 import jinja2
 import pandas as pd
+import json
 import gc # Thư viện quản lý bộ nhớ
 import re # Thư viện xử lý chuỗi Regular Expression
 from io import BytesIO, StringIO
@@ -143,15 +144,15 @@ class KPI3G(db.Model):
     lac = db.Column(db.String(50))
     ci = db.Column(db.String(50))
     thoi_gian = db.Column(db.String(50))
-    # Metrics chính
+    # Metrics
     traffic = db.Column(db.Float)
+    pstraffic = db.Column(db.Float) # New for Chart
     cssr = db.Column(db.Float)
     dcr = db.Column(db.Float)
     ps_cssr = db.Column(db.Float)
     ps_dcr = db.Column(db.Float)
     hsdpa_throughput = db.Column(db.Float)
     hsupa_throughput = db.Column(db.Float)
-    # Bổ sung các cột cho tính năng Congestion
     cs_so_att = db.Column(db.Float)
     ps_so_att = db.Column(db.Float)
     csconges = db.Column(db.Float)
@@ -170,7 +171,8 @@ class KPI4G(db.Model):
     enodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
     thoi_gian = db.Column(db.String(50))
-    # Metrics chính
+    # Metrics
+    traffic = db.Column(db.Float) # New for Chart (Total Data Traffic)
     traffic_vol_dl = db.Column(db.Float)
     traffic_vol_ul = db.Column(db.Float)
     cell_dl_avg_thputs = db.Column(db.Float)
@@ -180,6 +182,8 @@ class KPI4G(db.Model):
     erab_ssrate_all = db.Column(db.Float)
     service_drop_all = db.Column(db.Float)
     unvailable = db.Column(db.Float)
+    res_blk_dl = db.Column(db.Float) # New for Chart
+    cqi_4g = db.Column(db.Float)     # New for Chart
 
 class KPI5G(db.Model):
     __tablename__ = 'kpi_5g'
@@ -193,11 +197,14 @@ class KPI5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
     thoi_gian = db.Column(db.String(50))
-    # Metrics chính
+    # Metrics
+    traffic = db.Column(db.Float) # New for Chart
     dl_traffic_volume_gb = db.Column(db.Float)
     ul_traffic_volume_gb = db.Column(db.Float)
     cell_downlink_average_throughput = db.Column(db.Float)
     cell_uplink_average_throughput = db.Column(db.Float)
+    user_dl_avg_throughput = db.Column(db.Float) # New for Chart
+    cqi_5g = db.Column(db.Float) # New for Chart
     cell_avaibility_rate = db.Column(db.Float)
     sgnb_addition_success_rate = db.Column(db.Float)
     sgnb_abnormal_release_rate = db.Column(db.Float)
@@ -211,12 +218,13 @@ def init_database():
     with app.app_context():
         try:
             db.create_all()
-            # Kiểm tra nhanh một bảng để xem DB có hoạt động không
+            # Kiểm tra xem các bảng KPI đã có các cột mới chưa
             try:
-                # Kiểm tra xem bảng KPI3G đã có cột csconges chưa, nếu chưa thì reset
-                db.session.execute(text("SELECT csconges FROM kpi_3g LIMIT 1"))
+                db.session.execute(text("SELECT pstraffic FROM kpi_3g LIMIT 1"))
+                db.session.execute(text("SELECT cqi_4g FROM kpi_4g LIMIT 1"))
+                db.session.execute(text("SELECT cqi_5g FROM kpi_5g LIMIT 1"))
             except Exception:
-                print(">>> Cập nhật cấu trúc Database (Thêm cột cho KPI 3G)...")
+                print(">>> Cập nhật cấu trúc Database (Thêm cột cho KPI để vẽ biểu đồ)...")
                 db.session.rollback()
                 db.drop_all()         
                 db.create_all()       
@@ -242,6 +250,8 @@ BASE_LAYOUT = """
     <title>KPI Monitor System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background-color: #f0f2f5; font-family: 'Roboto', sans-serif; overflow-x: hidden; }
         .sidebar { height: 100vh; width: 250px; position: fixed; top: 0; left: 0; background-color: #ffffff; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 1000; transition: 0.3s; }
@@ -335,6 +345,88 @@ CONTENT_TEMPLATE = """
             </div>
             <hr><p>Chào mừng <strong>{{ current_user.username }}</strong>!</p>
         
+        {% elif active_page == 'kpi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/kpi" class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Công nghệ:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select name="tech" class="form-select">
+                                <option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option>
+                                <option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option>
+                                <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Tên Cell:</label>
+                        </div>
+                        <div class="col-auto">
+                            <input type="text" name="cell_name" class="form-control" placeholder="Nhập tên cell..." value="{{ cell_name }}">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-line"></i> Vẽ biểu đồ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if chart_data %}
+            <div class="chart-container" style="position: relative; height:60vh; width:100%">
+                <canvas id="kpiChart"></canvas>
+            </div>
+            <script>
+                const ctx = document.getElementById('kpiChart').getContext('2d');
+                const chartData = {{ chart_data | safe }};
+                new Chart(ctx, {
+                    type: 'line',
+                    data: chartData,
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Biểu đồ KPI Cell {{ cell_name }}'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.dataset.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed.y !== null) {
+                                            label += context.parsed.y;
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: {
+                                    display: true,
+                                    text: 'Giá trị'
+                                }
+                            }
+                        }
+                    }
+                });
+            </script>
+            {% elif cell_name %}
+                <div class="alert alert-warning">Không tìm thấy dữ liệu cho Cell <strong>{{ cell_name }}</strong>. Vui lòng kiểm tra lại tên hoặc import dữ liệu KPI.</div>
+            {% else %}
+                <div class="text-center text-muted py-5">Vui lòng nhập tên Cell để xem biểu đồ KPI.</div>
+            {% endif %}
+
         {% elif active_page == 'conges_3g' %}
             <div class="alert alert-info">
                 <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
@@ -685,7 +777,73 @@ def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page
 # Các route menu khác
 @app.route('/kpi')
 @login_required
-def kpi(): return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi')
+def kpi():
+    selected_tech = request.args.get('tech', '3g')
+    cell_name = request.args.get('cell_name', '').strip()
+    chart_data = None
+
+    if cell_name:
+        model_map = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}
+        Model = model_map.get(selected_tech)
+        
+        if Model:
+            # Query data for cell, order by time
+            # Note: thoi_gian is string, assuming dd/mm/yyyy for now. 
+            # In a real app, storing as Date object is better for sorting.
+            # Here we fetch all and sort in python to be safe with string dates
+            data = Model.query.filter(
+                (Model.ten_cell == cell_name) | (Model.ten_cell.like(f"%{cell_name}%"))
+            ).all()
+            
+            # Sort by date
+            try:
+                data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+            except ValueError:
+                pass # Fallback if date format is weird
+
+            if data:
+                labels = [x.thoi_gian for x in data]
+                datasets = []
+                
+                # Define metrics per tech
+                metrics_config = {
+                    '3g': [
+                        {'key': 'pstraffic', 'label': 'PSTRAFFIC', 'color': 'blue'},
+                        {'key': 'traffic', 'label': 'TRAFFIC', 'color': 'cyan'},
+                        {'key': 'psconges', 'label': 'PSCONGES (%)', 'color': 'orange'},
+                        {'key': 'csconges', 'label': 'CSCONGES (%)', 'color': 'red'}
+                    ],
+                    '4g': [
+                        {'key': 'traffic', 'label': 'TRAFFIC (DL+UL or Total)', 'color': 'blue'},
+                        {'key': 'user_dl_avg_thput', 'label': 'USER_DL_AVG_THPUT (Mbps)', 'color': 'green'},
+                        {'key': 'res_blk_dl', 'label': 'RES_BLK_DL (%)', 'color': 'orange'},
+                        {'key': 'cqi_4g', 'label': 'CQI', 'color': 'purple'}
+                    ],
+                    '5g': [
+                        {'key': 'traffic', 'label': 'TRAFFIC (GB)', 'color': 'blue'},
+                        {'key': 'user_dl_avg_throughput', 'label': 'USER_DL_AVG_THPUT (Mbps)', 'color': 'green'},
+                        {'key': 'cqi_5g', 'label': 'CQI', 'color': 'purple'}
+                    ]
+                }
+                
+                configs = metrics_config.get(selected_tech, [])
+                
+                for conf in configs:
+                    dataset = {
+                        'label': conf['label'],
+                        'data': [getattr(x, conf['key'], 0) or 0 for x in data],
+                        'borderColor': conf['color'],
+                        'tension': 0.1,
+                        'fill': False
+                    }
+                    datasets.append(dataset)
+                
+                chart_data = json.dumps({'labels': labels, 'datasets': datasets})
+                # Update cell name to exact match if found
+                if data: cell_name = data[0].ten_cell
+
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
+                       selected_tech=selected_tech, cell_name=cell_name, chart_data=chart_data)
 
 @app.route('/rf')
 @login_required
@@ -951,8 +1109,11 @@ def import_data():
                     map_kpi = {
                         'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
                         'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
+                        'Total Data Traffic Volume (GB)': 'traffic', # 5G Total Traffic
                         'Cell Uplink Average Throughput': 'cell_uplink_average_throughput',
                         'Cell Downlink Average Throughput': 'cell_downlink_average_throughput',
+                        'A User Downlink Average Throughput': 'user_dl_avg_throughput', # 5G User Thput
+                        'CQI_5G': 'cqi_5g', # 5G CQI
                         'Cell avaibility rate': 'cell_avaibility_rate',
                         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
                         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
@@ -966,7 +1127,10 @@ def import_data():
                         'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
                         'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
                         'PCI': 'pci',
-                        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges'
+                        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
+                        'PSTRAFFIC': 'pstraffic', # 3G PS Traffic
+                        'RES_BLK_DL': 'res_blk_dl', # 4G PRB
+                        'CQI_4G': 'cqi_4g' # 4G CQI
                     }
                     if col_name in map_kpi: return map_kpi[col_name]
                     clean = col_name.lower()
@@ -1005,6 +1169,12 @@ def import_data():
                             filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
+                            
+                            # Xử lý mapping đặc biệt cho 4G Traffic nếu file chỉ có vol_dl/ul
+                            if import_type == 'kpi4g' and 'traffic' not in filtered_row:
+                                if 'traffic_vol_dl' in filtered_row:
+                                    filtered_row['traffic'] = filtered_row['traffic_vol_dl']
+
                             if filtered_row: bulk_data.append(filtered_row)
                         
                         if bulk_data:
@@ -1027,6 +1197,11 @@ def import_data():
                             filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
+                            
+                            if import_type == 'kpi4g' and 'traffic' not in filtered_row:
+                                if 'traffic_vol_dl' in filtered_row:
+                                    filtered_row['traffic'] = filtered_row['traffic_vol_dl']
+
                             if filtered_row: bulk_data.append(filtered_row)
                         if bulk_data:
                             db.session.bulk_insert_mappings(target_model, bulk_data)
