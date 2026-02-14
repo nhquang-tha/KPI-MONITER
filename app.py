@@ -850,9 +850,12 @@ def rf_detail(tech, id):
 def conges_3g():
     # 1. Lấy 3 ngày dữ liệu mới nhất
     dates_query = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).limit(3).all()
+    print(f"DEBUG: Found {len(dates_query)} dates: {dates_query}") # Log để kiểm tra
+
     if len(dates_query) < 3:
-        flash('Chưa đủ 3 ngày dữ liệu KPI 3G để phân tích xu hướng.', 'warning')
-        return render_page(CONTENT_TEMPLATE, title="Cảnh báo Nghẽn 3G", active_page='conges_3g', conges_data=[], dates=[])
+        found_dates = [d[0] for d in dates_query]
+        flash(f'Chưa đủ 3 ngày dữ liệu KPI 3G để phân tích xu hướng. Hiện có: {", ".join(found_dates)}', 'warning')
+        return render_page(CONTENT_TEMPLATE, title="Cảnh báo Nghẽn 3G", active_page='conges_3g', conges_data=[], dates=found_dates)
     
     target_dates = [d[0] for d in dates_query]
     
