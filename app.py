@@ -1,10 +1,12 @@
 import os
-import jinja2 # Thêm thư viện này
+import jinja2
+import pandas as pd # Thêm thư viện xử lý dữ liệu
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from sqlalchemy import text 
 
 # --- CẤU HÌNH APP ---
@@ -25,7 +27,7 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
 
-# --- MODELS ---
+# --- MODELS (USER) ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -38,6 +40,91 @@ class User(UserMixin, db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
+
+# --- MODELS (RF DATA) ---
+# Định nghĩa các bảng RF giống file Excel
+
+class RF3G(db.Model):
+    __tablename__ = 'rf_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    csht_code = db.Column(db.String(50))
+    cell_name = db.Column(db.String(100))
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    equipment = db.Column(db.String(50))
+    frequency = db.Column(db.String(50)) # Excel: Frenquency
+    psc = db.Column(db.String(50))
+    dl_uarfcn = db.Column(db.String(50))
+    bsc_lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+    anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
+    hang_sx = db.Column(db.String(50)) # Excel: Hãng_SX
+    antena = db.Column(db.String(100))
+    swap = db.Column(db.String(50))
+    start_day = db.Column(db.String(50))
+    ghi_chu = db.Column(db.String(255)) # Excel: Ghi_chú
+
+class RF4G(db.Model):
+    __tablename__ = 'rf_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    csht_code = db.Column(db.String(50))
+    cell_name = db.Column(db.String(100))
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    equipment = db.Column(db.String(50))
+    frequency = db.Column(db.String(50))
+    dl_uarfcn = db.Column(db.String(50))
+    pci = db.Column(db.String(50))
+    tac = db.Column(db.String(50))
+    enodeb_id = db.Column(db.String(50)) # Excel: ENodeBID
+    lcrid = db.Column(db.String(50))
+    anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
+    mimo = db.Column(db.String(50))
+    hang_sx = db.Column(db.String(50))
+    antena = db.Column(db.String(100))
+    swap = db.Column(db.String(50))
+    start_day = db.Column(db.String(50))
+    ghi_chu = db.Column(db.String(255))
+
+class RF5G(db.Model):
+    __tablename__ = 'rf_5g'
+    id = db.Column(db.Integer, primary_key=True)
+    csht_code = db.Column(db.String(50))
+    site_name = db.Column(db.String(100)) # Excel: SITE_NAME
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    equipment = db.Column(db.String(50))
+    frequency = db.Column(db.String(50))
+    nrarfcn = db.Column(db.String(50))
+    pci = db.Column(db.String(50))
+    tac = db.Column(db.String(50))
+    gnodeb_id = db.Column(db.String(50)) # Excel: gNodeB ID
+    lcrid = db.Column(db.String(50))
+    anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
+    mimo = db.Column(db.String(50))
+    hang_sx = db.Column(db.String(50))
+    antena = db.Column(db.String(100))
+    dong_bo = db.Column(db.String(50)) # Excel: Đồng_bộ
+    start_day = db.Column(db.String(50))
+    ghi_chu = db.Column(db.String(255))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -54,12 +141,14 @@ def init_database():
             # Nếu bảng cũ không có cột này, lệnh sẽ sinh lỗi Exception ngay
             try:
                 db.session.execute(text("SELECT password_hash FROM user LIMIT 1"))
+                # Kiểm tra thêm bảng RF (nếu cần)
                 print(">>> Cấu trúc Database hợp lệ.")
             except Exception:
-                print(">>> CẢNH BÁO: Bảng 'user' cũ thiếu cột 'password_hash'. Đang Reset Database...")
+                print(">>> CẢNH BÁO: Database cũ hoặc thiếu cột. Đang Reset Database...")
                 db.session.rollback() # Rollback transaction bị lỗi
-                db.drop_all()         # Xóa toàn bộ bảng cũ
-                db.create_all()       # Tạo lại bảng mới đúng chuẩn
+                # Lưu ý: drop_all sẽ xóa cả dữ liệu cũ. Cẩn thận khi dùng trên production thật.
+                db.drop_all()         
+                db.create_all()       
                 print(">>> Đã tạo lại Database mới thành công!")
 
             # 3. Tạo Admin nếu chưa có (sau khi đã đảm bảo bảng đúng chuẩn)
@@ -178,6 +267,55 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-success">OK</h3><p class="text-muted mb-0">System</p></div></div>
             </div>
             <hr><p>Chào mừng <strong>{{ current_user.username }}</strong>!</p>
+        
+        {% elif active_page == 'import' %}
+            <ul class="nav nav-tabs" id="importTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="rf3g-tab" data-bs-toggle="tab" data-bs-target="#rf3g" type="button" role="tab">Import RF 3G</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="rf4g-tab" data-bs-toggle="tab" data-bs-target="#rf4g" type="button" role="tab">Import RF 4G</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="rf5g-tab" data-bs-toggle="tab" data-bs-target="#rf5g" type="button" role="tab">Import RF 5G</button>
+                </li>
+            </ul>
+            <div class="tab-content p-4 border border-top-0 rounded-bottom" id="importTabsContent">
+                <!-- Tab 3G -->
+                <div class="tab-pane fade show active" id="rf3g" role="tabpanel">
+                    <h5>Upload dữ liệu RF 3G</h5>
+                    <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label>
+                            <input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
+                    </form>
+                </div>
+                <!-- Tab 4G -->
+                <div class="tab-pane fade" id="rf4g" role="tabpanel">
+                    <h5>Upload dữ liệu RF 4G</h5>
+                    <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label>
+                            <input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
+                    </form>
+                </div>
+                <!-- Tab 5G -->
+                <div class="tab-pane fade" id="rf5g" role="tabpanel">
+                    <h5>Upload dữ liệu RF 5G</h5>
+                    <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label>
+                            <input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                    </form>
+                </div>
+            </div>
+
         {% else %}
             <div class="text-center py-5 text-muted"><h5>Chức năng {{ title }} đang xây dựng</h5></div>
         {% endif %}
@@ -284,9 +422,98 @@ def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", a
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
-@app.route('/import')
+
+@app.route('/import', methods=['GET', 'POST'])
 @login_required
-def import_data(): return render_page(CONTENT_TEMPLATE, title="Import", active_page='import')
+def import_data():
+    if request.method == 'POST':
+        file = request.files.get('file')
+        import_type = request.args.get('type') # 3g, 4g, hoặc 5g
+        
+        if not file or not file.filename:
+            flash('Chưa chọn file!', 'warning')
+            return redirect(url_for('import_data'))
+
+        try:
+            # Đọc file (hỗ trợ cả csv và excel)
+            filename = file.filename
+            if filename.endswith('.csv'):
+                df = pd.read_csv(file)
+            elif filename.endswith(('.xls', '.xlsx')):
+                df = pd.read_excel(file)
+            else:
+                flash('Chỉ hỗ trợ file .csv hoặc .xlsx', 'danger')
+                return redirect(url_for('import_data'))
+
+            # Chuẩn hóa tên cột để mapping với database
+            # Xóa khoảng trắng, chuyển về chữ thường
+            # Mapping cột đặc biệt
+            column_map = {
+                'Frenquency': 'frequency',
+                'Hãng_SX': 'hang_sx',
+                'Ghi_chú': 'ghi_chu',
+                'Ghi_chu': 'ghi_chu',
+                'Hãng SX': 'hang_sx',
+                'ENodeBID': 'enodeb_id',
+                'gNodeB ID': 'gnodeb_id',
+                'SITE_NAME': 'site_name',
+                'Đồng_bộ': 'dong_bo',
+                'Dong_bo': 'dong_bo'
+            }
+            
+            # Hàm làm sạch tên cột
+            def clean_col(col_name):
+                col_name = str(col_name).strip()
+                if col_name in column_map:
+                    return column_map[col_name]
+                return col_name.lower().replace(' ', '_')
+
+            df.columns = [clean_col(c) for c in df.columns]
+
+            # Chọn model tương ứng
+            model_class = None
+            if import_type == '3g':
+                model_class = RF3G
+            elif import_type == '4g':
+                model_class = RF4G
+            elif import_type == '5g':
+                model_class = RF5G
+            
+            if model_class:
+                # Xóa dữ liệu cũ nếu muốn (tùy chọn - ở đây tôi để nạp thêm vào)
+                # db.session.query(model_class).delete() 
+                
+                # Convert DataFrame to list of dicts
+                records = df.to_dict(orient='records')
+                
+                # Lọc chỉ lấy các cột có trong model database để tránh lỗi
+                valid_columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
+                
+                objects_to_add = []
+                for row in records:
+                    # Chỉ giữ lại các trường khớp với database
+                    filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                    # Xử lý NaN thành None (NULL trong DB)
+                    for k, v in filtered_row.items():
+                        if pd.isna(v):
+                            filtered_row[k] = None
+                    objects_to_add.append(model_class(**filtered_row))
+
+                db.session.add_all(objects_to_add)
+                db.session.commit()
+                flash(f'Đã import thành công {len(objects_to_add)} bản ghi vào RF {import_type.upper()}!', 'success')
+            else:
+                flash('Loại dữ liệu không hợp lệ', 'danger')
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi import: {str(e)}', 'danger')
+            print(f"IMPORT ERROR: {e}")
+
+        return redirect(url_for('import_data'))
+
+    return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import')
+
 @app.route('/profile')
 @login_required
 def profile(): return render_page(PROFILE_TEMPLATE, active_page='profile')
