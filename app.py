@@ -11,7 +11,8 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from sqlalchemy import text, func
-from itertools import zip_longest # Thêm thư viện này
+from itertools import zip_longest
+from collections import defaultdict # Thêm để xử lý logic đếm ngày
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -142,7 +143,7 @@ class KPI3G(db.Model):
     lac = db.Column(db.String(50))
     ci = db.Column(db.String(50))
     thoi_gian = db.Column(db.String(50))
-    # Metrics chính (Lấy theo file mẫu)
+    # Metrics chính
     traffic = db.Column(db.Float)
     cssr = db.Column(db.Float)
     dcr = db.Column(db.Float)
@@ -150,7 +151,11 @@ class KPI3G(db.Model):
     ps_dcr = db.Column(db.Float)
     hsdpa_throughput = db.Column(db.Float)
     hsupa_throughput = db.Column(db.Float)
-    # Có thể thêm các trường khác nếu cần thiết (CS_SO_ATT, v.v.)
+    # Bổ sung các cột cho tính năng Congestion
+    cs_so_att = db.Column(db.Float)
+    ps_so_att = db.Column(db.Float)
+    csconges = db.Column(db.Float)
+    psconges = db.Column(db.Float)
 
 class KPI4G(db.Model):
     __tablename__ = 'kpi_4g'
@@ -174,7 +179,7 @@ class KPI4G(db.Model):
     user_ul_avg_thput = db.Column(db.Float)
     erab_ssrate_all = db.Column(db.Float)
     service_drop_all = db.Column(db.Float)
-    unvailable = db.Column(db.Float) # Cell Availability
+    unvailable = db.Column(db.Float)
 
 class KPI5G(db.Model):
     __tablename__ = 'kpi_5g'
@@ -208,10 +213,10 @@ def init_database():
             db.create_all()
             # Kiểm tra nhanh một bảng để xem DB có hoạt động không
             try:
-                db.session.execute(text("SELECT id FROM user LIMIT 1"))
+                # Kiểm tra xem bảng KPI3G đã có cột csconges chưa, nếu chưa thì reset
+                db.session.execute(text("SELECT csconges FROM kpi_3g LIMIT 1"))
             except Exception:
-                # Nếu lỗi cấu trúc, reset (Cẩn thận trong production!)
-                print(">>> Resetting Database structure...")
+                print(">>> Cập nhật cấu trúc Database (Thêm cột cho KPI 3G)...")
                 db.session.rollback()
                 db.drop_all()         
                 db.create_all()       
@@ -249,7 +254,6 @@ BASE_LAYOUT = """
         .card { border: none; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); background: white; margin-bottom: 20px; }
         .card-header { background-color: white; border-bottom: 1px solid #f0f0f0; padding: 15px 20px; font-weight: bold; color: #444; }
         @media (max-width: 768px) { .sidebar { margin-left: -250px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; } }
-        /* Table Actions */
         .btn-action { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
     </style>
 </head>
@@ -331,6 +335,45 @@ CONTENT_TEMPLATE = """
             </div>
             <hr><p>Chào mừng <strong>{{ current_user.username }}</strong>!</p>
         
+        {% elif active_page == 'conges_3g' %}
+            <div class="alert alert-info">
+                <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
+                (CS_CONG > 2% & CS_ATT > 100) HOẶC (PS_CONG > 2% & PS_ATT > 500) <br>
+                <strong><i class="fa-solid fa-clock"></i> Thời gian:</strong> Xảy ra liên tiếp trong 3 ngày dữ liệu gần nhất 
+                ({% for d in dates %}{{ d }}{{ ", " if not loop.last else "" }}{% endfor %})
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cell Name</th>
+                            <th>Site Code</th>
+                            <th>CSHT</th>
+                            <th>Antenna</th>
+                            <th>Tilt</th>
+                            <th class="text-center">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in conges_data %}
+                        <tr>
+                            <td class="fw-bold text-primary">{{ row.cell_name }}</td>
+                            <td>{{ row.site_code }}</td>
+                            <td>{{ row.csht }}</td>
+                            <td>{{ row.antena }}</td>
+                            <td>{{ row.tilt }}</td>
+                            <td class="text-center">
+                                <a href="/rf/detail/3g/{{ row.rf_id }}" class="btn btn-sm btn-info text-white" title="Chi tiết RF"><i class="fa-solid fa-eye"></i></a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center py-4 text-muted">Tuyệt vời! Không có cell nào bị nghẽn liên tiếp 3 ngày.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
         {% elif active_page == 'rf' %}
             <div class="mb-3 d-flex justify-content-between">
                 <div class="btn-group">
@@ -801,6 +844,57 @@ def rf_detail(tech, id):
         
     return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
 
+# --- ROUTES CHO TÍNH NĂNG CONGESTION 3G ---
+@app.route('/conges-3g')
+@login_required
+def conges_3g():
+    # 1. Lấy 3 ngày dữ liệu mới nhất
+    dates_query = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).limit(3).all()
+    if len(dates_query) < 3:
+        flash('Chưa đủ 3 ngày dữ liệu KPI 3G để phân tích xu hướng.', 'warning')
+        return render_page(CONTENT_TEMPLATE, title="Cảnh báo Nghẽn 3G", active_page='conges_3g', conges_data=[], dates=[])
+    
+    target_dates = [d[0] for d in dates_query]
+    
+    # 2. Truy vấn các cell thỏa mãn điều kiện nghẽn trong 3 ngày này
+    # Condition: (CSCONGES > 2% AND CS_SO_ATT > 100) OR (PSCONGES > 2% AND PS_SO_ATT > 500)
+    subquery = db.session.query(KPI3G.ten_cell, KPI3G.thoi_gian).filter(
+        KPI3G.thoi_gian.in_(target_dates),
+        (
+            ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | 
+            ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+        )
+    ).all()
+    
+    # 3. Xử lý Logic đếm số lần xuất hiện liên tiếp
+    cell_counts = defaultdict(set)
+    for cell_name, date in subquery:
+        cell_counts[cell_name].add(date)
+    
+    # Lọc ra các cell xuất hiện đủ trong cả 3 ngày
+    congested_cells = [cell for cell, dates in cell_counts.items() if len(dates) == 3]
+    
+    # 4. Lấy thông tin RF cho các cell bị nghẽn
+    results = []
+    if congested_cells:
+        # Chuẩn hóa tên cell nếu cần (ví dụ bỏ khoảng trắng thừa)
+        # Ở đây giả sử tên trong KPI và RF khớp nhau
+        rf_info = RF3G.query.filter(RF3G.cell_name.in_(congested_cells)).all()
+        rf_map = {r.cell_name: r for r in rf_info}
+        
+        for cell in congested_cells:
+            rf = rf_map.get(cell)
+            results.append({
+                'cell_name': cell,
+                'rf_id': rf.id if rf else '#',
+                'site_code': rf.site_code if rf else 'N/A',
+                'csht': rf.csht_code if rf else 'N/A',
+                'antena': rf.antena if rf else 'N/A',
+                'tilt': rf.total_tilt if rf else 'N/A'
+            })
+            
+    return render_page(CONTENT_TEMPLATE, title="Cảnh báo Nghẽn 3G (3 ngày liên tiếp)", active_page='conges_3g', conges_data=results, dates=target_dates)
+
 
 @app.route('/poi')
 @login_required
@@ -808,9 +902,6 @@ def poi(): return render_page(CONTENT_TEMPLATE, title="POI", active_page='poi')
 @app.route('/worst-cell')
 @login_required
 def worst_cell(): return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell')
-@app.route('/conges-3g')
-@login_required
-def conges_3g(): return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g')
 @app.route('/traffic-down')
 @login_required
 def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down')
@@ -871,7 +962,8 @@ def import_data():
                         'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
                         'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
                         'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
-                        'PCI': 'pci'
+                        'PCI': 'pci',
+                        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges'
                     }
                     if col_name in map_kpi: return map_kpi[col_name]
                     clean = col_name.lower()
