@@ -10,7 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import text 
+from sqlalchemy import text, func 
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -390,68 +390,97 @@ CONTENT_TEMPLATE = """
             </div>
 
         {% elif active_page == 'import' %}
-            <ul class="nav nav-tabs" id="importTabs" role="tablist">
-                <!-- RF Tabs -->
-                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rf3g">Import RF 3G</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf4g">Import RF 4G</button></li>
-                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf5g">Import RF 5G</button></li>
-                <!-- KPI Tabs -->
-                <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi3g">KPI 3G</button></li>
-                <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi4g">KPI 4G</button></li>
-                <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi5g">KPI 5G</button></li>
-            </ul>
-            <div class="tab-content p-4 border border-top-0 rounded-bottom">
-                <!-- RF Forms -->
-                <div class="tab-pane fade show active" id="rf3g">
-                    <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 3G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
-                    </form>
-                </div>
-                <div class="tab-pane fade" id="rf4g">
-                    <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 4G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
-                    </form>
-                </div>
-                <div class="tab-pane fade" id="rf5g">
-                    <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 5G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
-                    </form>
-                </div>
-                
-                <!-- KPI Forms -->
-                <div class="tab-pane fade" id="kpi3g">
-                    <h5 class="text-success">Import KPI 3G Hàng Ngày</h5>
-                    <form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Chọn các file KPI 3G (.csv)</label>
-                            <input type="file" name="file" class="form-control" accept=".csv" multiple required>
-                            <small class="text-muted">Có thể chọn nhiều file cùng lúc để import.</small>
+            <div class="row">
+                <div class="col-md-8">
+                    <ul class="nav nav-tabs" id="importTabs" role="tablist">
+                        <!-- RF Tabs -->
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rf3g">Import RF 3G</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf4g">Import RF 4G</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf5g">Import RF 5G</button></li>
+                        <!-- KPI Tabs -->
+                        <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi3g">KPI 3G</button></li>
+                        <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi4g">KPI 4G</button></li>
+                        <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi5g">KPI 5G</button></li>
+                    </ul>
+                    <div class="tab-content p-4 border border-top-0 rounded-bottom">
+                        <!-- RF Forms -->
+                        <div class="tab-pane fade show active" id="rf3g">
+                            <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 3G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
+                            </form>
                         </div>
-                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 3G</button>
-                    </form>
-                </div>
-                <div class="tab-pane fade" id="kpi4g">
-                    <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
-                    <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Chọn các file KPI 4G (.csv)</label>
-                            <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                        <div class="tab-pane fade" id="rf4g">
+                            <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 4G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
+                            </form>
                         </div>
-                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
-                    </form>
-                </div>
-                <div class="tab-pane fade" id="kpi5g">
-                    <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
-                    <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Chọn các file KPI 5G (.csv)</label>
-                            <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                        <div class="tab-pane fade" id="rf5g">
+                            <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 5G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                            </form>
                         </div>
-                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
-                    </form>
+                        
+                        <!-- KPI Forms -->
+                        <div class="tab-pane fade" id="kpi3g">
+                            <h5 class="text-success">Import KPI 3G Hàng Ngày</h5>
+                            <form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label">Chọn các file KPI 3G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                    <small class="text-muted">Có thể chọn nhiều file cùng lúc để import.</small>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 3G</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="kpi4g">
+                            <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
+                            <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label">Chọn các file KPI 4G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="kpi5g">
+                            <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
+                            <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label class="form-label">Chọn các file KPI 5G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-info text-white"><i class="fa-solid fa-calendar-check"></i> Dữ liệu KPI đã có</div>
+                        <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-striped small mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Loại</th>
+                                        <th>Ngày dữ liệu</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in imported_kpi_dates %}
+                                    <tr>
+                                        <td><span class="badge bg-secondary">{{ item.type }}</span></td>
+                                        <td>{{ item.date }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="2" class="text-center text-muted">Chưa có dữ liệu</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -758,32 +787,38 @@ def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='
 @login_required
 def import_data():
     if request.method == 'POST':
-        # Lấy danh sách file (hỗ trợ multiple)
         files = request.files.getlist('file')
         import_type = request.args.get('type') # 3g, 4g, 5g, kpi3g, kpi4g, kpi5g
         
         if not files or files[0].filename == '':
             flash('Chưa chọn file!', 'warning'); return redirect(url_for('import_data'))
 
-        # Định nghĩa các model map
-        rf_models = {'3g': RF3G, '4g': RF4G, '5g': RF5G}
-        kpi_models = {'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G}
+        # Định nghĩa các model map và các cột BẮT BUỘC (Signature columns)
+        # Các cột này PHẢI xuất hiện trong file để được coi là hợp lệ
+        type_config = {
+            '3g': {'model': RF3G, 'required': ['antenna', 'azimuth']}, # RF 3G
+            '4g': {'model': RF4G, 'required': ['enodebid', 'pci']},    # RF 4G
+            '5g': {'model': RF5G, 'required': ['gnodeb_id', 'pci']},   # RF 5G
+            'kpi3g': {'model': KPI3G, 'required': ['traffic', 'cssr']}, # KPI 3G (Traffic/CSSR)
+            'kpi4g': {'model': KPI4G, 'required': ['traffic_vol_dl', 'erab_ssrate_all']}, # KPI 4G
+            'kpi5g': {'model': KPI5G, 'required': ['dl_traffic_volume_gb']} # KPI 5G
+        }
         
-        target_model = rf_models.get(import_type) or kpi_models.get(import_type)
-        if not target_model:
-            flash('Loại dữ liệu không hợp lệ', 'danger'); return redirect(url_for('import_data'))
+        config = type_config.get(import_type)
+        if not config:
+            flash('Loại import không hợp lệ', 'danger'); return redirect(url_for('import_data'))
 
-        total_files = len(files)
+        target_model = config['model']
+        required_cols = config['required']
         total_rows_imported = 0
         
         try:
             for file in files:
                 filename = file.filename
                 
-                # Hàm chuẩn hóa tên cột cho KPI (phức tạp hơn RF)
+                # Hàm chuẩn hóa tên cột
                 def clean_col(col_name):
                     col_name = str(col_name).strip()
-                    # Map đặc biệt cho KPI 5G (có khoảng trắng và đơn vị)
                     map_kpi = {
                         'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
                         'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
@@ -792,7 +827,6 @@ def import_data():
                         'Cell avaibility rate': 'cell_avaibility_rate',
                         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
                         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
-                        # Map cho RF
                         'Frenquency': 'frequency', 'Hãng_SX': 'hang_sx', 'Hãng SX': 'hang_sx', 
                         'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
                         'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'Đồng_bộ': 'dong_bo',
@@ -800,32 +834,48 @@ def import_data():
                         'Tên RNC': 'ten_rnc', 'Tên CELL': 'ten_cell', 'Mã VNP': 'ma_vnp', 'Loại NE': 'loai_ne',
                         'Tên GNODEB': 'ten_gnodeb', 'TRAFFIC': 'traffic', 'CSSR': 'cssr', 'DCR': 'dcr',
                         'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
-                        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable'
+                        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
+                        'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
+                        'PCI': 'pci'
                     }
                     if col_name in map_kpi: return map_kpi[col_name]
-                    
-                    # Quy tắc chung: lowercase, thay space/kí tự lạ bằng _
                     clean = col_name.lower()
                     clean = re.sub(r'[^a-z0-9_]', '_', clean)
                     return clean
 
-                valid_columns = [c.key for c in target_model.__table__.columns if c.key != 'id']
+                valid_db_columns = [c.key for c in target_model.__table__.columns if c.key != 'id']
 
-                # Xử lý đọc file (RF thường là Excel, KPI thường là CSV)
-                # Tuy nhiên, code hỗ trợ cả 2 cho mọi loại
+                # Đọc header trước để validate
                 if filename.lower().endswith('.csv'):
-                    chunk_size = 2000
-                    file.stream.seek(0)
-                    # KPI thường có header tiếng Việt phức tạp, pandas xử lý tốt
-                    for chunk in pd.read_csv(file, chunksize=chunk_size):
+                    df_header = pd.read_csv(file, nrows=0) # Chỉ đọc header
+                elif filename.lower().endswith(('.xls', '.xlsx')):
+                    df_header = pd.read_excel(file, nrows=0)
+                else:
+                    flash(f'Bỏ qua {filename}: Định dạng file không hỗ trợ', 'warning')
+                    continue
+
+                # Chuẩn hóa header file
+                file_cols = [clean_col(c) for c in df_header.columns]
+                
+                # VALIDATE: Kiểm tra cột bắt buộc
+                missing_cols = [req for req in required_cols if req not in file_cols]
+                if missing_cols:
+                    flash(f"LỖI FILE {filename}: Không đúng định dạng {import_type.upper()}. Thiếu cột: {', '.join(missing_cols)}", 'danger')
+                    continue # Bỏ qua file này, không import
+
+                # Reset file pointer để đọc data
+                file.stream.seek(0)
+
+                # Bắt đầu import
+                if filename.lower().endswith('.csv'):
+                    for chunk in pd.read_csv(file, chunksize=2000):
                         chunk.columns = [clean_col(c) for c in chunk.columns]
                         bulk_data = []
                         for row in chunk.to_dict(orient='records'):
-                            filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                            filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
-                            if filtered_row:
-                                bulk_data.append(filtered_row)
+                            if filtered_row: bulk_data.append(filtered_row)
                         
                         if bulk_data:
                             db.session.bulk_insert_mappings(target_model, bulk_data)
@@ -844,20 +894,18 @@ def import_data():
                         batch = records[i:i + batch_size]
                         bulk_data = []
                         for row in batch:
-                            filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                            filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
-                            if filtered_row:
-                                bulk_data.append(filtered_row)
+                            if filtered_row: bulk_data.append(filtered_row)
                         if bulk_data:
                             db.session.bulk_insert_mappings(target_model, bulk_data)
                             db.session.commit()
                             total_rows_imported += len(bulk_data)
                         gc.collect()
-                else:
-                    flash(f'Bỏ qua file {filename}: Định dạng không hỗ trợ', 'warning')
 
-            flash(f'Đã import tổng cộng {total_rows_imported} bản ghi từ {total_files} file!', 'success')
+            if total_rows_imported > 0:
+                flash(f'Đã import thành công {total_rows_imported} bản ghi!', 'success')
 
         except Exception as e:
             db.session.rollback()
@@ -866,7 +914,26 @@ def import_data():
 
         return redirect(url_for('import_data'))
 
-    return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import')
+    # Lấy danh sách ngày đã import KPI để hiển thị
+    imported_kpi_dates = []
+    try:
+        # Query distinct thoi_gian từ các bảng KPI
+        # Lưu ý: Cột 'thoi_gian' trong DB đang để String, nếu cần sort chuẩn thì nên convert
+        kpi3g_dates = db.session.query(KPI3G.thoi_gian).distinct().all()
+        for d in kpi3g_dates: imported_kpi_dates.append({'type': 'KPI 3G', 'date': d[0]})
+        
+        kpi4g_dates = db.session.query(KPI4G.thoi_gian).distinct().all()
+        for d in kpi4g_dates: imported_kpi_dates.append({'type': 'KPI 4G', 'date': d[0]})
+        
+        kpi5g_dates = db.session.query(KPI5G.thoi_gian).distinct().all()
+        for d in kpi5g_dates: imported_kpi_dates.append({'type': 'KPI 5G', 'date': d[0]})
+        
+        # Sắp xếp theo ngày (giả sử định dạng chuỗi dd/mm/yyyy)
+        imported_kpi_dates.sort(key=lambda x: x['date'] if x['date'] else '', reverse=True)
+    except Exception as e:
+        print(f"Error fetching dates: {e}")
+
+    return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import', imported_kpi_dates=imported_kpi_dates)
 
 @app.route('/profile')
 @login_required
