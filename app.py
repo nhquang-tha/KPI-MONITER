@@ -10,7 +10,8 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import text, func 
+from sqlalchemy import text, func
+from itertools import zip_longest # Thêm thư viện này
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -470,21 +471,23 @@ CONTENT_TEMPLATE = """
                     <div class="card h-100">
                         <div class="card-header bg-info text-white"><i class="fa-solid fa-calendar-check"></i> Dữ liệu KPI đã có</div>
                         <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
-                            <table class="table table-striped small mb-0">
-                                <thead>
+                            <table class="table table-bordered table-striped small mb-0 text-center">
+                                <thead class="table-light">
                                     <tr>
-                                        <th>Loại</th>
-                                        <th>Ngày dữ liệu</th>
+                                        <th>KPI 3G</th>
+                                        <th>KPI 4G</th>
+                                        <th>KPI 5G</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {% for item in imported_kpi_dates %}
+                                    {% for r3, r4, r5 in kpi_rows %}
                                     <tr>
-                                        <td><span class="badge bg-secondary">{{ item.type }}</span></td>
-                                        <td>{{ item.date }}</td>
+                                        <td class="{{ 'text-success fw-bold' if r3 else 'text-muted' }}">{{ r3 if r3 else '-' }}</td>
+                                        <td class="{{ 'text-success fw-bold' if r4 else 'text-muted' }}">{{ r4 if r4 else '-' }}</td>
+                                        <td class="{{ 'text-success fw-bold' if r5 else 'text-muted' }}">{{ r5 if r5 else '-' }}</td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="2" class="text-center text-muted">Chưa có dữ liệu</td></tr>
+                                    <tr><td colspan="3" class="text-center text-muted">Chưa có dữ liệu</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -947,25 +950,28 @@ def import_data():
         return redirect(url_for('import_data'))
 
     # Lấy danh sách ngày đã import KPI để hiển thị
-    imported_kpi_dates = []
+    dates_3g = []
+    dates_4g = []
+    dates_5g = []
     try:
-        # Query distinct thoi_gian từ các bảng KPI
-        # Lưu ý: Cột 'thoi_gian' trong DB đang để String, nếu cần sort chuẩn thì nên convert
-        kpi3g_dates = db.session.query(KPI3G.thoi_gian).distinct().all()
-        for d in kpi3g_dates: imported_kpi_dates.append({'type': 'KPI 3G', 'date': d[0]})
+        # Query distinct thoi_gian
+        # Cần tối ưu query nếu dữ liệu lớn (thêm index cho cột thoi_gian)
+        kpi3g_dates = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()
+        dates_3g = [d[0] for d in kpi3g_dates]
         
-        kpi4g_dates = db.session.query(KPI4G.thoi_gian).distinct().all()
-        for d in kpi4g_dates: imported_kpi_dates.append({'type': 'KPI 4G', 'date': d[0]})
+        kpi4g_dates = db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()
+        dates_4g = [d[0] for d in kpi4g_dates]
         
-        kpi5g_dates = db.session.query(KPI5G.thoi_gian).distinct().all()
-        for d in kpi5g_dates: imported_kpi_dates.append({'type': 'KPI 5G', 'date': d[0]})
+        kpi5g_dates = db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()
+        dates_5g = [d[0] for d in kpi5g_dates]
         
-        # Sắp xếp theo ngày (giả sử định dạng chuỗi dd/mm/yyyy)
-        imported_kpi_dates.sort(key=lambda x: x['date'] if x['date'] else '', reverse=True)
     except Exception as e:
         print(f"Error fetching dates: {e}")
 
-    return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import', imported_kpi_dates=imported_kpi_dates)
+    # Zip lists để hiển thị song song
+    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
+
+    return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import', kpi_rows=kpi_rows)
 
 @app.route('/profile')
 @login_required
