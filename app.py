@@ -1,8 +1,9 @@
 import os
 import jinja2
-import pandas as pd # Thêm thư viện xử lý dữ liệu
+import pandas as pd
+from io import BytesIO # Thêm thư viện xử lý file trong bộ nhớ
 from datetime import datetime
-from flask import Flask, render_template_string, request, redirect, url_for, flash
+from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -54,7 +55,7 @@ class RF3G(db.Model):
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     equipment = db.Column(db.String(50))
-    frequency = db.Column(db.String(50)) # Excel: Frenquency
+    frequency = db.Column(db.String(50))
     psc = db.Column(db.String(50))
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
@@ -64,11 +65,11 @@ class RF3G(db.Model):
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
     total_tilt = db.Column(db.Float)
-    hang_sx = db.Column(db.String(50)) # Excel: Hãng_SX
+    hang_sx = db.Column(db.String(50))
     antena = db.Column(db.String(100))
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255)) # Excel: Ghi_chú
+    ghi_chu = db.Column(db.String(255))
 
 class RF4G(db.Model):
     __tablename__ = 'rf_4g'
@@ -84,7 +85,7 @@ class RF4G(db.Model):
     dl_uarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
-    enodeb_id = db.Column(db.String(50)) # Excel: ENodeBID
+    enodeb_id = db.Column(db.String(50))
     lcrid = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
     azimuth = db.Column(db.Integer)
@@ -102,7 +103,7 @@ class RF5G(db.Model):
     __tablename__ = 'rf_5g'
     id = db.Column(db.Integer, primary_key=True)
     csht_code = db.Column(db.String(50))
-    site_name = db.Column(db.String(100)) # Excel: SITE_NAME
+    site_name = db.Column(db.String(100))
     cell_code = db.Column(db.String(50))
     site_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
@@ -112,7 +113,7 @@ class RF5G(db.Model):
     nrarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
-    gnodeb_id = db.Column(db.String(50)) # Excel: gNodeB ID
+    gnodeb_id = db.Column(db.String(50))
     lcrid = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
     azimuth = db.Column(db.Integer)
@@ -122,7 +123,7 @@ class RF5G(db.Model):
     mimo = db.Column(db.String(50))
     hang_sx = db.Column(db.String(50))
     antena = db.Column(db.String(100))
-    dong_bo = db.Column(db.String(50)) # Excel: Đồng_bộ
+    dong_bo = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
 
@@ -130,42 +131,30 @@ class RF5G(db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# --- KHỞI TẠO DB (LOGIC MỚI: PROBE & RESET) ---
+# --- KHỞI TẠO DB ---
 def init_database():
     with app.app_context():
         try:
-            # 1. Tạo bảng nếu chưa có (lệnh này sẽ bỏ qua nếu bảng đã tồn tại)
             db.create_all()
-            
-            # 2. KIỂM TRA MẠNH: Thử select cột password_hash
-            # Nếu bảng cũ không có cột này, lệnh sẽ sinh lỗi Exception ngay
             try:
                 db.session.execute(text("SELECT password_hash FROM user LIMIT 1"))
-                # Kiểm tra thêm bảng RF (nếu cần)
-                print(">>> Cấu trúc Database hợp lệ.")
             except Exception:
-                print(">>> CẢNH BÁO: Database cũ hoặc thiếu cột. Đang Reset Database...")
-                db.session.rollback() # Rollback transaction bị lỗi
-                # Lưu ý: drop_all sẽ xóa cả dữ liệu cũ. Cẩn thận khi dùng trên production thật.
+                db.session.rollback()
                 db.drop_all()         
                 db.create_all()       
-                print(">>> Đã tạo lại Database mới thành công!")
+                print(">>> Đã Reset Database thành công!")
 
-            # 3. Tạo Admin nếu chưa có (sau khi đã đảm bảo bảng đúng chuẩn)
             if not User.query.filter_by(username='admin').first():
                 admin = User(username='admin', role='admin')
                 admin.set_password('admin123')
                 db.session.add(admin)
                 db.session.commit()
-                print(">>> Đã tạo Admin mặc định: admin / admin123")
-                
         except Exception as e:
             print(f"LỖI KHỞI TẠO DB: {e}")
 
-# Gọi hàm này ngay khi file được import
 init_database()
 
-# --- TEMPLATES (GIỮ NGUYÊN GIAO DIỆN CŨ) ---
+# --- TEMPLATES ---
 
 BASE_LAYOUT = """
 <!DOCTYPE html>
@@ -268,49 +257,78 @@ CONTENT_TEMPLATE = """
             </div>
             <hr><p>Chào mừng <strong>{{ current_user.username }}</strong>!</p>
         
+        {% elif active_page == 'rf' %}
+            <div class="mb-3 d-flex justify-content-between">
+                <div class="btn-group">
+                    <a href="/rf?tech=3g" class="btn btn-{{ 'primary' if current_tech == '3g' else 'outline-primary' }}">3G</a>
+                    <a href="/rf?tech=4g" class="btn btn-{{ 'primary' if current_tech == '4g' else 'outline-primary' }}">4G</a>
+                    <a href="/rf?tech=5g" class="btn btn-{{ 'primary' if current_tech == '5g' else 'outline-primary' }}">5G</a>
+                </div>
+                <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-excel"></i> Xuất Excel {{ current_tech.upper() }}</a>
+            </div>
+
+            <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+                <table class="table table-sm table-bordered table-hover small">
+                    <thead class="table-light position-sticky top-0 shadow-sm">
+                        <tr>
+                            <th>CSHT Code</th>
+                            <th>{{ 'Site Name' if current_tech == '5g' else 'Cell Name' }}</th>
+                            <th>Cell Code</th>
+                            <th>Site Code</th>
+                            <th>Long</th>
+                            <th>Lat</th>
+                            <th>Freq</th>
+                            <th>Azimuth</th>
+                            <th>Tilt</th>
+                            <th>Antenna</th>
+                            <th>Ghi chú</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rf_data %}
+                        <tr>
+                            <td>{{ row.csht_code }}</td>
+                            <td>{{ row.site_name if current_tech == '5g' else row.cell_name }}</td>
+                            <td>{{ row.cell_code }}</td>
+                            <td>{{ row.site_code }}</td>
+                            <td>{{ row.longitude }}</td>
+                            <td>{{ row.latitude }}</td>
+                            <td>{{ row.frequency }}</td>
+                            <td>{{ row.azimuth }}</td>
+                            <td>{{ row.total_tilt }}</td>
+                            <td>{{ row.antena }}</td>
+                            <td>{{ row.ghi_chu }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="11" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="text-muted small mt-2 fst-italic">Hiển thị tối đa 500 bản ghi trên web. Để xem đầy đủ, vui lòng chọn "Xuất Excel".</div>
+            </div>
+
         {% elif active_page == 'import' %}
             <ul class="nav nav-tabs" id="importTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="rf3g-tab" data-bs-toggle="tab" data-bs-target="#rf3g" type="button" role="tab">Import RF 3G</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="rf4g-tab" data-bs-toggle="tab" data-bs-target="#rf4g" type="button" role="tab">Import RF 4G</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="rf5g-tab" data-bs-toggle="tab" data-bs-target="#rf5g" type="button" role="tab">Import RF 5G</button>
-                </li>
+                <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rf3g">Import RF 3G</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf4g">Import RF 4G</button></li>
+                <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf5g">Import RF 5G</button></li>
             </ul>
-            <div class="tab-content p-4 border border-top-0 rounded-bottom" id="importTabsContent">
-                <!-- Tab 3G -->
-                <div class="tab-pane fade show active" id="rf3g" role="tabpanel">
-                    <h5>Upload dữ liệu RF 3G</h5>
+            <div class="tab-content p-4 border border-top-0 rounded-bottom">
+                <div class="tab-pane fade show active" id="rf3g">
                     <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label>
-                            <input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required>
-                        </div>
+                        <div class="mb-3"><label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
                     </form>
                 </div>
-                <!-- Tab 4G -->
-                <div class="tab-pane fade" id="rf4g" role="tabpanel">
-                    <h5>Upload dữ liệu RF 4G</h5>
+                <div class="tab-pane fade" id="rf4g">
                     <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label>
-                            <input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required>
-                        </div>
+                        <div class="mb-3"><label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
                     </form>
                 </div>
-                <!-- Tab 5G -->
-                <div class="tab-pane fade" id="rf5g" role="tabpanel">
-                    <h5>Upload dữ liệu RF 5G</h5>
+                <div class="tab-pane fade" id="rf5g">
                     <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label>
-                            <input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required>
-                        </div>
+                        <div class="mb-3"><label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
                     </form>
                 </div>
@@ -370,12 +388,9 @@ PROFILE_TEMPLATE = """
 {% endblock %}
 """
 
-# --- CẤU HÌNH LOADER TEMPLATE ẢO (KHẮC PHỤC LỖI BLOCK DEFINED TWICE) ---
-# Tạo một bộ nhớ chứa template, cho phép Jinja2 hiểu kế thừa 'base' từ biến BASE_LAYOUT
 app.jinja_loader = jinja2.DictLoader({'base': BASE_LAYOUT})
 
 def render_page(tpl, **kwargs):
-    # Không cần thay thế chuỗi thủ công nữa, Jinja2 sẽ tự resolve {% extends "base" %}
     return render_template_string(tpl, **kwargs)
 
 # --- ROUTES ---
@@ -404,9 +419,42 @@ def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page
 @app.route('/kpi')
 @login_required
 def kpi(): return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi')
+
 @app.route('/rf')
 @login_required
-def rf(): return render_page(CONTENT_TEMPLATE, title="RF", active_page='rf')
+def rf():
+    tech = request.args.get('tech', '3g')
+    action = request.args.get('action')
+    
+    # Map tech to Database Model
+    model_map = {'3g': RF3G, '4g': RF4G, '5g': RF5G}
+    CurrentModel = model_map.get(tech, RF3G)
+    
+    if action == 'export':
+        # Lấy toàn bộ dữ liệu để xuất file
+        records = CurrentModel.query.all()
+        # Chuyển đổi SQLAlchemy objects sang List of Dictionaries
+        data_list = []
+        for r in records:
+            row = r.__dict__.copy()
+            row.pop('_sa_instance_state', None) # Xóa key nội bộ của SQLAlchemy
+            data_list.append(row)
+        
+        df = pd.DataFrame(data_list)
+        
+        # Xuất file Excel vào bộ nhớ (không lưu vào ổ cứng)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name=f'RF_{tech.upper()}')
+        output.seek(0)
+        
+        return send_file(output, download_name=f'RF_{tech.upper()}_Full_List.xlsx', as_attachment=True)
+
+    # Nếu không phải export, thì lấy 500 dòng đầu để hiển thị web cho nhẹ
+    data = CurrentModel.query.limit(500).all()
+    
+    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, current_tech=tech)
+
 @app.route('/poi')
 @login_required
 def poi(): return render_page(CONTENT_TEMPLATE, title="POI", active_page='poi')
