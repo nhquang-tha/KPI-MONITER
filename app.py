@@ -175,6 +175,8 @@ BASE_LAYOUT = """
         .card { border: none; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); background: white; margin-bottom: 20px; }
         .card-header { background-color: white; border-bottom: 1px solid #f0f0f0; padding: 15px 20px; font-weight: bold; color: #444; }
         @media (max-width: 768px) { .sidebar { margin-left: -250px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; } }
+        /* Table Actions */
+        .btn-action { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
     </style>
 </head>
 <body>
@@ -262,13 +264,17 @@ CONTENT_TEMPLATE = """
                     <a href="/rf?tech=4g" class="btn btn-{{ 'primary' if current_tech == '4g' else 'outline-primary' }}">4G</a>
                     <a href="/rf?tech=5g" class="btn btn-{{ 'primary' if current_tech == '5g' else 'outline-primary' }}">5G</a>
                 </div>
-                <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV) {{ current_tech.upper() }}</a>
+                <div>
+                    <a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary me-2"><i class="fa-solid fa-plus"></i> Thêm mới</a>
+                    <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV)</a>
+                </div>
             </div>
 
             <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
                 <table class="table table-sm table-bordered table-hover small">
                     <thead class="table-light position-sticky top-0 shadow-sm">
                         <tr>
+                            <th class="text-center" style="width: 100px;">Hành động</th>
                             <th>CSHT Code</th>
                             <th>{{ 'Site Name' if current_tech == '5g' else 'Cell Name' }}</th>
                             <th>Cell Code</th>
@@ -285,6 +291,11 @@ CONTENT_TEMPLATE = """
                     <tbody>
                         {% for row in rf_data %}
                         <tr>
+                            <td class="text-center">
+                                <a href="/rf/detail/{{ current_tech }}/{{ row.id }}" class="btn btn-info btn-action text-white" title="Chi tiết"><i class="fa-solid fa-eye"></i></a>
+                                <a href="/rf/edit/{{ current_tech }}/{{ row.id }}" class="btn btn-warning btn-action text-white" title="Sửa"><i class="fa-solid fa-pen-to-square"></i></a>
+                                <a href="/rf/delete/{{ current_tech }}/{{ row.id }}" class="btn btn-danger btn-action" title="Xóa" onclick="return confirm('Bạn có chắc muốn xóa bản ghi này?')"><i class="fa-solid fa-trash"></i></a>
+                            </td>
                             <td>{{ row.csht_code }}</td>
                             <td>{{ row.site_name if current_tech == '5g' else row.cell_name }}</td>
                             <td>{{ row.cell_code }}</td>
@@ -298,7 +309,7 @@ CONTENT_TEMPLATE = """
                             <td>{{ row.ghi_chu }}</td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="11" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên.</td></tr>
+                        <tr><td colspan="12" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên hoặc nhấn Thêm mới.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -386,6 +397,68 @@ PROFILE_TEMPLATE = """
 {% endblock %}
 """
 
+# Template cho Form Thêm/Sửa (Sinh động)
+RF_FORM_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="h5">{{ title }}</span>
+        <a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm float-end">Quay lại</a>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                {% for col in columns %}
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-uppercase text-muted">{{ col }}</label>
+                    <input type="text" name="{{ col }}" class="form-control" 
+                           value="{{ obj[col] if obj and obj[col] is not none else '' }}">
+                </div>
+                {% endfor %}
+            </div>
+            <hr>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary px-4"><i class="fa-solid fa-save"></i> Lưu lại</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+"""
+
+# Template cho Xem Chi Tiết
+RF_DETAIL_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="h5">Chi tiết bản ghi RF {{ tech.upper() }} #{{ obj.id }}</span>
+        <div class="float-end">
+            <a href="/rf/edit/{{ tech }}/{{ obj.id }}" class="btn btn-warning btn-sm text-white"><i class="fa-solid fa-pen"></i> Sửa</a>
+            <a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm">Quay lại</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <tbody>
+                    {% for col, val in obj.items() %}
+                        {% if col != '_sa_instance_state' %}
+                        <tr>
+                            <th class="bg-light" style="width: 30%">{{ col.upper() }}</th>
+                            <td>{{ val if val is not none else '' }}</td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
 app.jinja_loader = jinja2.DictLoader({'base': BASE_LAYOUT})
 
 def render_page(tpl, **kwargs):
@@ -458,6 +531,100 @@ def rf():
     # Hiển thị web: Limit 500
     data = CurrentModel.query.limit(500).all()
     return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, current_tech=tech)
+
+# --- ROUTES: THÊM / SỬA / XÓA / CHI TIẾT RF ---
+
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
+def rf_add():
+    tech = request.args.get('tech', '3g')
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
+    if not model_class:
+        flash('Công nghệ không hợp lệ', 'danger')
+        return redirect(url_for('rf'))
+    
+    if request.method == 'POST':
+        try:
+            # Lấy dữ liệu từ form, bỏ qua 'id'
+            data = {}
+            for col in model_class.__table__.columns:
+                if col.key == 'id': continue
+                val = request.form.get(col.key)
+                # Chuyển chuỗi rỗng thành None
+                if val == '': val = None
+                data[col.key] = val
+            
+            new_obj = model_class(**data)
+            db.session.add(new_obj)
+            db.session.commit()
+            flash('Thêm mới thành công!', 'success')
+            return redirect(url_for('rf', tech=tech))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi thêm mới: {str(e)}', 'danger')
+
+    columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Thêm mới RF {tech.upper()}", columns=columns, tech=tech, obj=None)
+
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def rf_edit(tech, id):
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not model_class: return redirect(url_for('rf'))
+
+    obj = db.session.get(model_class, id)
+    if not obj:
+        flash('Không tìm thấy bản ghi', 'danger')
+        return redirect(url_for('rf', tech=tech))
+
+    if request.method == 'POST':
+        try:
+            for col in model_class.__table__.columns:
+                if col.key == 'id': continue
+                val = request.form.get(col.key)
+                if val == '': val = None
+                setattr(obj, col.key, val)
+            
+            db.session.commit()
+            flash('Cập nhật thành công!', 'success')
+            return redirect(url_for('rf', tech=tech))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi cập nhật: {str(e)}', 'danger')
+
+    # Convert object to dict for template
+    obj_dict = obj.__dict__
+    columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=columns, tech=tech, obj=obj_dict)
+
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if model_class:
+        obj = db.session.get(model_class, id)
+        if obj:
+            db.session.delete(obj)
+            db.session.commit()
+            flash('Đã xóa bản ghi thành công', 'success')
+        else:
+            flash('Không tìm thấy bản ghi', 'warning')
+    return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not model_class: return redirect(url_for('rf'))
+    
+    obj = db.session.get(model_class, id)
+    if not obj:
+        flash('Không tìm thấy bản ghi', 'danger')
+        return redirect(url_for('rf', tech=tech))
+        
+    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
+
 
 @app.route('/poi')
 @login_required
