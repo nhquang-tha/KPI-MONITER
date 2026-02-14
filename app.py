@@ -4,6 +4,7 @@ from flask import Flask, render_template_string, request, redirect, url_for, fla
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.exc import OperationalError
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -41,20 +42,38 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# --- KHỞI TẠO DB (QUAN TRỌNG: Đặt ở đây để Render chạy được) ---
+# --- KHỞI TẠO DB (TỰ ĐỘNG SỬA LỖI SCHEMA CŨ) ---
 def init_database():
-    try:
-        with app.app_context():
+    with app.app_context():
+        try:
+            # Bước 1: Tạo bảng nếu chưa tồn tại
             db.create_all()
-            # Tạo admin nếu chưa có
+            
+            # Bước 2: Kiểm tra xem bảng hiện tại có khớp với Model không
+            try:
+                # Thử query cột password_hash. Nếu bảng cũ thiếu cột này, lệnh này sẽ lỗi ngay.
+                User.query.first()
+            except OperationalError as e:
+                # Mã lỗi 1054 là "Unknown column" (MySQL) hoặc "no such column" (SQLite)
+                if "1054" in str(e) or "no such column" in str(e):
+                    print(">>> CẢNH BÁO: Phát hiện cấu trúc bảng cũ không tương thích.")
+                    print(">>> Đang tự động xóa bảng cũ và tạo lại bảng mới...")
+                    db.drop_all() # Xóa toàn bộ bảng cũ
+                    db.create_all() # Tạo lại bảng mới đúng chuẩn
+                    print(">>> Đã cập nhật Database thành công!")
+                else:
+                    raise e # Nếu là lỗi kết nối khác thì báo lỗi ra
+
+            # Bước 3: Tạo Admin nếu chưa có
             if not User.query.filter_by(username='admin').first():
                 admin = User(username='admin', role='admin')
                 admin.set_password('admin123')
                 db.session.add(admin)
                 db.session.commit()
                 print(">>> Đã tạo Admin mặc định: admin / admin123")
-    except Exception as e:
-        print(f"LỖI KHỞI TẠO DB: {e}")
+                
+        except Exception as e:
+            print(f"LỖI KHỞI TẠO DB: {e}")
 
 # Gọi hàm này ngay khi file được import
 init_database()
