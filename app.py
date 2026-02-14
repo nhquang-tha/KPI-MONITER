@@ -4,7 +4,7 @@ from flask import Flask, render_template_string, request, redirect, url_for, fla
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import inspect # Thêm thư viện để kiểm tra cấu trúc bảng
+from sqlalchemy import text # Thay đổi: Dùng text để query kiểm tra trực tiếp
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -42,29 +42,26 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# --- KHỞI TẠO DB (LOGIC MỚI: KIỂM TRA SCHEMA CỨNG) ---
+# --- KHỞI TẠO DB (LOGIC MỚI: PROBE & RESET) ---
 def init_database():
     with app.app_context():
         try:
-            inspector = inspect(db.engine)
-            # Kiểm tra xem bảng 'user' đã tồn tại chưa
-            if inspector.has_table("user"):
-                # Lấy danh sách các cột hiện có trong bảng user
-                columns = [col['name'] for col in inspector.get_columns("user")]
-                
-                # Nếu bảng cũ không có cột 'password_hash' -> Xóa đi làm lại
-                if "password_hash" not in columns:
-                    print(">>> PHÁT HIỆN DB CŨ (Thiếu cột password_hash). Đang cập nhật...")
-                    db.drop_all()
-                    db.create_all()
-                    print(">>> Đã xóa bảng cũ và tạo bảng mới thành công!")
-                else:
-                    print(">>> Cấu trúc Database hợp lệ.")
-            else:
-                # Chưa có bảng nào -> Tạo mới
-                db.create_all()
+            # 1. Tạo bảng nếu chưa có (lệnh này sẽ bỏ qua nếu bảng đã tồn tại)
+            db.create_all()
+            
+            # 2. KIỂM TRA MẠNH: Thử select cột password_hash
+            # Nếu bảng cũ không có cột này, lệnh sẽ sinh lỗi Exception ngay
+            try:
+                db.session.execute(text("SELECT password_hash FROM user LIMIT 1"))
+                print(">>> Cấu trúc Database hợp lệ.")
+            except Exception:
+                print(">>> CẢNH BÁO: Bảng 'user' cũ thiếu cột 'password_hash'. Đang Reset Database...")
+                db.session.rollback() # Rollback transaction bị lỗi
+                db.drop_all()         # Xóa toàn bộ bảng cũ
+                db.create_all()       # Tạo lại bảng mới đúng chuẩn
+                print(">>> Đã tạo lại Database mới thành công!")
 
-            # Tạo Admin nếu chưa có
+            # 3. Tạo Admin nếu chưa có (sau khi đã đảm bảo bảng đúng chuẩn)
             if not User.query.filter_by(username='admin').first():
                 admin = User(username='admin', role='admin')
                 admin.set_password('admin123')
