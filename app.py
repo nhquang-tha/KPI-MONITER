@@ -407,19 +407,28 @@ CONTENT_TEMPLATE = """
                         <div class="tab-pane fade show active" id="rf3g">
                             <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 3G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
+                                    <a href="/rf/reset?type=3g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 3G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 3G</a>
+                                </div>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="rf4g">
                             <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 4G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
+                                    <a href="/rf/reset?type=4g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 4G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 4G</a>
+                                </div>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="rf5g">
                             <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 5G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                                    <a href="/rf/reset?type=5g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 5G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 5G</a>
+                                </div>
                             </form>
                         </div>
                         
@@ -752,6 +761,29 @@ def rf_delete(tech, id):
         else:
             flash('Không tìm thấy bản ghi', 'warning')
     return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/reset')
+@login_required
+def rf_reset():
+    tech = request.args.get('type') # 3g, 4g, 5g
+    if current_user.role != 'admin':
+        flash('Chỉ Admin mới có quyền xóa toàn bộ dữ liệu!', 'danger')
+        return redirect(url_for('import_data'))
+
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
+    if model_class:
+        try:
+            db.session.query(model_class).delete()
+            db.session.commit()
+            flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()} thành công!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi xóa dữ liệu: {str(e)}', 'danger')
+    else:
+        flash('Loại dữ liệu không hợp lệ', 'danger')
+        
+    return redirect(url_for('import_data'))
 
 @app.route('/rf/detail/<tech>/<int:id>')
 @login_required
