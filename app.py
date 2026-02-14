@@ -1,10 +1,11 @@
 import os
+import jinja2 # Thêm thư viện này
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text # Thay đổi: Dùng text để query kiểm tra trực tiếp
+from sqlalchemy import text 
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -231,7 +232,13 @@ PROFILE_TEMPLATE = """
 {% endblock %}
 """
 
-def render_page(tpl, **kwargs): return render_template_string(tpl.replace('{% extends "base" %}', BASE_LAYOUT), **kwargs)
+# --- CẤU HÌNH LOADER TEMPLATE ẢO (KHẮC PHỤC LỖI BLOCK DEFINED TWICE) ---
+# Tạo một bộ nhớ chứa template, cho phép Jinja2 hiểu kế thừa 'base' từ biến BASE_LAYOUT
+app.jinja_loader = jinja2.DictLoader({'base': BASE_LAYOUT})
+
+def render_page(tpl, **kwargs):
+    # Không cần thay thế chuỗi thủ công nữa, Jinja2 sẽ tự resolve {% extends "base" %}
+    return render_template_string(tpl, **kwargs)
 
 # --- ROUTES ---
 @app.route('/login', methods=['GET', 'POST'])
