@@ -4,7 +4,7 @@ from flask import Flask, render_template_string, request, redirect, url_for, fla
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy.exc import OperationalError
+from sqlalchemy import inspect # Thêm thư viện để kiểm tra cấu trúc bảng
 
 # --- CẤU HÌNH APP ---
 app = Flask(__name__)
@@ -42,29 +42,29 @@ class User(UserMixin, db.Model):
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# --- KHỞI TẠO DB (TỰ ĐỘNG SỬA LỖI SCHEMA CŨ) ---
+# --- KHỞI TẠO DB (LOGIC MỚI: KIỂM TRA SCHEMA CỨNG) ---
 def init_database():
     with app.app_context():
         try:
-            # Bước 1: Tạo bảng nếu chưa tồn tại
-            db.create_all()
-            
-            # Bước 2: Kiểm tra xem bảng hiện tại có khớp với Model không
-            try:
-                # Thử query cột password_hash. Nếu bảng cũ thiếu cột này, lệnh này sẽ lỗi ngay.
-                User.query.first()
-            except OperationalError as e:
-                # Mã lỗi 1054 là "Unknown column" (MySQL) hoặc "no such column" (SQLite)
-                if "1054" in str(e) or "no such column" in str(e):
-                    print(">>> CẢNH BÁO: Phát hiện cấu trúc bảng cũ không tương thích.")
-                    print(">>> Đang tự động xóa bảng cũ và tạo lại bảng mới...")
-                    db.drop_all() # Xóa toàn bộ bảng cũ
-                    db.create_all() # Tạo lại bảng mới đúng chuẩn
-                    print(">>> Đã cập nhật Database thành công!")
+            inspector = inspect(db.engine)
+            # Kiểm tra xem bảng 'user' đã tồn tại chưa
+            if inspector.has_table("user"):
+                # Lấy danh sách các cột hiện có trong bảng user
+                columns = [col['name'] for col in inspector.get_columns("user")]
+                
+                # Nếu bảng cũ không có cột 'password_hash' -> Xóa đi làm lại
+                if "password_hash" not in columns:
+                    print(">>> PHÁT HIỆN DB CŨ (Thiếu cột password_hash). Đang cập nhật...")
+                    db.drop_all()
+                    db.create_all()
+                    print(">>> Đã xóa bảng cũ và tạo bảng mới thành công!")
                 else:
-                    raise e # Nếu là lỗi kết nối khác thì báo lỗi ra
+                    print(">>> Cấu trúc Database hợp lệ.")
+            else:
+                # Chưa có bảng nào -> Tạo mới
+                db.create_all()
 
-            # Bước 3: Tạo Admin nếu chưa có
+            # Tạo Admin nếu chưa có
             if not User.query.filter_by(username='admin').first():
                 admin = User(username='admin', role='admin')
                 admin.set_password('admin123')
