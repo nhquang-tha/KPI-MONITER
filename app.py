@@ -487,10 +487,7 @@ def import_data():
 
         try:
             filename = file.filename
-            if filename.endswith('.csv'): df = pd.read_csv(file)
-            elif filename.endswith(('.xls', '.xlsx')): df = pd.read_excel(file)
-            else: flash('Chỉ hỗ trợ file .csv hoặc .xlsx', 'danger'); return redirect(url_for('import_data'))
-
+            
             # Map cột
             column_map = {'Frenquency': 'frequency', 'Hãng_SX': 'hang_sx', 'Ghi_chú': 'ghi_chu', 'Ghi_chu': 'ghi_chu', 
                           'Hãng SX': 'hang_sx', 'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 
@@ -498,43 +495,68 @@ def import_data():
             def clean_col(col_name):
                 col_name = str(col_name).strip()
                 return column_map.get(col_name, col_name.lower().replace(' ', '_'))
-            df.columns = [clean_col(c) for c in df.columns]
 
             model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(import_type)
-            
-            if model_class:
-                valid_columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
-                
-                # BATCH INSERT: Chèn từng 500 dòng để tiết kiệm RAM
-                objects_to_add = []
-                count = 0
-                for _, row in df.iterrows():
-                    filtered_row = {k: v for k, v in row.to_dict().items() if k in valid_columns}
-                    for k, v in filtered_row.items():
-                        if pd.isna(v): filtered_row[k] = None
-                    
-                    objects_to_add.append(model_class(**filtered_row))
-                    
-                    if len(objects_to_add) >= 500:
-                        db.session.add_all(objects_to_add)
-                        db.session.commit()
-                        count += len(objects_to_add)
-                        objects_to_add = [] # Giải phóng list
-                        gc.collect() # Ép dọn bộ nhớ
+            if not model_class:
+                 flash('Loại dữ liệu không hợp lệ', 'danger'); return redirect(url_for('import_data'))
 
-                # Chèn nốt số dư còn lại
-                if objects_to_add:
-                    db.session.add_all(objects_to_add)
-                    db.session.commit()
-                    count += len(objects_to_add)
+            valid_columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
+            
+            total_imported = 0
+
+            # Xử lý file
+            if filename.endswith('.csv'):
+                # Đọc CSV theo chunk để tiết kiệm RAM
+                chunk_size = 1000
+                file.stream.seek(0)
                 
-                flash(f'Đã import thành công {count} bản ghi!', 'success')
+                for chunk in pd.read_csv(file, chunksize=chunk_size):
+                    chunk.columns = [clean_col(c) for c in chunk.columns]
+                    
+                    bulk_data = []
+                    for row in chunk.to_dict(orient='records'):
+                        filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                        for k, v in filtered_row.items():
+                            if pd.isna(v): filtered_row[k] = None
+                        bulk_data.append(filtered_row)
+                    
+                    if bulk_data:
+                        db.session.bulk_insert_mappings(model_class, bulk_data)
+                        db.session.commit()
+                        total_imported += len(bulk_data)
+                    
+                    del chunk
+                    gc.collect()
+
+            elif filename.endswith(('.xls', '.xlsx')):
+                # Excel không hỗ trợ chunking tốt, đọc hết nhưng xử lý bulk insert để nhanh hơn
+                df = pd.read_excel(file)
+                df.columns = [clean_col(c) for c in df.columns]
                 
-                # Dọn dẹp DataFrame
-                del df
+                records = df.to_dict(orient='records')
+                del df # Giải phóng DF gốc
                 gc.collect()
+                
+                batch_size = 1000
+                for i in range(0, len(records), batch_size):
+                    batch = records[i:i + batch_size]
+                    bulk_data = []
+                    for row in batch:
+                        filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                        for k, v in filtered_row.items():
+                            if pd.isna(v): filtered_row[k] = None
+                        bulk_data.append(filtered_row)
+                    
+                    if bulk_data:
+                        db.session.bulk_insert_mappings(model_class, bulk_data)
+                        db.session.commit()
+                        total_imported += len(bulk_data)
+                    
+                    gc.collect()
             else:
-                flash('Loại dữ liệu không hợp lệ', 'danger')
+                flash('Chỉ hỗ trợ file .csv hoặc .xlsx', 'danger'); return redirect(url_for('import_data'))
+
+            flash(f'Đã import thành công {total_imported} bản ghi!', 'success')
 
         except Exception as e:
             db.session.rollback()
