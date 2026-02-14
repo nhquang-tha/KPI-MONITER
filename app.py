@@ -1039,14 +1039,14 @@ def conges_3g():
     results = []
     if congested_cells:
         # Chuẩn hóa tên cell nếu cần (ví dụ bỏ khoảng trắng thừa)
-        # Ở đây giả sử tên trong KPI và RF khớp nhau
-        rf_info = RF3G.query.filter(RF3G.cell_name.in_(congested_cells)).all()
-        rf_map = {r.cell_name: r for r in rf_info}
+        # SỬ DỤNG CELL_CODE để map (theo yêu cầu mới) thay vì cell_name
+        rf_info = RF3G.query.filter(RF3G.cell_code.in_(congested_cells)).all()
+        rf_map = {r.cell_code: r for r in rf_info}
         
         for cell in congested_cells:
             rf = rf_map.get(cell)
             results.append({
-                'cell_name': cell,
+                'cell_name': cell, # Đây là tên cell từ KPI (khớp với cell_code bên RF)
                 'rf_id': rf.id if rf else '#',
                 'site_code': rf.site_code if rf else 'N/A',
                 'csht': rf.csht_code if rf else 'N/A',
