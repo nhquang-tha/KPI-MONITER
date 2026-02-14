@@ -926,7 +926,7 @@ def import_data():
         # Các cột này PHẢI xuất hiện trong file để được coi là hợp lệ
         type_config = {
             '3g': {'model': RF3G, 'required': ['antena', 'azimuth']}, # RF 3G
-            '4g': {'model': RF4G, 'required': ['enodebid', 'pci']},    # RF 4G
+            '4g': {'model': RF4G, 'required': ['enodeb_id', 'pci']},    # RF 4G
             '5g': {'model': RF5G, 'required': ['gnodeb_id', 'pci']},   # RF 5G
             'kpi3g': {'model': KPI3G, 'required': ['traffic', 'cssr']}, # KPI 3G (Traffic/CSSR)
             'kpi4g': {'model': KPI4G, 'required': ['traffic_vol_dl', 'erab_ssrate_all']}, # KPI 4G
