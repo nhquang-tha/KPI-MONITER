@@ -2,6 +2,7 @@ import os
 import jinja2
 import pandas as pd
 import gc # Thư viện quản lý bộ nhớ
+import re # Thư viện xử lý chuỗi Regular Expression
 from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
@@ -126,6 +127,75 @@ class RF5G(db.Model):
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
 
+# --- MODELS (KPI DATA) ---
+class KPI3G(db.Model):
+    __tablename__ = 'kpi_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    stt = db.Column(db.String(50))
+    nha_cung_cap = db.Column(db.String(50))
+    tinh = db.Column(db.String(50))
+    ten_rnc = db.Column(db.String(100))
+    ten_cell = db.Column(db.String(100))
+    ma_vnp = db.Column(db.String(50))
+    loai_ne = db.Column(db.String(50))
+    lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+    thoi_gian = db.Column(db.String(50))
+    # Metrics chính (Lấy theo file mẫu)
+    traffic = db.Column(db.Float)
+    cssr = db.Column(db.Float)
+    dcr = db.Column(db.Float)
+    ps_cssr = db.Column(db.Float)
+    ps_dcr = db.Column(db.Float)
+    hsdpa_throughput = db.Column(db.Float)
+    hsupa_throughput = db.Column(db.Float)
+    # Có thể thêm các trường khác nếu cần thiết (CS_SO_ATT, v.v.)
+
+class KPI4G(db.Model):
+    __tablename__ = 'kpi_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    stt = db.Column(db.String(50))
+    nha_cung_cap = db.Column(db.String(50))
+    tinh = db.Column(db.String(50))
+    ten_rnc = db.Column(db.String(100))
+    ten_cell = db.Column(db.String(100))
+    ma_vnp = db.Column(db.String(50))
+    loai_ne = db.Column(db.String(50))
+    enodeb_id = db.Column(db.String(50))
+    cell_id = db.Column(db.String(50))
+    thoi_gian = db.Column(db.String(50))
+    # Metrics chính
+    traffic_vol_dl = db.Column(db.Float)
+    traffic_vol_ul = db.Column(db.Float)
+    cell_dl_avg_thputs = db.Column(db.Float)
+    cell_ul_avg_thput = db.Column(db.Float)
+    user_dl_avg_thput = db.Column(db.Float)
+    user_ul_avg_thput = db.Column(db.Float)
+    erab_ssrate_all = db.Column(db.Float)
+    service_drop_all = db.Column(db.Float)
+    unvailable = db.Column(db.Float) # Cell Availability
+
+class KPI5G(db.Model):
+    __tablename__ = 'kpi_5g'
+    id = db.Column(db.Integer, primary_key=True)
+    nha_cung_cap = db.Column(db.String(50))
+    tinh = db.Column(db.String(50))
+    ten_gnodeb = db.Column(db.String(100))
+    ten_cell = db.Column(db.String(100))
+    ma_vnp = db.Column(db.String(50))
+    loai_ne = db.Column(db.String(50))
+    gnodeb_id = db.Column(db.String(50))
+    cell_id = db.Column(db.String(50))
+    thoi_gian = db.Column(db.String(50))
+    # Metrics chính
+    dl_traffic_volume_gb = db.Column(db.Float)
+    ul_traffic_volume_gb = db.Column(db.Float)
+    cell_downlink_average_throughput = db.Column(db.Float)
+    cell_uplink_average_throughput = db.Column(db.Float)
+    cell_avaibility_rate = db.Column(db.Float)
+    sgnb_addition_success_rate = db.Column(db.Float)
+    sgnb_abnormal_release_rate = db.Column(db.Float)
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -135,9 +205,12 @@ def init_database():
     with app.app_context():
         try:
             db.create_all()
+            # Kiểm tra nhanh một bảng để xem DB có hoạt động không
             try:
-                db.session.execute(text("SELECT password_hash FROM user LIMIT 1"))
+                db.session.execute(text("SELECT id FROM user LIMIT 1"))
             except Exception:
+                # Nếu lỗi cấu trúc, reset (Cẩn thận trong production!)
+                print(">>> Resetting Database structure...")
                 db.session.rollback()
                 db.drop_all()         
                 db.create_all()       
@@ -318,27 +391,66 @@ CONTENT_TEMPLATE = """
 
         {% elif active_page == 'import' %}
             <ul class="nav nav-tabs" id="importTabs" role="tablist">
+                <!-- RF Tabs -->
                 <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rf3g">Import RF 3G</button></li>
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf4g">Import RF 4G</button></li>
                 <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf5g">Import RF 5G</button></li>
+                <!-- KPI Tabs -->
+                <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi3g">KPI 3G</button></li>
+                <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi4g">KPI 4G</button></li>
+                <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi5g">KPI 5G</button></li>
             </ul>
             <div class="tab-content p-4 border border-top-0 rounded-bottom">
+                <!-- RF Forms -->
                 <div class="tab-pane fade show active" id="rf3g">
                     <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3"><label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                        <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 3G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
                     </form>
                 </div>
                 <div class="tab-pane fade" id="rf4g">
                     <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3"><label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                        <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 4G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
                     </form>
                 </div>
                 <div class="tab-pane fade" id="rf5g">
                     <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
-                        <div class="mb-3"><label class="form-label">Chọn file Excel (.xlsx) hoặc CSV</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                        <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 5G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
                         <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                    </form>
+                </div>
+                
+                <!-- KPI Forms -->
+                <div class="tab-pane fade" id="kpi3g">
+                    <h5 class="text-success">Import KPI 3G Hàng Ngày</h5>
+                    <form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Chọn các file KPI 3G (.csv)</label>
+                            <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                            <small class="text-muted">Có thể chọn nhiều file cùng lúc để import.</small>
+                        </div>
+                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 3G</button>
+                    </form>
+                </div>
+                <div class="tab-pane fade" id="kpi4g">
+                    <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
+                    <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Chọn các file KPI 4G (.csv)</label>
+                            <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                        </div>
+                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
+                    </form>
+                </div>
+                <div class="tab-pane fade" id="kpi5g">
+                    <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
+                    <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Chọn các file KPI 5G (.csv)</label>
+                            <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                        </div>
+                        <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
                     </form>
                 </div>
             </div>
@@ -646,84 +758,106 @@ def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='
 @login_required
 def import_data():
     if request.method == 'POST':
-        file = request.files.get('file')
-        import_type = request.args.get('type')
+        # Lấy danh sách file (hỗ trợ multiple)
+        files = request.files.getlist('file')
+        import_type = request.args.get('type') # 3g, 4g, 5g, kpi3g, kpi4g, kpi5g
         
-        if not file or not file.filename:
+        if not files or files[0].filename == '':
             flash('Chưa chọn file!', 'warning'); return redirect(url_for('import_data'))
 
+        # Định nghĩa các model map
+        rf_models = {'3g': RF3G, '4g': RF4G, '5g': RF5G}
+        kpi_models = {'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G}
+        
+        target_model = rf_models.get(import_type) or kpi_models.get(import_type)
+        if not target_model:
+            flash('Loại dữ liệu không hợp lệ', 'danger'); return redirect(url_for('import_data'))
+
+        total_files = len(files)
+        total_rows_imported = 0
+        
         try:
-            filename = file.filename
-            
-            # Map cột
-            column_map = {'Frenquency': 'frequency', 'Hãng_SX': 'hang_sx', 'Ghi_chú': 'ghi_chu', 'Ghi_chu': 'ghi_chu', 
-                          'Hãng SX': 'hang_sx', 'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 
-                          'SITE_NAME': 'site_name', 'Đồng_bộ': 'dong_bo', 'Dong_bo': 'dong_bo'}
-            def clean_col(col_name):
-                col_name = str(col_name).strip()
-                return column_map.get(col_name, col_name.lower().replace(' ', '_'))
-
-            model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(import_type)
-            if not model_class:
-                 flash('Loại dữ liệu không hợp lệ', 'danger'); return redirect(url_for('import_data'))
-
-            valid_columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
-            
-            total_imported = 0
-
-            # Xử lý file
-            if filename.endswith('.csv'):
-                # Đọc CSV theo chunk để tiết kiệm RAM
-                chunk_size = 1000
-                file.stream.seek(0)
+            for file in files:
+                filename = file.filename
                 
-                for chunk in pd.read_csv(file, chunksize=chunk_size):
-                    chunk.columns = [clean_col(c) for c in chunk.columns]
+                # Hàm chuẩn hóa tên cột cho KPI (phức tạp hơn RF)
+                def clean_col(col_name):
+                    col_name = str(col_name).strip()
+                    # Map đặc biệt cho KPI 5G (có khoảng trắng và đơn vị)
+                    map_kpi = {
+                        'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
+                        'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
+                        'Cell Uplink Average Throughput': 'cell_uplink_average_throughput',
+                        'Cell Downlink Average Throughput': 'cell_downlink_average_throughput',
+                        'Cell avaibility rate': 'cell_avaibility_rate',
+                        'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
+                        'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
+                        # Map cho RF
+                        'Frenquency': 'frequency', 'Hãng_SX': 'hang_sx', 'Hãng SX': 'hang_sx', 
+                        'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
+                        'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'Đồng_bộ': 'dong_bo',
+                        'Thời gian': 'thoi_gian', 'Nhà cung cấp': 'nha_cung_cap', 'Tỉnh': 'tinh',
+                        'Tên RNC': 'ten_rnc', 'Tên CELL': 'ten_cell', 'Mã VNP': 'ma_vnp', 'Loại NE': 'loai_ne',
+                        'Tên GNODEB': 'ten_gnodeb', 'TRAFFIC': 'traffic', 'CSSR': 'cssr', 'DCR': 'dcr',
+                        'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
+                        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable'
+                    }
+                    if col_name in map_kpi: return map_kpi[col_name]
                     
-                    bulk_data = []
-                    for row in chunk.to_dict(orient='records'):
-                        filtered_row = {k: v for k, v in row.items() if k in valid_columns}
-                        for k, v in filtered_row.items():
-                            if pd.isna(v): filtered_row[k] = None
-                        bulk_data.append(filtered_row)
-                    
-                    if bulk_data:
-                        db.session.bulk_insert_mappings(model_class, bulk_data)
-                        db.session.commit()
-                        total_imported += len(bulk_data)
-                    
-                    del chunk
-                    gc.collect()
+                    # Quy tắc chung: lowercase, thay space/kí tự lạ bằng _
+                    clean = col_name.lower()
+                    clean = re.sub(r'[^a-z0-9_]', '_', clean)
+                    return clean
 
-            elif filename.endswith(('.xls', '.xlsx')):
-                # Excel không hỗ trợ chunking tốt, đọc hết nhưng xử lý bulk insert để nhanh hơn
-                df = pd.read_excel(file)
-                df.columns = [clean_col(c) for c in df.columns]
-                
-                records = df.to_dict(orient='records')
-                del df # Giải phóng DF gốc
-                gc.collect()
-                
-                batch_size = 1000
-                for i in range(0, len(records), batch_size):
-                    batch = records[i:i + batch_size]
-                    bulk_data = []
-                    for row in batch:
-                        filtered_row = {k: v for k, v in row.items() if k in valid_columns}
-                        for k, v in filtered_row.items():
-                            if pd.isna(v): filtered_row[k] = None
-                        bulk_data.append(filtered_row)
-                    
-                    if bulk_data:
-                        db.session.bulk_insert_mappings(model_class, bulk_data)
-                        db.session.commit()
-                        total_imported += len(bulk_data)
-                    
-                    gc.collect()
-            else:
-                flash('Chỉ hỗ trợ file .csv hoặc .xlsx', 'danger'); return redirect(url_for('import_data'))
+                valid_columns = [c.key for c in target_model.__table__.columns if c.key != 'id']
 
-            flash(f'Đã import thành công {total_imported} bản ghi!', 'success')
+                # Xử lý đọc file (RF thường là Excel, KPI thường là CSV)
+                # Tuy nhiên, code hỗ trợ cả 2 cho mọi loại
+                if filename.lower().endswith('.csv'):
+                    chunk_size = 2000
+                    file.stream.seek(0)
+                    # KPI thường có header tiếng Việt phức tạp, pandas xử lý tốt
+                    for chunk in pd.read_csv(file, chunksize=chunk_size):
+                        chunk.columns = [clean_col(c) for c in chunk.columns]
+                        bulk_data = []
+                        for row in chunk.to_dict(orient='records'):
+                            filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                            for k, v in filtered_row.items():
+                                if pd.isna(v): filtered_row[k] = None
+                            if filtered_row:
+                                bulk_data.append(filtered_row)
+                        
+                        if bulk_data:
+                            db.session.bulk_insert_mappings(target_model, bulk_data)
+                            db.session.commit()
+                            total_rows_imported += len(bulk_data)
+                        del chunk; gc.collect()
+
+                elif filename.lower().endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(file)
+                    df.columns = [clean_col(c) for c in df.columns]
+                    records = df.to_dict(orient='records')
+                    del df; gc.collect()
+                    
+                    batch_size = 2000
+                    for i in range(0, len(records), batch_size):
+                        batch = records[i:i + batch_size]
+                        bulk_data = []
+                        for row in batch:
+                            filtered_row = {k: v for k, v in row.items() if k in valid_columns}
+                            for k, v in filtered_row.items():
+                                if pd.isna(v): filtered_row[k] = None
+                            if filtered_row:
+                                bulk_data.append(filtered_row)
+                        if bulk_data:
+                            db.session.bulk_insert_mappings(target_model, bulk_data)
+                            db.session.commit()
+                            total_rows_imported += len(bulk_data)
+                        gc.collect()
+                else:
+                    flash(f'Bỏ qua file {filename}: Định dạng không hỗ trợ', 'warning')
+
+            flash(f'Đã import tổng cộng {total_rows_imported} bản ghi từ {total_files} file!', 'success')
 
         except Exception as e:
             db.session.rollback()
