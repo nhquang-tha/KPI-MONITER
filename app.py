@@ -1,9 +1,10 @@
 import os
 import jinja2
 import pandas as pd
-from io import BytesIO # Thêm thư viện xử lý file trong bộ nhớ
+import gc # Thư viện quản lý bộ nhớ
+from io import BytesIO, StringIO
 from datetime import datetime
-from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file
+from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -43,8 +44,6 @@ class User(UserMixin, db.Model):
         return check_password_hash(self.password_hash, password)
 
 # --- MODELS (RF DATA) ---
-# Định nghĩa các bảng RF giống file Excel
-
 class RF3G(db.Model):
     __tablename__ = 'rf_3g'
     id = db.Column(db.Integer, primary_key=True)
@@ -155,7 +154,6 @@ def init_database():
 init_database()
 
 # --- TEMPLATES ---
-
 BASE_LAYOUT = """
 <!DOCTYPE html>
 <html lang="vi">
@@ -264,7 +262,7 @@ CONTENT_TEMPLATE = """
                     <a href="/rf?tech=4g" class="btn btn-{{ 'primary' if current_tech == '4g' else 'outline-primary' }}">4G</a>
                     <a href="/rf?tech=5g" class="btn btn-{{ 'primary' if current_tech == '5g' else 'outline-primary' }}">5G</a>
                 </div>
-                <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-excel"></i> Xuất Excel {{ current_tech.upper() }}</a>
+                <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV) {{ current_tech.upper() }}</a>
             </div>
 
             <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
@@ -426,33 +424,39 @@ def rf():
     tech = request.args.get('tech', '3g')
     action = request.args.get('action')
     
-    # Map tech to Database Model
     model_map = {'3g': RF3G, '4g': RF4G, '5g': RF5G}
     CurrentModel = model_map.get(tech, RF3G)
     
     if action == 'export':
-        # Lấy toàn bộ dữ liệu để xuất file
-        records = CurrentModel.query.all()
-        # Chuyển đổi SQLAlchemy objects sang List of Dictionaries
-        data_list = []
-        for r in records:
-            row = r.__dict__.copy()
-            row.pop('_sa_instance_state', None) # Xóa key nội bộ của SQLAlchemy
-            data_list.append(row)
-        
-        df = pd.DataFrame(data_list)
-        
-        # Xuất file Excel vào bộ nhớ (không lưu vào ổ cứng)
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name=f'RF_{tech.upper()}')
-        output.seek(0)
-        
-        return send_file(output, download_name=f'RF_{tech.upper()}_Full_List.xlsx', as_attachment=True)
+        # Chuyển sang CSV Streaming để tiết kiệm RAM
+        def generate():
+            # BOM để Excel hiển thị đúng tiếng Việt
+            yield '\ufeff'.encode('utf-8')
+            
+            # Lấy header
+            header = [c.key for c in CurrentModel.__table__.columns]
+            yield (','.join(header) + '\n').encode('utf-8')
+            
+            # Query từng phần nhỏ (Yield per) để không load hết vào RAM
+            query = db.select(CurrentModel).execution_options(yield_per=100)
+            result = db.session.execute(query)
+            
+            for row in result.scalars():
+                # Chuyển row object thành list giá trị
+                row_data = []
+                for col in header:
+                    val = getattr(row, col)
+                    # Xử lý None và ký tự đặc biệt cho CSV
+                    if val is None: val = ''
+                    val = str(val).replace(',', ';').replace('\n', ' ')
+                    row_data.append(val)
+                yield (','.join(row_data) + '\n').encode('utf-8')
 
-    # Nếu không phải export, thì lấy 500 dòng đầu để hiển thị web cho nhẹ
+        return Response(stream_with_context(generate()), mimetype='text/csv', 
+                       headers={"Content-Disposition": f"attachment; filename=RF_{tech.upper()}.csv"})
+
+    # Hiển thị web: Limit 500
     data = CurrentModel.query.limit(500).all()
-    
     return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, current_tech=tech)
 
 @app.route('/poi')
@@ -476,80 +480,59 @@ def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='
 def import_data():
     if request.method == 'POST':
         file = request.files.get('file')
-        import_type = request.args.get('type') # 3g, 4g, hoặc 5g
+        import_type = request.args.get('type')
         
         if not file or not file.filename:
-            flash('Chưa chọn file!', 'warning')
-            return redirect(url_for('import_data'))
+            flash('Chưa chọn file!', 'warning'); return redirect(url_for('import_data'))
 
         try:
-            # Đọc file (hỗ trợ cả csv và excel)
             filename = file.filename
-            if filename.endswith('.csv'):
-                df = pd.read_csv(file)
-            elif filename.endswith(('.xls', '.xlsx')):
-                df = pd.read_excel(file)
-            else:
-                flash('Chỉ hỗ trợ file .csv hoặc .xlsx', 'danger')
-                return redirect(url_for('import_data'))
+            if filename.endswith('.csv'): df = pd.read_csv(file)
+            elif filename.endswith(('.xls', '.xlsx')): df = pd.read_excel(file)
+            else: flash('Chỉ hỗ trợ file .csv hoặc .xlsx', 'danger'); return redirect(url_for('import_data'))
 
-            # Chuẩn hóa tên cột để mapping với database
-            # Xóa khoảng trắng, chuyển về chữ thường
-            # Mapping cột đặc biệt
-            column_map = {
-                'Frenquency': 'frequency',
-                'Hãng_SX': 'hang_sx',
-                'Ghi_chú': 'ghi_chu',
-                'Ghi_chu': 'ghi_chu',
-                'Hãng SX': 'hang_sx',
-                'ENodeBID': 'enodeb_id',
-                'gNodeB ID': 'gnodeb_id',
-                'SITE_NAME': 'site_name',
-                'Đồng_bộ': 'dong_bo',
-                'Dong_bo': 'dong_bo'
-            }
-            
-            # Hàm làm sạch tên cột
+            # Map cột
+            column_map = {'Frenquency': 'frequency', 'Hãng_SX': 'hang_sx', 'Ghi_chú': 'ghi_chu', 'Ghi_chu': 'ghi_chu', 
+                          'Hãng SX': 'hang_sx', 'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 
+                          'SITE_NAME': 'site_name', 'Đồng_bộ': 'dong_bo', 'Dong_bo': 'dong_bo'}
             def clean_col(col_name):
                 col_name = str(col_name).strip()
-                if col_name in column_map:
-                    return column_map[col_name]
-                return col_name.lower().replace(' ', '_')
-
+                return column_map.get(col_name, col_name.lower().replace(' ', '_'))
             df.columns = [clean_col(c) for c in df.columns]
 
-            # Chọn model tương ứng
-            model_class = None
-            if import_type == '3g':
-                model_class = RF3G
-            elif import_type == '4g':
-                model_class = RF4G
-            elif import_type == '5g':
-                model_class = RF5G
+            model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(import_type)
             
             if model_class:
-                # Xóa dữ liệu cũ nếu muốn (tùy chọn - ở đây tôi để nạp thêm vào)
-                # db.session.query(model_class).delete() 
-                
-                # Convert DataFrame to list of dicts
-                records = df.to_dict(orient='records')
-                
-                # Lọc chỉ lấy các cột có trong model database để tránh lỗi
                 valid_columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
                 
+                # BATCH INSERT: Chèn từng 500 dòng để tiết kiệm RAM
                 objects_to_add = []
-                for row in records:
-                    # Chỉ giữ lại các trường khớp với database
-                    filtered_row = {k: v for k, v in row.items() if k in valid_columns}
-                    # Xử lý NaN thành None (NULL trong DB)
+                count = 0
+                for _, row in df.iterrows():
+                    filtered_row = {k: v for k, v in row.to_dict().items() if k in valid_columns}
                     for k, v in filtered_row.items():
-                        if pd.isna(v):
-                            filtered_row[k] = None
+                        if pd.isna(v): filtered_row[k] = None
+                    
                     objects_to_add.append(model_class(**filtered_row))
+                    
+                    if len(objects_to_add) >= 500:
+                        db.session.add_all(objects_to_add)
+                        db.session.commit()
+                        count += len(objects_to_add)
+                        objects_to_add = [] # Giải phóng list
+                        gc.collect() # Ép dọn bộ nhớ
 
-                db.session.add_all(objects_to_add)
-                db.session.commit()
-                flash(f'Đã import thành công {len(objects_to_add)} bản ghi vào RF {import_type.upper()}!', 'success')
+                # Chèn nốt số dư còn lại
+                if objects_to_add:
+                    db.session.add_all(objects_to_add)
+                    db.session.commit()
+                    count += len(objects_to_add)
+                
+                flash(f'Đã import thành công {count} bản ghi!', 'success')
+                
+                # Dọn dẹp DataFrame
+                del df
+                gc.collect()
             else:
                 flash('Loại dữ liệu không hợp lệ', 'danger')
 
