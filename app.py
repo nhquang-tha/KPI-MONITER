@@ -565,44 +565,28 @@ CONTENT_TEMPLATE = """
 
             <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
                 <table class="table table-sm table-bordered table-hover small">
-                    <thead class="table-light position-sticky top-0 shadow-sm">
+                    <thead class="table-light position-sticky top-0 shadow-sm" style="z-index: 10;">
                         <tr>
-                            <th class="text-center" style="width: 100px;">Hành động</th>
-                            <th>CSHT Code</th>
-                            <th>{{ 'Site Name' if current_tech == '5g' else 'Cell Name' }}</th>
-                            <th>Cell Code</th>
-                            <th>Site Code</th>
-                            <th>Long</th>
-                            <th>Lat</th>
-                            <th>Freq</th>
-                            <th>Azimuth</th>
-                            <th>Tilt</th>
-                            <th>Antenna</th>
-                            <th>Ghi chú</th>
+                            <th class="text-center bg-light" style="width: 120px; position: sticky; left: 0; z-index: 20;">Hành động</th>
+                            {% for col in rf_columns %}
+                            <th style="white-space: nowrap;">{{ col | replace('_', ' ') | upper }}</th>
+                            {% endfor %}
                         </tr>
                     </thead>
                     <tbody>
                         {% for row in rf_data %}
                         <tr>
-                            <td class="text-center">
-                                <a href="/rf/detail/{{ current_tech }}/{{ row.id }}" class="btn btn-info btn-action text-white" title="Chi tiết"><i class="fa-solid fa-eye"></i></a>
-                                <a href="/rf/edit/{{ current_tech }}/{{ row.id }}" class="btn btn-warning btn-action text-white" title="Sửa"><i class="fa-solid fa-pen-to-square"></i></a>
-                                <a href="/rf/delete/{{ current_tech }}/{{ row.id }}" class="btn btn-danger btn-action" title="Xóa" onclick="return confirm('Bạn có chắc muốn xóa bản ghi này?')"><i class="fa-solid fa-trash"></i></a>
+                            <td class="text-center bg-white" style="position: sticky; left: 0; z-index: 5;">
+                                <a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-info btn-action text-white" title="Chi tiết"><i class="fa-solid fa-eye"></i></a>
+                                <a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-warning btn-action text-white" title="Sửa"><i class="fa-solid fa-pen-to-square"></i></a>
+                                <a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-danger btn-action" title="Xóa" onclick="return confirm('Bạn có chắc muốn xóa bản ghi này?')"><i class="fa-solid fa-trash"></i></a>
                             </td>
-                            <td>{{ row.csht_code }}</td>
-                            <td>{{ row.site_name if current_tech == '5g' else row.cell_name }}</td>
-                            <td>{{ row.cell_code }}</td>
-                            <td>{{ row.site_code }}</td>
-                            <td>{{ row.longitude }}</td>
-                            <td>{{ row.latitude }}</td>
-                            <td>{{ row.frequency }}</td>
-                            <td>{{ row.azimuth }}</td>
-                            <td>{{ row.total_tilt }}</td>
-                            <td>{{ row.antena }}</td>
-                            <td>{{ row.ghi_chu }}</td>
+                            {% for col in rf_columns %}
+                            <td style="white-space: nowrap;">{{ row[col] if row[col] is not none else '' }}</td>
+                            {% endfor %}
                         </tr>
                         {% else %}
-                        <tr><td colspan="12" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên hoặc nhấn Thêm mới.</td></tr>
+                        <tr><td colspan="{{ rf_columns|length + 1 }}" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên hoặc nhấn Thêm mới.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -1106,6 +1090,378 @@ def poi():
     return render_page(CONTENT_TEMPLATE, title="Báo cáo POI", active_page='poi', 
                        poi_list=poi_list, selected_poi=selected_poi, poi_charts=poi_charts)
 
+@app.route('/worst-cell')
+@login_required
+def worst_cell(): return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell')
+@app.route('/traffic-down')
+@login_required
+def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down')
+@app.route('/script')
+@login_required
+def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
+
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        files = request.files.getlist('file')
+        import_type = request.args.get('type') # 3g, 4g, 5g, kpi3g, kpi4g, kpi5g, poi4g, poi5g
+        
+        if not files or files[0].filename == '':
+            flash('Chưa chọn file!', 'warning'); return redirect(url_for('import_data'))
+
+        type_config = {
+            '3g': {'model': RF3G, 'required': ['antena', 'azimuth']}, 
+            '4g': {'model': RF4G, 'required': ['enodeb_id', 'pci']},    
+            '5g': {'model': RF5G, 'required': ['gnodeb_id', 'pci']},   
+            'kpi3g': {'model': KPI3G, 'required': ['traffic', 'cssr']}, 
+            'kpi4g': {'model': KPI4G, 'required': ['traffic_vol_dl', 'erab_ssrate_all']}, 
+            'kpi5g': {'model': KPI5G, 'required': ['dl_traffic_volume_gb']},
+            'poi4g': {'model': POI4G, 'required': ['poi_name']},
+            'poi5g': {'model': POI5G, 'required': ['poi_name']}
+        }
+        
+        config = type_config.get(import_type)
+        if not config:
+            flash('Loại import không hợp lệ', 'danger'); return redirect(url_for('import_data'))
+
+        target_model = config['model']
+        required_cols = config['required']
+        total_rows_imported = 0
+        
+        try:
+            for file in files:
+                filename = file.filename
+                
+                def clean_col(col_name):
+                    col_name = str(col_name).strip()
+                    map_kpi = {
+                        'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
+                        'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
+                        'Total Data Traffic Volume (GB)': 'traffic', 
+                        'Cell Uplink Average Throughput': 'cell_uplink_average_throughput',
+                        'Cell Downlink Average Throughput': 'cell_downlink_average_throughput',
+                        'A User Downlink Average Throughput': 'user_dl_avg_throughput', 
+                        'CQI_5G': 'cqi_5g', 
+                        'Cell avaibility rate': 'cell_avaibility_rate',
+                        'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
+                        'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
+                        'Frenquency': 'frequency', 'Hãng_SX': 'hang_sx', 'Hãng SX': 'hang_sx', 
+                        'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
+                        'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'Đồng_bộ': 'dong_bo',
+                        'Thời gian': 'thoi_gian', 'Nhà cung cấp': 'nha_cung_cap', 'Tỉnh': 'tinh',
+                        'Tên RNC': 'ten_rnc', 'Tên CELL': 'ten_cell', 'Mã VNP': 'ma_vnp', 'Loại NE': 'loai_ne',
+                        'Tên GNODEB': 'ten_gnodeb', 'TRAFFIC': 'traffic', 'CSSR': 'cssr', 'DCR': 'dcr',
+                        'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
+                        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
+                        'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
+                        'PCI': 'pci',
+                        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
+                        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl', 'CQI_4G': 'cqi_4g',
+                        'Cell_Code': 'cell_code', 'Site_Code': 'site_code', 'POI': 'poi_name'
+                    }
+                    if col_name in map_kpi: return map_kpi[col_name]
+                    clean = col_name.lower()
+                    clean = re.sub(r'[^a-z0-9_]', '_', clean)
+                    return clean
+
+                valid_db_columns = [c.key for c in target_model.__table__.columns if c.key != 'id']
+
+                if filename.lower().endswith('.csv'):
+                    df_header = pd.read_csv(file, nrows=0)
+                elif filename.lower().endswith(('.xls', '.xlsx')):
+                    df_header = pd.read_excel(file, nrows=0)
+                else:
+                    flash(f'Bỏ qua {filename}: Định dạng file không hỗ trợ', 'warning')
+                    continue
+
+                file_cols = [clean_col(c) for c in df_header.columns]
+                
+                missing_cols = [req for req in required_cols if req not in file_cols]
+                if missing_cols:
+                    flash(f"LỖI FILE {filename}: Không đúng định dạng {import_type.upper()}. Thiếu cột: {', '.join(missing_cols)}", 'danger')
+                    continue
+
+                file.stream.seek(0)
+
+                if filename.lower().endswith('.csv'):
+                    for chunk in pd.read_csv(file, chunksize=2000):
+                        chunk.columns = [clean_col(c) for c in chunk.columns]
+                        bulk_data = []
+                        for row in chunk.to_dict(orient='records'):
+                            filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
+                            for k, v in filtered_row.items():
+                                if pd.isna(v): filtered_row[k] = None
+                            
+                            if import_type == 'kpi4g' and 'traffic' not in filtered_row:
+                                if 'traffic_vol_dl' in filtered_row:
+                                    filtered_row['traffic'] = filtered_row['traffic_vol_dl']
+
+                            if filtered_row: bulk_data.append(filtered_row)
+                        
+                        if bulk_data:
+                            db.session.bulk_insert_mappings(target_model, bulk_data)
+                            db.session.commit()
+                            total_rows_imported += len(bulk_data)
+                        del chunk; gc.collect()
+
+                elif filename.lower().endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(file)
+                    df.columns = [clean_col(c) for c in df.columns]
+                    records = df.to_dict(orient='records')
+                    del df; gc.collect()
+                    
+                    batch_size = 2000
+                    for i in range(0, len(records), batch_size):
+                        batch = records[i:i + batch_size]
+                        bulk_data = []
+                        for row in batch:
+                            filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
+                            for k, v in filtered_row.items():
+                                if pd.isna(v): filtered_row[k] = None
+                            
+                            if import_type == 'kpi4g' and 'traffic' not in filtered_row:
+                                if 'traffic_vol_dl' in filtered_row:
+                                    filtered_row['traffic'] = filtered_row['traffic_vol_dl']
+
+                            if filtered_row: bulk_data.append(filtered_row)
+                        if bulk_data:
+                            db.session.bulk_insert_mappings(target_model, bulk_data)
+                            db.session.commit()
+                            total_rows_imported += len(bulk_data)
+                        gc.collect()
+
+            if total_rows_imported > 0:
+                flash(f'Đã import thành công {total_rows_imported} bản ghi!', 'success')
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi import: {str(e)}', 'danger')
+            print(f"IMPORT ERROR: {e}")
+
+        return redirect(url_for('import_data'))
+
+    dates_3g = []
+    dates_4g = []
+    dates_5g = []
+    try:
+        kpi3g_dates = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()
+        dates_3g = [d[0] for d in kpi3g_dates]
+        kpi4g_dates = db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()
+        dates_4g = [d[0] for d in kpi4g_dates]
+        kpi5g_dates = db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()
+        dates_5g = [d[0] for d in kpi5g_dates]
+    except Exception as e:
+        print(f"Error fetching dates: {e}")
+
+    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
+
+    return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import', kpi_rows=kpi_rows)
+
+@app.route('/rf')
+@login_required
+def rf():
+    tech = request.args.get('tech', '3g')
+    action = request.args.get('action')
+    
+    model_map = {'3g': RF3G, '4g': RF4G, '5g': RF5G}
+    CurrentModel = model_map.get(tech, RF3G)
+    
+    if action == 'export':
+        def generate():
+            yield '\ufeff'.encode('utf-8')
+            header = [c.key for c in CurrentModel.__table__.columns]
+            yield (','.join(header) + '\n').encode('utf-8')
+            query = db.select(CurrentModel).execution_options(yield_per=100)
+            result = db.session.execute(query)
+            for row in result.scalars():
+                row_data = []
+                for col in header:
+                    val = getattr(row, col)
+                    if val is None: val = ''
+                    val = str(val).replace(',', ';').replace('\n', ' ')
+                    row_data.append(val)
+                yield (','.join(row_data) + '\n').encode('utf-8')
+
+        return Response(stream_with_context(generate()), mimetype='text/csv', 
+                       headers={"Content-Disposition": f"attachment; filename=RF_{tech.upper()}.csv"})
+
+    # Fetch dynamic columns
+    columns = [c.key for c in CurrentModel.__table__.columns if c.key != 'id']
+    
+    # Fetch data objects
+    data_objs = CurrentModel.query.limit(500).all()
+    
+    # Convert to list of dicts for dynamic template rendering
+    rf_data = []
+    for item in data_objs:
+        row = {'id': item.id}
+        for col in columns:
+            row[col] = getattr(item, col)
+        rf_data.append(row)
+    
+    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', 
+                       rf_data=rf_data, rf_columns=columns, current_tech=tech)
+
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
+def rf_add():
+    tech = request.args.get('tech', '3g')
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
+    if not model_class:
+        flash('Công nghệ không hợp lệ', 'danger')
+        return redirect(url_for('rf'))
+    
+    if request.method == 'POST':
+        try:
+            data = {}
+            for col in model_class.__table__.columns:
+                if col.key == 'id': continue
+                val = request.form.get(col.key)
+                if val == '': val = None
+                data[col.key] = val
+            
+            new_obj = model_class(**data)
+            db.session.add(new_obj)
+            db.session.commit()
+            flash('Thêm mới thành công!', 'success')
+            return redirect(url_for('rf', tech=tech))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi thêm mới: {str(e)}', 'danger')
+
+    columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Thêm mới RF {tech.upper()}", columns=columns, tech=tech, obj=None)
+
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def rf_edit(tech, id):
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not model_class: return redirect(url_for('rf'))
+
+    obj = db.session.get(model_class, id)
+    if not obj:
+        flash('Không tìm thấy bản ghi', 'danger')
+        return redirect(url_for('rf', tech=tech))
+
+    if request.method == 'POST':
+        try:
+            for col in model_class.__table__.columns:
+                if col.key == 'id': continue
+                val = request.form.get(col.key)
+                if val == '': val = None
+                setattr(obj, col.key, val)
+            
+            db.session.commit()
+            flash('Cập nhật thành công!', 'success')
+            return redirect(url_for('rf', tech=tech))
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi cập nhật: {str(e)}', 'danger')
+
+    obj_dict = obj.__dict__
+    columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=columns, tech=tech, obj=obj_dict)
+
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if model_class:
+        obj = db.session.get(model_class, id)
+        if obj:
+            db.session.delete(obj)
+            db.session.commit()
+            flash('Đã xóa bản ghi thành công', 'success')
+        else:
+            flash('Không tìm thấy bản ghi', 'warning')
+    return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/reset')
+@login_required
+def rf_reset():
+    tech = request.args.get('type') # 3g, 4g, 5g
+    if current_user.role != 'admin':
+        flash('Chỉ Admin mới có quyền xóa toàn bộ dữ liệu!', 'danger')
+        return redirect(url_for('import_data'))
+
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
+    if model_class:
+        try:
+            db.session.query(model_class).delete()
+            db.session.commit()
+            flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()} thành công!', 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Lỗi khi xóa dữ liệu: {str(e)}', 'danger')
+    else:
+        flash('Loại dữ liệu không hợp lệ', 'danger')
+        
+    return redirect(url_for('import_data'))
+
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    model_class = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not model_class: return redirect(url_for('rf'))
+    
+    obj = db.session.get(model_class, id)
+    if not obj:
+        flash('Không tìm thấy bản ghi', 'danger')
+        return redirect(url_for('rf', tech=tech))
+        
+    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
+
+# --- ROUTES CHO TÍNH NĂNG CONGESTION 3G ---
+@app.route('/conges-3g')
+@login_required
+def conges_3g():
+    dates_query = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).limit(3).all()
+    if len(dates_query) < 3:
+        found_dates = [d[0] for d in dates_query]
+        flash(f'Chưa đủ 3 ngày dữ liệu KPI 3G để phân tích xu hướng. Hiện có: {", ".join(found_dates)}', 'warning')
+        return render_page(CONTENT_TEMPLATE, title="Cảnh báo Nghẽn 3G", active_page='conges_3g', conges_data=[], dates=found_dates)
+    
+    target_dates = [d[0] for d in dates_query]
+    
+    subquery = db.session.query(KPI3G.ten_cell, KPI3G.thoi_gian).filter(
+        KPI3G.thoi_gian.in_(target_dates),
+        (
+            ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | 
+            ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+        )
+    ).all()
+    
+    cell_counts = defaultdict(set)
+    for cell_name, date in subquery:
+        cell_counts[cell_name].add(date)
+    
+    congested_cells = [cell for cell, dates in cell_counts.items() if len(dates) == 3]
+    
+    results = []
+    if congested_cells:
+        rf_info = RF3G.query.filter(RF3G.cell_code.in_(congested_cells)).all()
+        rf_map = {r.cell_code: r for r in rf_info}
+        
+        for cell in congested_cells:
+            rf = rf_map.get(cell)
+            results.append({
+                'cell_name': cell,
+                'rf_id': rf.id if rf else '#',
+                'site_code': rf.site_code if rf else 'N/A',
+                'csht': rf.csht_code if rf else 'N/A',
+                'antena': rf.antena if rf else 'N/A',
+                'tilt': rf.total_tilt if rf else 'N/A'
+            })
+            
+    return render_page(CONTENT_TEMPLATE, title="Cảnh báo Nghẽn 3G (3 ngày liên tiếp)", active_page='conges_3g', conges_data=results, dates=target_dates)
+
+
+@app.route('/poi')
+@login_required
+def poi(): return render_page(CONTENT_TEMPLATE, title="POI", active_page='poi')
 @app.route('/worst-cell')
 @login_required
 def worst_cell(): return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell')
