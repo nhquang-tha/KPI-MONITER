@@ -68,7 +68,11 @@ def clean_header(col_name):
         'Cell_code': 'cell_code', 'Site_code': 'site_code', 'CSHT_code': 'csht_code',
         'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
         'Total_tilt': 'total_tilt', 'Latitude': 'latitude', 'Longitude': 'longitude',
-        'Equipment': 'equipment', 'Swap': 'swap', 'Start_day': 'start_day'
+        'Equipment': 'equipment', 'Swap': 'swap', 'Start_day': 'start_day',
+        'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
+        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
+        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
+        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl'
     }
     
     # Ưu tiên map chính xác trước
@@ -87,7 +91,7 @@ def clean_header(col_name):
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
-        'cell_name': 'cell_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
+        'poi': 'poi_name' # Fallback map
     }
     return common_map.get(clean, clean)
 
@@ -559,15 +563,34 @@ CONTENT_TEMPLATE = """
                     {% for chart_id, chart_data in charts.items() %}
                     (function() {
                         const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
+                        const chartData = {{ chart_data | tojson }};
+                        
                         new Chart(ctx, {
                             type: 'line',
-                            data: {{ chart_data | tojson }},
+                            data: chartData,
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 interaction: {
-                                    mode: 'index',
-                                    intersect: false,
+                                    mode: 'nearest',
+                                    intersect: false, // Update: click anywhere in range
+                                    axis: 'x'
+                                },
+                                onClick: (e, activeEls) => {
+                                    if (activeEls.length > 0) {
+                                        const index = activeEls[0].index;
+                                        const datasetIndex = activeEls[0].datasetIndex;
+                                        const label = chartData.labels[index];
+                                        const value = chartData.datasets[datasetIndex].data[index];
+                                        const cellName = chartData.datasets[datasetIndex].label;
+                                        const metricTitle = '{{ chart_data.title }}';
+                                        
+                                        // Get full data series for this cell
+                                        const cellData = chartData.datasets[datasetIndex].data;
+                                        const allLabels = chartData.labels;
+                                        
+                                        showDetailModal(cellName, label, value, metricTitle, cellData, allLabels);
+                                    }
                                 },
                                 plugins: {
                                     title: {
@@ -648,6 +671,11 @@ CONTENT_TEMPLATE = """
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
+                                interaction: {
+                                    mode: 'nearest',
+                                    intersect: false, // Update: click anywhere in range
+                                    axis: 'x'
+                                },
                                 plugins: {
                                     title: { display: true, text: '{{ chart_data.title }}', font: { size: 14 } },
                                     legend: { position: 'bottom' }
@@ -1092,7 +1120,190 @@ def index():
     except: cnt = defaultdict(int)
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
-# Các route menu khác
+@app.route('/rf')
+@login_required
+def rf():
+    tech = request.args.get('tech', '3g')
+    action = request.args.get('action')
+    cell_search = request.args.get('cell_search', '').strip()
+    
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech, RF3G)
+    
+    # Export logic
+    if action == 'export':
+        def generate():
+            yield '\ufeff'.encode('utf-8')
+            cols = [c.key for c in Model.__table__.columns]
+            yield (','.join(cols) + '\n').encode('utf-8')
+            
+            query = db.select(Model).execution_options(yield_per=100)
+            if cell_search:
+                query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
+                
+            for row in db.session.execute(query).scalars():
+                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
+
+    # Fetch Data
+    query = Model.query
+    if cell_search:
+        query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
+    
+    rows = query.limit(500).all()
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    
+    # Map objects to dict for template
+    data = []
+    for r in rows:
+        item = {'id': r.id}
+        for c in cols:
+            item[c] = getattr(r, c)
+        data.append(item)
+    
+    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
+
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
+def rf_add():
+    tech = request.args.get('tech', '3g')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not Model: return redirect(url_for('rf'))
+    
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
+        db.session.add(Model(**data))
+        db.session.commit()
+        flash('Thêm mới thành công', 'success')
+        return redirect(url_for('rf', tech=tech))
+        
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Thêm RF {tech.upper()}", columns=cols, tech=tech, obj={})
+
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def rf_edit(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if not obj: return redirect(url_for('rf', tech=tech))
+    
+    if request.method == 'POST':
+        for k, v in request.form.items():
+            if hasattr(obj, k): setattr(obj, k, v)
+        db.session.commit()
+        flash('Cập nhật thành công', 'success')
+        return redirect(url_for('rf', tech=tech))
+        
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=cols, tech=tech, obj=obj.__dict__)
+
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if obj:
+        db.session.delete(obj)
+        db.session.commit()
+        flash('Đã xóa', 'success')
+    return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/reset')
+@login_required
+def rf_reset():
+    if current_user.role != 'admin': return redirect(url_for('import_data'))
+    tech = request.args.get('type')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if Model:
+        db.session.query(Model).delete()
+        db.session.commit()
+        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
+    return redirect(url_for('import_data'))
+
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
+
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        files = request.files.getlist('file')
+        itype = request.args.get('type')
+        
+        cfg = {
+            '3g': (RF3G, ['antena', 'azimuth']), '4g': (RF4G, ['enodeb_id']), '5g': (RF5G, ['gnodeb_id']),
+            'kpi3g': (KPI3G, ['traffic']), 'kpi4g': (KPI4G, ['traffic_vol_dl']), 'kpi5g': (KPI5G, ['dl_traffic_volume_gb']),
+            'poi4g': (POI4G, ['poi_name']), 'poi5g': (POI5G, ['poi_name'])
+        }
+        
+        Model, req_cols = cfg.get(itype, (None, []))
+        if not Model: return redirect(url_for('import_data'))
+        
+        valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+        count = 0
+        
+        for file in files:
+            if not file.filename: continue
+            try:
+                # Read file
+                if file.filename.endswith('.csv'):
+                    chunks = pd.read_csv(file, chunksize=2000)
+                else:
+                    df = pd.read_excel(file)
+                    chunks = [df]
+                
+                for df in chunks:
+                    # Clean columns
+                    df.columns = [clean_header(c) for c in df.columns]
+                    
+                    # Validate
+                    if not all(r in df.columns for r in req_cols):
+                        flash(f'File {file.filename} thiếu cột bắt buộc: {req_cols}', 'danger')
+                        break
+                    
+                    # Clean data & Insert
+                    records = []
+                    for row in df.to_dict('records'):
+                        clean_row = {}
+                        for k, v in row.items():
+                            if k in valid_cols:
+                                val = v
+                                if pd.isna(val): val = None
+                                elif isinstance(val, str): val = val.strip() # TRIM WHITESPACE
+                                clean_row[k] = val
+                                
+                        # KPI Specific: Fallback for traffic column
+                        if 'kpi' in itype and 'traffic' in valid_cols and 'traffic' not in clean_row:
+                             if 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
+                        
+                        records.append(clean_row)
+                    
+                    if records:
+                        db.session.bulk_insert_mappings(Model, records)
+                        db.session.commit()
+                        count += len(records)
+                        
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Lỗi import {file.filename}: {e}', 'danger')
+        
+        if count > 0: flash(f'Đã import {count} dòng.', 'success')
+        return redirect(url_for('import_data'))
+
+    # Fetch dates for KPI list
+    dates = []
+    try:
+        for M, label in [(KPI3G, '3G'), (KPI4G, '4G'), (KPI5G, '5G')]:
+            ds = db.session.query(M.thoi_gian).distinct().all()
+            dates.extend([{'type': f'KPI {label}', 'date': d[0]} for d in ds])
+        dates.sort(key=lambda x: x['date'], reverse=True)
+    except: pass
+    
+    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', imported_kpi_dates=dates)
+
 @app.route('/kpi')
 @login_required
 def kpi():
@@ -1266,112 +1477,6 @@ def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", a
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
-
-@app.route('/rf')
-@login_required
-def rf():
-    tech = request.args.get('tech', '3g')
-    action = request.args.get('action')
-    cell_search = request.args.get('cell_search', '').strip()
-    
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech, RF3G)
-    
-    # Export logic
-    if action == 'export':
-        def generate():
-            yield '\ufeff'.encode('utf-8')
-            cols = [c.key for c in Model.__table__.columns]
-            yield (','.join(cols) + '\n').encode('utf-8')
-            
-            query = db.select(Model).execution_options(yield_per=100)
-            if cell_search:
-                query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
-                
-            for row in db.session.execute(query).scalars():
-                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
-        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
-
-    # Fetch Data
-    query = Model.query
-    if cell_search:
-        query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
-    
-    rows = query.limit(500).all()
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    
-    # Map objects to dict for template
-    data = []
-    for r in rows:
-        item = {'id': r.id}
-        for c in cols:
-            item[c] = getattr(r, c)
-        data.append(item)
-    
-    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
-
-@app.route('/rf/add', methods=['GET', 'POST'])
-@login_required
-def rf_add():
-    tech = request.args.get('tech', '3g')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if not Model: return redirect(url_for('rf'))
-    
-    if request.method == 'POST':
-        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
-        db.session.add(Model(**data))
-        db.session.commit()
-        flash('Thêm mới thành công', 'success')
-        return redirect(url_for('rf', tech=tech))
-        
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Thêm RF {tech.upper()}", columns=cols, tech=tech, obj={})
-
-@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
-@login_required
-def rf_edit(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if not obj: return redirect(url_for('rf', tech=tech))
-    
-    if request.method == 'POST':
-        for k, v in request.form.items():
-            if hasattr(obj, k): setattr(obj, k, v)
-        db.session.commit()
-        flash('Cập nhật thành công', 'success')
-        return redirect(url_for('rf', tech=tech))
-        
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=cols, tech=tech, obj=obj.__dict__)
-
-@app.route('/rf/delete/<tech>/<int:id>')
-@login_required
-def rf_delete(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if obj:
-        db.session.delete(obj)
-        db.session.commit()
-        flash('Đã xóa', 'success')
-    return redirect(url_for('rf', tech=tech))
-
-@app.route('/rf/reset')
-@login_required
-def rf_reset():
-    if current_user.role != 'admin': return redirect(url_for('import_data'))
-    tech = request.args.get('type')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if Model:
-        db.session.query(Model).delete()
-        db.session.commit()
-        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
-    return redirect(url_for('import_data'))
-
-@app.route('/rf/detail/<tech>/<int:id>')
-@login_required
-def rf_detail(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
 
 # --- TEMPLATE LOADERS & UTILS ---
 app.jinja_loader = jinja2.DictLoader({
