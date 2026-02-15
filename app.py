@@ -7,7 +7,7 @@ import re
 import zipfile
 import unicodedata
 from io import BytesIO, StringIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -61,15 +61,7 @@ def clean_header(col_name):
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
         'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code'
     }
-    # Check exact match first
-    if col_name in special_map:
-        return special_map[col_name]
-    
-    # Check case-insensitive match
-    col_upper = col_name.upper()
-    for key, val in special_map.items():
-        if key.upper() == col_upper:
-             return val
+    if col_name in special_map: return special_map[col_name]
 
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
@@ -81,6 +73,7 @@ def clean_header(col_name):
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
+        'cs_so_att': 'cs_so_att', 'ps_so_att': 'ps_so_att',
         'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
     }
     return common_map.get(clean, clean)
@@ -687,8 +680,10 @@ CONTENT_TEMPLATE = """
             <div class="alert alert-info">
                 <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
                 (CS_CONG > 2% & CS_ATT > 100) HOẶC (PS_CONG > 2% & PS_ATT > 500) <br>
-                <strong><i class="fa-solid fa-clock"></i> Thời gian:</strong> Xảy ra liên tiếp trong 3 ngày dữ liệu gần nhất 
-                ({% for d in dates %}{{ d }}{{ ", " if not loop.last else "" }}{% endfor %})
+                <strong><i class="fa-solid fa-clock"></i> Thời gian:</strong> Xét duyệt 3 ngày liên tiếp tính từ ngày dữ liệu mới nhất: 
+                <span class="badge bg-warning text-dark">{{ dates[0] if dates else 'N/A' }}</span>, 
+                <span class="badge bg-warning text-dark">{{ dates[1] if dates|length > 1 else 'N/A' }}</span>, 
+                <span class="badge bg-warning text-dark">{{ dates[2] if dates|length > 2 else 'N/A' }}</span>
             </div>
             
             <div class="table-responsive">
@@ -1128,8 +1123,6 @@ def kpi():
     RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
 
     if poi_input:
-        # Nếu chọn POI, cần tìm cell code 3G, 4G hoặc 5G tùy theo tab đang chọn
-        # Lưu ý: POI table chỉ có 4G và 5G, không có 3G
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
@@ -1261,10 +1254,67 @@ def poi():
 @app.route('/conges-3g')
 @login_required
 def conges_3g():
-    # Logic 3 days
-    dates = [r[0] for r in db.session.query(KPI3G.thoi_gian).distinct().limit(3).all()] # Order by desc needed
-    # ... (Simplified logic for brevity, assume similar to previous)
-    return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=[], dates=dates)
+    # 1. Tìm ngày mới nhất
+    try:
+        # Lấy tất cả các ngày duy nhất
+        all_dates_raw = db.session.query(KPI3G.thoi_gian).distinct().all()
+        # Convert sang datetime để sort
+        date_objs = []
+        for d in all_dates_raw:
+            try:
+                date_objs.append(datetime.strptime(d[0], '%d/%m/%Y'))
+            except ValueError: pass
+        
+        if not date_objs:
+             return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=[], dates=[])
+
+        latest_date = max(date_objs)
+        
+        # 2. Tạo danh sách 3 ngày liên tiếp lùi về quá khứ
+        target_dates_dt = [latest_date, latest_date - timedelta(days=1), latest_date - timedelta(days=2)]
+        target_dates_str = [d.strftime('%d/%m/%Y') for d in target_dates_dt]
+        
+        # 3. Query dữ liệu
+        # Lọc các record thuộc 3 ngày này VÀ thỏa mãn điều kiện nghẽn
+        records = KPI3G.query.filter(
+            KPI3G.thoi_gian.in_(target_dates_str),
+            (
+                ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | 
+                ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+            )
+        ).all()
+        
+        # 4. Đếm số lần xuất hiện của mỗi cell
+        cell_counts = defaultdict(int)
+        for r in records:
+            cell_counts[r.ten_cell] += 1
+            
+        # 5. Lọc ra các cell xuất hiện đủ 3 lần (nghẽn liên tiếp 3 ngày)
+        congested_cells = [cell for cell, count in cell_counts.items() if count == 3]
+        
+        # 6. Join với RF để lấy thông tin hiển thị
+        results = []
+        if congested_cells:
+            rf_info = RF3G.query.filter(RF3G.cell_code.in_(congested_cells)).all()
+            rf_map = {r.cell_code: r for r in rf_info}
+            
+            for cell in congested_cells:
+                rf = rf_map.get(cell)
+                results.append({
+                    'cell_name': cell,
+                    'rf_id': rf.id if rf else '#',
+                    'site_code': rf.site_code if rf else 'N/A',
+                    'csht': rf.csht_code if rf else 'N/A',
+                    'antena': rf.antena if rf else 'N/A',
+                    'tilt': rf.total_tilt if rf else 'N/A'
+                })
+                
+        return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=results, dates=target_dates_str)
+
+    except Exception as e:
+        flash(f'Lỗi xử lý dữ liệu: {str(e)}', 'danger')
+        return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=[], dates=[])
+
 
 @app.route('/backup-restore')
 @login_required
