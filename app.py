@@ -43,10 +43,14 @@ def remove_accents(input_str):
     return s
 
 def clean_header(col_name):
+    # 1. Chuyển về chuỗi, xóa khoảng trắng đầu cuối
     col_name = str(col_name).strip()
+    
+    # 2. Map các trường hợp đặc biệt (Case sensitive hoặc có dấu lạ)
     special_map = {
         'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
-        'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'Frenquency': 'frequency',
+        'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'CELL_NAME': 'cell_name',
+        'Frenquency': 'frequency', 'Frequency': 'frequency',
         'PCI': 'pci', 'TAC': 'tac', 'MIMO': 'mimo',
         'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
         'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
@@ -58,23 +62,32 @@ def clean_header(col_name):
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name'
+        'POI': 'poi_name', 'Hãng_SX': 'hang_sx', 'Hãng SX': 'hang_sx',
+        'Ghi_chú': 'ghi_chu', 'Ghi chú': 'ghi_chu',
+        'Đồng_bộ': 'dong_bo', 'Dong_bo': 'dong_bo',
+        'Cell_code': 'cell_code', 'Site_code': 'site_code', 'CSHT_code': 'csht_code',
+        'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
+        'Total_tilt': 'total_tilt', 'Latitude': 'latitude', 'Longitude': 'longitude',
+        'Equipment': 'equipment', 'Swap': 'swap', 'Start_day': 'start_day'
     }
-    if col_name in special_map: return special_map[col_name]
-
+    
+    # Ưu tiên map chính xác trước
+    if col_name in special_map:
+        return special_map[col_name]
+    
+    # Nếu không có trong map, thử xử lý chung (lowercase + remove accent)
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
-    clean = re.sub(r'[^a-z0-9]', '_', lower)
-    clean = re.sub(r'_+', '_', clean)
+    clean = re.sub(r'[^a-z0-9]', '_', lower) # Thay ký tự lạ bằng _
+    clean = re.sub(r'_+', '_', clean) # Xóa _ thừa
     
+    # Map lại lần nữa cho chắc (các trường hợp viết thường)
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
-        'cell_name': 'cell_name', 'cell_code': 'cell_code', 'site_code': 'site_code',
-        'anten_height': 'anten_height', 'total_tilt': 'total_tilt',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
-        'poi': 'poi_name'
+        'cell_name': 'cell_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
     }
     return common_map.get(clean, clean)
 
@@ -517,24 +530,11 @@ CONTENT_TEMPLATE = """
                             </select>
                         </div>
                         <div class="col-auto">
-                            <label class="col-form-label fw-bold">Chọn POI:</label>
+                            <label class="col-form-label fw-bold">Cell/Site:</label>
                         </div>
-                         <div class="col-md-3">
-                            <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
-                                   placeholder="Chọn POI..." value="{{ selected_poi }}">
-                            <datalist id="poi_list_kpi">
-                                {% for p in poi_list %}
-                                <option value="{{ p }}">
-                                {% endfor %}
-                            </datalist>
-                        </div>
-                        <div class="col-auto"><span class="fw-bold">HOẶC</span></div>
-                        <div class="col-auto">
-                            <label class="col-form-label fw-bold">Nhập Cell/Site:</label>
-                        </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <input type="text" name="cell_name" class="form-control" 
-                                   placeholder="Site Code hoặc list Cell..." 
+                                   placeholder="Nhập Site Code (để vẽ toàn trạm) hoặc danh sách Cell Code (cách nhau bởi dấu phẩy/dấu cách)..." 
                                    value="{{ cell_name_input }}">
                         </div>
                         <div class="col-auto">
@@ -559,35 +559,15 @@ CONTENT_TEMPLATE = """
                     {% for chart_id, chart_data in charts.items() %}
                     (function() {
                         const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
-                        const chartData = {{ chart_data | tojson }};
-                        
                         new Chart(ctx, {
                             type: 'line',
-                            data: chartData,
+                            data: {{ chart_data | tojson }},
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 interaction: {
-                                    mode: 'nearest',
-                                    intersect: false, // Update: click anywhere in range
-                                    axis: 'x'
-                                },
-                                onClick: (e, activeEls) => {
-                                    if (activeEls.length > 0) {
-                                        // Pick the first element (nearest)
-                                        const index = activeEls[0].index;
-                                        const datasetIndex = activeEls[0].datasetIndex;
-                                        const label = chartData.labels[index];
-                                        const value = chartData.datasets[datasetIndex].data[index];
-                                        const cellName = chartData.datasets[datasetIndex].label;
-                                        const metricTitle = '{{ chart_data.title }}';
-                                        
-                                        // Get full data series for this cell
-                                        const cellData = chartData.datasets[datasetIndex].data;
-                                        const allLabels = chartData.labels;
-                                        
-                                        showDetailModal(cellName, label, value, metricTitle, cellData, allLabels);
-                                    }
+                                    mode: 'index',
+                                    intersect: false,
                                 },
                                 plugins: {
                                     title: {
@@ -610,14 +590,14 @@ CONTENT_TEMPLATE = """
                     })();
                     {% endfor %}
                 </script>
-            {% elif cell_name_input or selected_poi %}
+            {% elif cell_name_input %}
                 <div class="alert alert-warning">
-                    Không tìm thấy dữ liệu KPI phù hợp.
+                    Không tìm thấy dữ liệu cho <strong>{{ cell_name_input }}</strong>. 
                 </div>
             {% else %}
                 <div class="text-center text-muted py-5">
                     <i class="fa-solid fa-chart-area fa-3x mb-3"></i>
-                    <p>Chọn POI hoặc nhập tên Site/Cell để xem biểu đồ KPI.</p>
+                    <p>Nhập tên Site hoặc danh sách Cell để xem biểu đồ KPI so sánh.</p>
                 </div>
             {% endif %}
 
@@ -638,7 +618,7 @@ CONTENT_TEMPLATE = """
                             </datalist>
                         </div>
                         <div class="col-auto">
-                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo Tổng Hợp</button>
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo</button>
                         </div>
                     </form>
                 </div>
@@ -668,11 +648,6 @@ CONTENT_TEMPLATE = """
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
-                                interaction: {
-                                    mode: 'nearest',
-                                    intersect: false, // Update: click anywhere in range
-                                    axis: 'x'
-                                },
                                 plugins: {
                                     title: { display: true, text: '{{ chart_data.title }}', font: { size: 14 } },
                                     legend: { position: 'bottom' }
