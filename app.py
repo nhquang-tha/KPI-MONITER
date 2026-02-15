@@ -511,6 +511,104 @@ CONTENT_TEMPLATE = """
                 </div>
             {% endif %}
 
+        {% elif active_page == 'conges_3g' %}
+            <div class="alert alert-info">
+                <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
+                (CS_CONG > 2% & CS_ATT > 100) HOẶC (PS_CONG > 2% & PS_ATT > 500) <br>
+                <strong><i class="fa-solid fa-clock"></i> Thời gian:</strong> Xảy ra liên tiếp trong 3 ngày dữ liệu gần nhất 
+                ({% for d in dates %}{{ d }}{{ ", " if not loop.last else "" }}{% endfor %})
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cell Name</th>
+                            <th>Site Code</th>
+                            <th>CSHT</th>
+                            <th>Antenna</th>
+                            <th>Tilt</th>
+                            <th class="text-center">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in conges_data %}
+                        <tr>
+                            <td class="fw-bold text-primary">{{ row.cell_name }}</td>
+                            <td>{{ row.site_code }}</td>
+                            <td>{{ row.csht }}</td>
+                            <td>{{ row.antena }}</td>
+                            <td>{{ row.tilt }}</td>
+                            <td class="text-center">
+                                <a href="/rf/detail/3g/{{ row.rf_id }}" class="btn btn-sm btn-info text-white" title="Chi tiết RF"><i class="fa-solid fa-eye"></i></a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center py-4 text-muted">Tuyệt vời! Không có cell nào bị nghẽn liên tiếp 3 ngày.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        {% elif active_page == 'rf' %}
+            <div class="mb-3 d-flex justify-content-between">
+                <div class="btn-group">
+                    <a href="/rf?tech=3g" class="btn btn-{{ 'primary' if current_tech == '3g' else 'outline-primary' }}">3G</a>
+                    <a href="/rf?tech=4g" class="btn btn-{{ 'primary' if current_tech == '4g' else 'outline-primary' }}">4G</a>
+                    <a href="/rf?tech=5g" class="btn btn-{{ 'primary' if current_tech == '5g' else 'outline-primary' }}">5G</a>
+                </div>
+                <div>
+                    <a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary me-2"><i class="fa-solid fa-plus"></i> Thêm mới</a>
+                    <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV)</a>
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+                <table class="table table-sm table-bordered table-hover small">
+                    <thead class="table-light position-sticky top-0 shadow-sm">
+                        <tr>
+                            <th class="text-center" style="width: 100px;">Hành động</th>
+                            <th>CSHT Code</th>
+                            <th>{{ 'Site Name' if current_tech == '5g' else 'Cell Name' }}</th>
+                            <th>Cell Code</th>
+                            <th>Site Code</th>
+                            <th>Long</th>
+                            <th>Lat</th>
+                            <th>Freq</th>
+                            <th>Azimuth</th>
+                            <th>Tilt</th>
+                            <th>Antenna</th>
+                            <th>Ghi chú</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rf_data %}
+                        <tr>
+                            <td class="text-center">
+                                <a href="/rf/detail/{{ current_tech }}/{{ row.id }}" class="btn btn-info btn-action text-white" title="Chi tiết"><i class="fa-solid fa-eye"></i></a>
+                                <a href="/rf/edit/{{ current_tech }}/{{ row.id }}" class="btn btn-warning btn-action text-white" title="Sửa"><i class="fa-solid fa-pen-to-square"></i></a>
+                                <a href="/rf/delete/{{ current_tech }}/{{ row.id }}" class="btn btn-danger btn-action" title="Xóa" onclick="return confirm('Bạn có chắc muốn xóa bản ghi này?')"><i class="fa-solid fa-trash"></i></a>
+                            </td>
+                            <td>{{ row.csht_code }}</td>
+                            <td>{{ row.site_name if current_tech == '5g' else row.cell_name }}</td>
+                            <td>{{ row.cell_code }}</td>
+                            <td>{{ row.site_code }}</td>
+                            <td>{{ row.longitude }}</td>
+                            <td>{{ row.latitude }}</td>
+                            <td>{{ row.frequency }}</td>
+                            <td>{{ row.azimuth }}</td>
+                            <td>{{ row.total_tilt }}</td>
+                            <td>{{ row.antena }}</td>
+                            <td>{{ row.ghi_chu }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="12" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên hoặc nhấn Thêm mới.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="text-muted small mt-2 fst-italic">Hiển thị tối đa 500 bản ghi trên web. Để xem đầy đủ, vui lòng chọn "Xuất Excel".</div>
+            </div>
+
         {% elif active_page == 'import' %}
             <div class="row">
                 <div class="col-md-8">
@@ -532,19 +630,28 @@ CONTENT_TEMPLATE = """
                         <div class="tab-pane fade show active" id="rf3g">
                             <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3"><label class="form-label">Chọn file RF 3G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên</button>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
+                                    <a href="/rf/reset?type=3g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 3G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 3G</a>
+                                </div>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="rf4g">
                             <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3"><label class="form-label">Chọn file RF 4G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên</button>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
+                                    <a href="/rf/reset?type=4g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 4G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 4G</a>
+                                </div>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="rf5g">
                             <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
                                 <div class="mb-3"><label class="form-label">Chọn file RF 5G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên</button>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                                    <a href="/rf/reset?type=5g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 5G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 5G</a>
+                                </div>
                             </form>
                         </div>
                         
@@ -566,21 +673,33 @@ CONTENT_TEMPLATE = """
 
                         <!-- KPI Forms -->
                         <div class="tab-pane fade" id="kpi3g">
+                            <h5 class="text-success">Import KPI 3G Hàng Ngày</h5>
                             <form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="form-label">Chọn KPI 3G (.csv)</label><input type="file" name="file" class="form-control" accept=".csv" multiple required></div>
-                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI</button>
+                                <div class="mb-3"><label class="form-label">Chọn các file KPI 3G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                    <small class="text-muted">Có thể chọn nhiều file cùng lúc để import.</small>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 3G</button>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="kpi4g">
+                            <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
                             <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="form-label">Chọn KPI 4G (.csv)</label><input type="file" name="file" class="form-control" accept=".csv" multiple required></div>
-                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI</button>
+                                <div class="mb-3">
+                                    <label class="form-label">Chọn các file KPI 4G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="kpi5g">
+                            <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
                             <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="form-label">Chọn KPI 5G (.csv)</label><input type="file" name="file" class="form-control" accept=".csv" multiple required></div>
-                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI</button>
+                                <div class="mb-3">
+                                    <label class="form-label">Chọn các file KPI 5G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
                             </form>
                         </div>
                     </div>
