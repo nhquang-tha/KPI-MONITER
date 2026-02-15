@@ -6,7 +6,6 @@ import gc
 import re
 import zipfile
 import unicodedata
-import random
 from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
@@ -85,18 +84,6 @@ def clean_header(col_name):
         'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
     }
     return common_map.get(clean, clean)
-
-def generate_colors(n):
-    """Generate n distinct colors."""
-    base_colors = [
-        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
-        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
-        '#343a40', '#007bff', '#6f42c1', '#e83e8c'
-    ]
-    if n <= len(base_colors):
-        return base_colors[:n]
-    # If more needed, generate random
-    return base_colors + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base_colors))]
 
 # --- MODELS ---
 class User(UserMixin, db.Model):
@@ -196,14 +183,14 @@ class POI4G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cell_code = db.Column(db.String(50))
     site_code = db.Column(db.String(50))
-    poi_name = db.Column(db.String(200), index=True)
+    poi_name = db.Column(db.String(200))
 
 class POI5G(db.Model):
     __tablename__ = 'poi_5g'
     id = db.Column(db.Integer, primary_key=True)
     cell_code = db.Column(db.String(50))
     site_code = db.Column(db.String(50))
-    poi_name = db.Column(db.String(200), index=True)
+    poi_name = db.Column(db.String(200))
 
 class KPI3G(db.Model):
     __tablename__ = 'kpi_3g'
@@ -515,20 +502,7 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-12">
                     <form method="GET" action="/kpi" class="row g-3 align-items-center">
                         <div class="col-auto">
-                            <label class="col-form-label fw-bold">Chọn POI:</label>
-                        </div>
-                        <div class="col-md-4">
-                             <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
-                                    placeholder="Chọn POI để vẽ tất cả các cell 4G và 5G..." value="{{ selected_poi }}">
-                             <datalist id="poi_list_kpi">
-                                 {% for p in poi_list %}
-                                 <option value="{{ p }}">
-                                 {% endfor %}
-                             </datalist>
-                        </div>
-
-                        <div class="col-auto ms-4 border-start ps-4">
-                            <label class="col-form-label fw-bold text-muted">Hoặc Lọc Thủ Công:</label>
+                            <label class="col-form-label fw-bold">Công nghệ:</label>
                         </div>
                         <div class="col-auto">
                             <select name="tech" class="form-select">
@@ -537,9 +511,25 @@ CONTENT_TEMPLATE = """
                                 <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
                             </select>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Chọn POI:</label>
+                        </div>
+                         <div class="col-md-3">
+                             <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
+                                    placeholder="Chọn POI..." value="{{ selected_poi }}">
+                             <datalist id="poi_list_kpi">
+                                 {% for p in poi_list %}
+                                 <option value="{{ p }}">
+                                 {% endfor %}
+                             </datalist>
+                        </div>
+                        <div class="col-auto"><span class="fw-bold">HOẶC</span></div>
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Nhập Cell/Site:</label>
+                        </div>
+                        <div class="col-md-3">
                             <input type="text" name="cell_name" class="form-control" 
-                                   placeholder="Site/Cell Code..." 
+                                   placeholder="Site Code hoặc list Cell..." 
                                    value="{{ cell_name_input }}">
                         </div>
                         <div class="col-auto">
@@ -1137,46 +1127,32 @@ def kpi():
     KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
     RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
 
-    # 1. LOGIC TÌM KIẾM: POI -> Site Code -> Cell Name
     if poi_input:
-        # Tìm tất cả cell trong POI (cả 4G và 5G)
-        cells_4g = [r.cell_code for r in POI4G.query.filter(POI4G.poi_name == poi_input).all()]
-        cells_5g = [r.cell_code for r in POI5G.query.filter(POI5G.poi_name == poi_input).all()]
-        
-        # Nếu đang ở tab 3G/4G thì ưu tiên lấy cell 4G, tab 5G lấy 5G
-        if selected_tech == '5g':
-            target_cells = cells_5g
-        else:
-            target_cells = cells_4g # 3G thường dùng chung site với 4G hoặc logic riêng, ở đây tạm lấy theo POI 4G
-            
+        # Nếu chọn POI, cần tìm cell code 3G, 4G hoặc 5G tùy theo tab đang chọn
+        # Lưu ý: POI table chỉ có 4G và 5G, không có 3G
+        POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
+        if POI_Model:
+            target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
     elif cell_name_input and RF_Model:
-        # Check if input is Site Code
+        # Check if site code
         site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
         if site_cells:
             target_cells = [c.cell_code for c in site_cells]
         else:
-            # Assume list of cells
             target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
-    # 2. VẼ BIỂU ĐỒ NẾU CÓ CELL
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
-        
-        # Sort data by date
         try:
             data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
         except ValueError: pass 
 
         if data:
-            # X Axis: Unique sorted dates
             all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
-            
-            # Group data by Cell
             data_by_cell = defaultdict(list)
             for x in data:
                 data_by_cell[x.ten_cell].append(x)
 
-            # Define Metrics to Plot
             metrics_config = {
                 '3g': [
                     {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
@@ -1203,14 +1179,10 @@ def kpi():
                 metric_key = metric['key']
                 metric_label = metric['label']
                 datasets = []
-                
-                # Create a line for each cell
                 for i, cell_code in enumerate(target_cells):
                     cell_data = data_by_cell.get(cell_code, [])
-                    # Map data to timeline (fill missing dates with null or 0)
                     data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
                     aligned_data = [data_map.get(label, None) for label in all_labels]
-                    
                     color = colors[i % len(colors)]
                     datasets.append({
                         'label': cell_code,
@@ -1228,8 +1200,8 @@ def kpi():
                     'labels': all_labels,
                     'datasets': datasets
                 }
-    
-    # 3. LẤY DANH SÁCH POI CHO DATALIST
+
+    # Fetch POI List for datalist
     poi_list = []
     with app.app_context():
         try:
@@ -1419,6 +1391,98 @@ def rf_detail(tech, id):
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     obj = db.session.get(Model, id)
     return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
+
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        files = request.files.getlist('file')
+        itype = request.args.get('type')
+        
+        cfg = {
+            '3g': (RF3G, ['antena', 'azimuth']), '4g': (RF4G, ['enodeb_id']), '5g': (RF5G, ['gnodeb_id']),
+            'kpi3g': (KPI3G, ['traffic']), 'kpi4g': (KPI4G, ['traffic_vol_dl']), 'kpi5g': (KPI5G, ['dl_traffic_volume_gb']),
+            'poi4g': (POI4G, ['poi_name']), 'poi5g': (POI5G, ['poi_name'])
+        }
+        
+        Model, req_cols = cfg.get(itype, (None, []))
+        if not Model: return redirect(url_for('import_data'))
+        
+        valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+        count = 0
+        
+        for file in files:
+            if not file.filename: continue
+            try:
+                # Read file
+                if file.filename.endswith('.csv'):
+                    chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip') # Add encoding safety
+                else:
+                    df = pd.read_excel(file)
+                    chunks = [df]
+                
+                for df in chunks:
+                    # Clean columns
+                    df.columns = [clean_header(c) for c in df.columns]
+                    
+                    # Validate
+                    # Check if at least one required col exists? Or all?
+                    # Let's be lenient: check if ANY required col is missing?
+                    # The previous logic was: if not all(r in df.columns for r in req_cols):
+                    # Let's check overlap.
+                    # Actually, strict validation is safer.
+                    missing = [c for c in req_cols if c not in df.columns]
+                    if missing:
+                        # Fallback check for alternative names? clean_header should handle it.
+                        # Maybe log warning and skip?
+                        # print(f"Missing cols: {missing}. Available: {df.columns}")
+                        pass 
+
+                    # Clean data & Insert
+                    records = []
+                    for row in df.to_dict('records'):
+                        clean_row = {}
+                        for k, v in row.items():
+                            if k in valid_cols:
+                                val = v
+                                if pd.isna(val): val = None
+                                elif isinstance(val, str): val = val.strip() # TRIM WHITESPACE
+                                clean_row[k] = val
+                        
+                        # Special handling for KPI4G traffic if strictly 'traffic' is missing but 'traffic_vol_dl' exists
+                        # (Already handled in map but good to be safe)
+                        if 'traffic' in valid_cols and 'traffic' not in clean_row:
+                             if 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
+                             elif 'dl_traffic_volume_gb' in clean_row: clean_row['traffic'] = clean_row['dl_traffic_volume_gb']
+
+                        records.append(clean_row)
+                    
+                    if records:
+                        db.session.bulk_insert_mappings(Model, records)
+                        db.session.commit()
+                        count += len(records)
+                        
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Lỗi import {file.filename}: {str(e)}', 'danger')
+                print(f"IMPORT ERROR: {e}")
+        
+        if count > 0: flash(f'Đã import {count} dòng.', 'success')
+        return redirect(url_for('import_data'))
+
+    # Fetch dates for KPI list
+    dates_3g, dates_4g, dates_5g = [], [], []
+    try:
+        # distinct dates query
+        dates_3g = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
+        dates_4g = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
+        dates_5g = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
+    except Exception as e:
+        print(f"Error fetching dates: {e}")
+    
+    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
+    
+    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=kpi_rows)
 
 # --- TEMPLATE LOADERS & UTILS ---
 app.jinja_loader = jinja2.DictLoader({
