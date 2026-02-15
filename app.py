@@ -57,7 +57,8 @@ def clean_header(col_name):
         'Cell avaibility rate': 'cell_avaibility_rate',
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
-        'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g'
+        'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
+        'POI': 'poi_name' # Map cột POI trong file Excel sang poi_name trong DB
     }
     if col_name in special_map: return special_map[col_name]
 
@@ -72,7 +73,8 @@ def clean_header(col_name):
         'cell_name': 'cell_name', 'cell_code': 'cell_code', 'site_code': 'site_code',
         'anten_height': 'anten_height', 'total_tilt': 'total_tilt',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
-        'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges'
+        'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
+        'poi': 'poi_name' # Fallback map
     }
     return common_map.get(clean, clean)
 
@@ -1133,15 +1135,17 @@ def import_data():
         return redirect(url_for('import_data'))
 
     # Fetch dates for KPI list
-    dates = []
+    dates_3g, dates_4g, dates_5g = [], [], []
     try:
-        for M, label in [(KPI3G, '3G'), (KPI4G, '4G'), (KPI5G, '5G')]:
-            ds = db.session.query(M.thoi_gian).distinct().all()
-            dates.extend([{'type': f'KPI {label}', 'date': d[0]} for d in ds])
-        dates.sort(key=lambda x: x['date'], reverse=True)
-    except: pass
+        dates_3g = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
+        dates_4g = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
+        dates_5g = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
+    except Exception as e:
+        print(f"Error fetching dates: {e}")
     
-    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', imported_kpi_dates=dates)
+    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
+    
+    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=kpi_rows)
 
 @app.route('/kpi')
 @login_required
