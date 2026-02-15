@@ -59,22 +59,10 @@ def clean_header(col_name):
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name', 'Hãng_SX': 'hang_sx', 'Hãng SX': 'hang_sx',
-        'Ghi_chú': 'ghi_chu', 'Ghi chú': 'ghi_chu',
-        'Đồng_bộ': 'dong_bo', 'Dong_bo': 'dong_bo',
-        'Cell_code': 'cell_code', 'Site_code': 'site_code', 'CSHT_code': 'csht_code',
-        'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
-        'Total_tilt': 'total_tilt', 'Latitude': 'latitude', 'Longitude': 'longitude',
-        'Equipment': 'equipment', 'Swap': 'swap', 'Start_day': 'start_day',
-        'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
-        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
-        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
-        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl'
+        'POI': 'poi_name'
     }
-    
-    if col_name in special_map:
-        return special_map[col_name]
-    
+    if col_name in special_map: return special_map[col_name]
+
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
@@ -83,6 +71,8 @@ def clean_header(col_name):
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
+        'cell_name': 'cell_name', 'cell_code': 'cell_code', 'site_code': 'site_code',
+        'anten_height': 'anten_height', 'total_tilt': 'total_tilt',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
         'poi': 'poi_name'
@@ -528,11 +518,24 @@ CONTENT_TEMPLATE = """
                             </select>
                         </div>
                         <div class="col-auto">
-                            <label class="col-form-label fw-bold">Cell/Site:</label>
+                            <label class="col-form-label fw-bold">Chọn POI:</label>
                         </div>
-                        <div class="col-md-6">
+                         <div class="col-md-3">
+                             <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
+                                    placeholder="Chọn POI..." value="{{ selected_poi }}">
+                             <datalist id="poi_list_kpi">
+                                 {% for p in poi_list %}
+                                 <option value="{{ p }}">
+                                 {% endfor %}
+                             </datalist>
+                        </div>
+                        <div class="col-auto"><span class="fw-bold">HOẶC</span></div>
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Nhập Cell/Site:</label>
+                        </div>
+                        <div class="col-md-3">
                             <input type="text" name="cell_name" class="form-control" 
-                                   placeholder="Nhập Site Code (để vẽ toàn trạm) hoặc danh sách Cell Code (cách nhau bởi dấu phẩy/dấu cách)..." 
+                                   placeholder="Site Code hoặc list Cell..." 
                                    value="{{ cell_name_input }}">
                         </div>
                         <div class="col-auto">
@@ -607,14 +610,14 @@ CONTENT_TEMPLATE = """
                     })();
                     {% endfor %}
                 </script>
-            {% elif cell_name_input %}
+            {% elif cell_name_input or selected_poi %}
                 <div class="alert alert-warning">
-                    Không tìm thấy dữ liệu cho <strong>{{ cell_name_input }}</strong>. 
+                    Không tìm thấy dữ liệu KPI phù hợp.
                 </div>
             {% else %}
                 <div class="text-center text-muted py-5">
                     <i class="fa-solid fa-chart-area fa-3x mb-3"></i>
-                    <p>Nhập tên Site hoặc danh sách Cell để xem biểu đồ KPI so sánh.</p>
+                    <p>Chọn POI hoặc nhập tên Site/Cell để xem biểu đồ KPI.</p>
                 </div>
             {% endif %}
 
@@ -635,7 +638,7 @@ CONTENT_TEMPLATE = """
                             </datalist>
                         </div>
                         <div class="col-auto">
-                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo</button>
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo Tổng Hợp</button>
                         </div>
                     </form>
                 </div>
@@ -1114,199 +1117,7 @@ def index():
     except: cnt = defaultdict(int)
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
-@app.route('/rf')
-@login_required
-def rf():
-    tech = request.args.get('tech', '3g')
-    action = request.args.get('action')
-    cell_search = request.args.get('cell_search', '').strip()
-    
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech, RF3G)
-    
-    # Export logic
-    if action == 'export':
-        def generate():
-            yield '\ufeff'.encode('utf-8')
-            cols = [c.key for c in Model.__table__.columns]
-            yield (','.join(cols) + '\n').encode('utf-8')
-            
-            query = db.select(Model).execution_options(yield_per=100)
-            if cell_search:
-                query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
-                
-            for row in db.session.execute(query).scalars():
-                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
-        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
-
-    # Fetch Data
-    query = Model.query
-    if cell_search:
-        query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
-    
-    rows = query.limit(500).all()
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    
-    # Map objects to dict for template
-    data = []
-    for r in rows:
-        item = {'id': r.id}
-        for c in cols:
-            item[c] = getattr(r, c)
-        data.append(item)
-    
-    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
-
-@app.route('/rf/add', methods=['GET', 'POST'])
-@login_required
-def rf_add():
-    tech = request.args.get('tech', '3g')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if not Model: return redirect(url_for('rf'))
-    
-    if request.method == 'POST':
-        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
-        db.session.add(Model(**data))
-        db.session.commit()
-        flash('Thêm mới thành công', 'success')
-        return redirect(url_for('rf', tech=tech))
-        
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Thêm RF {tech.upper()}", columns=cols, tech=tech, obj={})
-
-@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
-@login_required
-def rf_edit(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if not obj: return redirect(url_for('rf', tech=tech))
-    
-    if request.method == 'POST':
-        for k, v in request.form.items():
-            if hasattr(obj, k): setattr(obj, k, v)
-        db.session.commit()
-        flash('Cập nhật thành công', 'success')
-        return redirect(url_for('rf', tech=tech))
-        
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=cols, tech=tech, obj=obj.__dict__)
-
-@app.route('/rf/delete/<tech>/<int:id>')
-@login_required
-def rf_delete(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if obj:
-        db.session.delete(obj)
-        db.session.commit()
-        flash('Đã xóa', 'success')
-    return redirect(url_for('rf', tech=tech))
-
-@app.route('/rf/reset')
-@login_required
-def rf_reset():
-    if current_user.role != 'admin': return redirect(url_for('import_data'))
-    tech = request.args.get('type')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if Model:
-        db.session.query(Model).delete()
-        db.session.commit()
-        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
-    return redirect(url_for('import_data'))
-
-@app.route('/rf/detail/<tech>/<int:id>')
-@login_required
-def rf_detail(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
-
-@app.route('/import', methods=['GET', 'POST'])
-@login_required
-def import_data():
-    if request.method == 'POST':
-        files = request.files.getlist('file')
-        itype = request.args.get('type')
-        
-        cfg = {
-            '3g': (RF3G, ['antena', 'azimuth']), '4g': (RF4G, ['enodeb_id']), '5g': (RF5G, ['gnodeb_id']),
-            'kpi3g': (KPI3G, ['traffic']), 'kpi4g': (KPI4G, ['traffic_vol_dl']), 'kpi5g': (KPI5G, ['dl_traffic_volume_gb']),
-            'poi4g': (POI4G, ['poi_name']), 'poi5g': (POI5G, ['poi_name'])
-        }
-        
-        Model, req_cols = cfg.get(itype, (None, []))
-        if not Model: return redirect(url_for('import_data'))
-        
-        valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-        count = 0
-        
-        for file in files:
-            if not file.filename: continue
-            try:
-                # Read file
-                if file.filename.endswith('.csv'):
-                    chunks = pd.read_csv(file, chunksize=2000)
-                else:
-                    df = pd.read_excel(file)
-                    chunks = [df]
-                
-                for df in chunks:
-                    # Clean columns
-                    df.columns = [clean_header(c) for c in df.columns]
-                    
-                    # Validate
-                    if not all(r in df.columns for r in req_cols):
-                        flash(f'File {file.filename} thiếu cột bắt buộc: {req_cols}', 'danger')
-                        break
-                    
-                    # Clean data & Insert
-                    records = []
-                    for row in df.to_dict('records'):
-                        clean_row = {}
-                        for k, v in row.items():
-                            if k in valid_cols:
-                                val = v
-                                if pd.isna(val): val = None
-                                elif isinstance(val, str): val = val.strip() # TRIM WHITESPACE
-                                clean_row[k] = val
-                                
-                        # KPI Specific: Fallback for traffic column
-                        if 'kpi' in itype and 'traffic' in valid_cols and 'traffic' not in clean_row:
-                             if 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
-                        
-                        records.append(clean_row)
-                    
-                    if records:
-                        db.session.bulk_insert_mappings(Model, records)
-                        db.session.commit()
-                        count += len(records)
-                        
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Lỗi import {file.filename}: {e}', 'danger')
-        
-        if count > 0: flash(f'Đã import {count} dòng.', 'success')
-        return redirect(url_for('import_data'))
-
-    # Fetch dates for KPI list
-    dates_3g = []
-    dates_4g = []
-    dates_5g = []
-    try:
-        dates_3g = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
-        dates_3g.sort(key=lambda x: datetime.strptime(x, '%d/%m/%Y') if x else datetime.min, reverse=True)
-        
-        dates_4g = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
-        dates_4g.sort(key=lambda x: datetime.strptime(x, '%d/%m/%Y') if x else datetime.min, reverse=True)
-        
-        dates_5g = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().all()]
-        dates_5g.sort(key=lambda x: datetime.strptime(x, '%d/%m/%Y') if x else datetime.min, reverse=True)
-    except Exception as e:
-        print(f"Error fetching dates: {e}")
-
-    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
-
-    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=kpi_rows)
-
+# Các route menu khác
 @app.route('/kpi')
 @login_required
 def kpi():
@@ -1325,6 +1136,8 @@ def kpi():
     RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
 
     if poi_input:
+        # Nếu chọn POI, cần tìm cell code 3G, 4G hoặc 5G tùy theo tab đang chọn
+        # Lưu ý: POI table chỉ có 4G và 5G, không có 3G
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
@@ -1480,6 +1293,112 @@ def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", a
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
+
+@app.route('/rf')
+@login_required
+def rf():
+    tech = request.args.get('tech', '3g')
+    action = request.args.get('action')
+    cell_search = request.args.get('cell_search', '').strip()
+    
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech, RF3G)
+    
+    # Export logic
+    if action == 'export':
+        def generate():
+            yield '\ufeff'.encode('utf-8')
+            cols = [c.key for c in Model.__table__.columns]
+            yield (','.join(cols) + '\n').encode('utf-8')
+            
+            query = db.select(Model).execution_options(yield_per=100)
+            if cell_search:
+                query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
+                
+            for row in db.session.execute(query).scalars():
+                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
+
+    # Fetch Data
+    query = Model.query
+    if cell_search:
+        query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
+    
+    rows = query.limit(500).all()
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    
+    # Map objects to dict for template
+    data = []
+    for r in rows:
+        item = {'id': r.id}
+        for c in cols:
+            item[c] = getattr(r, c)
+        data.append(item)
+    
+    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
+
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
+def rf_add():
+    tech = request.args.get('tech', '3g')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not Model: return redirect(url_for('rf'))
+    
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
+        db.session.add(Model(**data))
+        db.session.commit()
+        flash('Thêm mới thành công', 'success')
+        return redirect(url_for('rf', tech=tech))
+        
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Thêm RF {tech.upper()}", columns=cols, tech=tech, obj={})
+
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def rf_edit(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if not obj: return redirect(url_for('rf', tech=tech))
+    
+    if request.method == 'POST':
+        for k, v in request.form.items():
+            if hasattr(obj, k): setattr(obj, k, v)
+        db.session.commit()
+        flash('Cập nhật thành công', 'success')
+        return redirect(url_for('rf', tech=tech))
+        
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=cols, tech=tech, obj=obj.__dict__)
+
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if obj:
+        db.session.delete(obj)
+        db.session.commit()
+        flash('Đã xóa', 'success')
+    return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/reset')
+@login_required
+def rf_reset():
+    if current_user.role != 'admin': return redirect(url_for('import_data'))
+    tech = request.args.get('type')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if Model:
+        db.session.query(Model).delete()
+        db.session.commit()
+        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
+    return redirect(url_for('import_data'))
+
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
 
 # --- TEMPLATE LOADERS & UTILS ---
 app.jinja_loader = jinja2.DictLoader({
