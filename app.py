@@ -28,7 +28,6 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 280,
     'pool_pre_ping': True
 }
-# Tăng giới hạn upload file lên 16MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 
 
 db = SQLAlchemy(app)
@@ -57,7 +56,7 @@ class RF3G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     csht_code = db.Column(db.String(50))
     cell_name = db.Column(db.String(100))
-    cell_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(50), index=True) # Index for faster join
     site_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
@@ -83,7 +82,7 @@ class RF4G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     csht_code = db.Column(db.String(50))
     cell_name = db.Column(db.String(100))
-    cell_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(50), index=True)
     site_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
@@ -111,7 +110,7 @@ class RF5G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     csht_code = db.Column(db.String(50))
     site_name = db.Column(db.String(100))
-    cell_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(50), index=True)
     site_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
@@ -157,7 +156,7 @@ class KPI3G(db.Model):
     nha_cung_cap = db.Column(db.String(50))
     tinh = db.Column(db.String(50))
     ten_rnc = db.Column(db.String(100))
-    ten_cell = db.Column(db.String(100))
+    ten_cell = db.Column(db.String(100), index=True)
     ma_vnp = db.Column(db.String(50))
     loai_ne = db.Column(db.String(50))
     lac = db.Column(db.String(50))
@@ -184,7 +183,7 @@ class KPI4G(db.Model):
     nha_cung_cap = db.Column(db.String(50))
     tinh = db.Column(db.String(50))
     ten_rnc = db.Column(db.String(100))
-    ten_cell = db.Column(db.String(100))
+    ten_cell = db.Column(db.String(100), index=True)
     ma_vnp = db.Column(db.String(50))
     loai_ne = db.Column(db.String(50))
     enodeb_id = db.Column(db.String(50))
@@ -210,7 +209,7 @@ class KPI5G(db.Model):
     nha_cung_cap = db.Column(db.String(50))
     tinh = db.Column(db.String(50))
     ten_gnodeb = db.Column(db.String(100))
-    ten_cell = db.Column(db.String(100))
+    ten_cell = db.Column(db.String(100), index=True)
     ma_vnp = db.Column(db.String(50))
     loai_ne = db.Column(db.String(50))
     gnodeb_id = db.Column(db.String(50))
@@ -237,16 +236,6 @@ def init_database():
     with app.app_context():
         try:
             db.create_all()
-            # Kiểm tra xem các bảng KPI đã có các cột mới chưa
-            try:
-                db.session.execute(text("SELECT pstraffic FROM kpi_3g LIMIT 1"))
-            except Exception:
-                print(">>> Cập nhật cấu trúc Database...")
-                db.session.rollback()
-                db.drop_all()         
-                db.create_all()       
-                print(">>> Đã Reset Database thành công!")
-
             if not User.query.filter_by(username='admin').first():
                 admin = User(username='admin', role='admin')
                 admin.set_password('admin123')
@@ -759,6 +748,106 @@ CONTENT_TEMPLATE = """
 {% endblock %}
 """
 
+USER_MANAGEMENT_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card"><div class="card-header">Thêm User</div><div class="card-body">
+            <form action="/users/add" method="POST">
+                <div class="mb-2"><label>Username</label><input type="text" name="username" class="form-control" required></div>
+                <div class="mb-2"><label>Password</label><input type="password" name="password" class="form-control" required></div>
+                <div class="mb-3"><label>Role</label><select name="role" class="form-select"><option value="user">User</option><option value="admin">Admin</option></select></div>
+                <button class="btn btn-success w-100">Tạo</button>
+            </form>
+        </div></div>
+    </div>
+    <div class="col-md-8">
+        <div class="card"><div class="card-header">Danh sách User</div><div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light"><tr><th>ID</th><th>User</th><th>Role</th><th>Thao tác</th></tr></thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td><span class="badge bg-{{ 'danger' if u.role=='admin' else 'info' }}">{{ u.role }}</span></td>
+                    <td>{% if u.username != 'admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa?')">Xóa</a> <button class="btn btn-sm btn-outline-warning" onclick="promptReset({{ u.id }}, '{{ u.username }}')">Đổi Pass</button>{% endif %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+<script>function promptReset(id, name) { let p = prompt("Pass mới cho " + name); if(p) location.href="/users/reset-pass/"+id+"?new_pass="+encodeURIComponent(p); }</script>
+{% endblock %}
+"""
+
+PROFILE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-6"><div class="card"><div class="card-header">Đổi mật khẩu</div><div class="card-body">
+    <p>User: <strong>{{ current_user.username }}</strong></p><hr>
+    <form action="/change-password" method="POST">
+        <div class="mb-3"><label>Mật khẩu cũ</label><input type="password" name="current_password" class="form-control" required></div>
+        <div class="mb-3"><label>Mật khẩu mới</label><input type="password" name="new_password" class="form-control" required></div>
+        <button class="btn btn-primary">Lưu thay đổi</button>
+    </form>
+</div></div></div></div>
+{% endblock %}
+"""
+
+BACKUP_RESTORE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <!-- Backup Section -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Sao lưu Dữ liệu (Backup)</h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
+                    <p class="text-center text-muted mb-4">
+                        Tải xuống toàn bộ dữ liệu hiện tại (User, RF, KPI, POI) dưới dạng file nén (.zip).
+                    </p>
+                    <form action="/backup" method="POST">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fa-solid fa-file-zipper me-2"></i> Tải xuống bản sao lưu
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Section -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Khôi phục Dữ liệu (Restore)</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        <strong>CẢNH BÁO:</strong> Dữ liệu hiện tại sẽ bị xóa và thay thế bằng dữ liệu trong file backup.
+                    </div>
+                    <form action="/restore" method="POST" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <label for="backupFile" class="form-label fw-bold">Chọn file Backup (.zip)</label>
+                            <input class="form-control form-control-lg" type="file" id="backupFile" name="file" accept=".zip" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Bạn có chắc chắn muốn khôi phục dữ liệu?')">
+                                <i class="fa-solid fa-rotate-left me-2"></i> Tiến hành Khôi phục
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
 RF_FORM_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
@@ -850,7 +939,21 @@ def logout(): logout_user(); return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
-def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard')
+def index():
+    # Thống kê dữ liệu cho dashboard
+    try:
+        count_rf3g = db.session.query(func.count(RF3G.id)).scalar()
+        count_rf4g = db.session.query(func.count(RF4G.id)).scalar()
+        count_rf5g = db.session.query(func.count(RF5G.id)).scalar()
+        count_kpi3g = db.session.query(func.count(KPI3G.id)).scalar()
+        count_kpi4g = db.session.query(func.count(KPI4G.id)).scalar()
+        count_kpi5g = db.session.query(func.count(KPI5G.id)).scalar()
+    except:
+        count_rf3g = count_rf4g = count_rf5g = count_kpi3g = count_kpi4g = count_kpi5g = 0
+
+    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard',
+                       count_rf3g=count_rf3g, count_rf4g=count_rf4g, count_rf5g=count_rf5g,
+                       count_kpi3g=count_kpi3g, count_kpi4g=count_kpi4g, count_kpi5g=count_kpi5g)
 
 # Các route menu khác
 @app.route('/kpi')
