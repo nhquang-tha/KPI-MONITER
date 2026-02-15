@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import gc # Thư viện quản lý bộ nhớ
 import re # Thư viện xử lý chuỗi Regular Expression
+import zipfile # Thư viện xử lý nén file
 from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
@@ -35,6 +36,7 @@ login_manager.login_view = 'login'
 
 # --- MODELS (USER) ---
 class User(UserMixin, db.Model):
+    __tablename__ = 'user'
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
@@ -283,6 +285,7 @@ BASE_LAYOUT = """
             <li class="mt-3 text-muted ps-3"><small>HỆ THỐNG</small></li>
             {% if current_user.role == 'admin' %}
             <li><a href="/users" class="{{ 'active' if active_page == 'users' else '' }}"><i class="fa-solid fa-users-gear"></i> Quản lý User</a></li>
+            <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
             {% endif %}
             <li><a href="/profile" class="{{ 'active' if active_page == 'profile' else '' }}"><i class="fa-solid fa-user-shield"></i> Tài khoản</a></li>
             <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</a></li>
@@ -685,7 +688,62 @@ PROFILE_TEMPLATE = """
 {% endblock %}
 """
 
-# Template cho Form Thêm/Sửa (Sinh động)
+BACKUP_RESTORE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <!-- Backup Section -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Sao lưu Dữ liệu (Backup)</h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
+                    <p class="text-center text-muted mb-4">
+                        Tải xuống toàn bộ dữ liệu hiện tại (User, RF, KPI) dưới dạng file nén (.zip).<br>
+                        File này có thể được sử dụng để khôi phục dữ liệu sau này.
+                    </p>
+                    <form action="/backup" method="POST">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fa-solid fa-file-zipper me-2"></i> Tải xuống bản sao lưu
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Section -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Khôi phục Dữ liệu (Restore)</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        <strong>CẢNH BÁO QUAN TRỌNG:</strong><br>
+                        Hành động này sẽ <strong>XÓA TOÀN BỘ</strong> dữ liệu hiện tại trong các bảng tương ứng có trong file backup và thay thế bằng dữ liệu mới.
+                    </div>
+                    <form action="/restore" method="POST" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <label for="backupFile" class="form-label fw-bold">Chọn file Backup (.zip)</label>
+                            <input class="form-control form-control-lg" type="file" id="backupFile" name="file" accept=".zip" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Bạn có chắc chắn muốn khôi phục dữ liệu? Mọi dữ liệu hiện tại sẽ bị ghi đè!')">
+                                <i class="fa-solid fa-rotate-left me-2"></i> Tiến hành Khôi phục
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
 RF_FORM_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
@@ -715,7 +773,6 @@ RF_FORM_TEMPLATE = """
 {% endblock %}
 """
 
-# Template cho Xem Chi Tiết
 RF_DETAIL_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
@@ -747,9 +804,16 @@ RF_DETAIL_TEMPLATE = """
 {% endblock %}
 """
 
-app.jinja_loader = jinja2.DictLoader({'base': BASE_LAYOUT})
+# --- CẤU HÌNH LOADER TEMPLATE ẢO ---
+app.jinja_loader = jinja2.DictLoader({
+    'base': BASE_LAYOUT,
+    'backup_restore': BACKUP_RESTORE_TEMPLATE
+})
 
 def render_page(tpl, **kwargs):
+    # Nếu là template tên 'backup_restore', load từ DictLoader
+    if tpl == BACKUP_RESTORE_TEMPLATE:
+        return render_template_string(tpl, **kwargs)
     return render_template_string(tpl, **kwargs)
 
 # --- ROUTES ---
@@ -787,25 +851,19 @@ def kpi():
         Model = model_map.get(selected_tech)
         
         if Model:
-            # Query data for cell, order by time
-            # Note: thoi_gian is string, assuming dd/mm/yyyy for now. 
-            # In a real app, storing as Date object is better for sorting.
-            # Here we fetch all and sort in python to be safe with string dates
             data = Model.query.filter(
                 (Model.ten_cell == cell_name) | (Model.ten_cell.like(f"%{cell_name}%"))
             ).all()
             
-            # Sort by date
             try:
                 data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
             except ValueError:
-                pass # Fallback if date format is weird
+                pass
 
             if data:
                 labels = [x.thoi_gian for x in data]
                 datasets = []
                 
-                # Define metrics per tech
                 metrics_config = {
                     '3g': [
                         {'key': 'pstraffic', 'label': 'PSTRAFFIC', 'color': 'blue'},
@@ -839,7 +897,6 @@ def kpi():
                     datasets.append(dataset)
                 
                 chart_data = json.dumps({'labels': labels, 'datasets': datasets})
-                # Update cell name to exact match if found
                 if data: cell_name = data[0].ten_cell
 
     return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
@@ -855,25 +912,16 @@ def rf():
     CurrentModel = model_map.get(tech, RF3G)
     
     if action == 'export':
-        # Chuyển sang CSV Streaming để tiết kiệm RAM
         def generate():
-            # BOM để Excel hiển thị đúng tiếng Việt
             yield '\ufeff'.encode('utf-8')
-            
-            # Lấy header
             header = [c.key for c in CurrentModel.__table__.columns]
             yield (','.join(header) + '\n').encode('utf-8')
-            
-            # Query từng phần nhỏ (Yield per) để không load hết vào RAM
             query = db.select(CurrentModel).execution_options(yield_per=100)
             result = db.session.execute(query)
-            
             for row in result.scalars():
-                # Chuyển row object thành list giá trị
                 row_data = []
                 for col in header:
                     val = getattr(row, col)
-                    # Xử lý None và ký tự đặc biệt cho CSV
                     if val is None: val = ''
                     val = str(val).replace(',', ';').replace('\n', ' ')
                     row_data.append(val)
@@ -882,11 +930,8 @@ def rf():
         return Response(stream_with_context(generate()), mimetype='text/csv', 
                        headers={"Content-Disposition": f"attachment; filename=RF_{tech.upper()}.csv"})
 
-    # Hiển thị web: Limit 500
     data = CurrentModel.query.limit(500).all()
     return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, current_tech=tech)
-
-# --- ROUTES: THÊM / SỬA / XÓA / CHI TIẾT RF ---
 
 @app.route('/rf/add', methods=['GET', 'POST'])
 @login_required
@@ -900,12 +945,10 @@ def rf_add():
     
     if request.method == 'POST':
         try:
-            # Lấy dữ liệu từ form, bỏ qua 'id'
             data = {}
             for col in model_class.__table__.columns:
                 if col.key == 'id': continue
                 val = request.form.get(col.key)
-                # Chuyển chuỗi rỗng thành None
                 if val == '': val = None
                 data[col.key] = val
             
@@ -947,7 +990,6 @@ def rf_edit(tech, id):
             db.session.rollback()
             flash(f'Lỗi cập nhật: {str(e)}', 'danger')
 
-    # Convert object to dict for template
     obj_dict = obj.__dict__
     columns = [c.key for c in model_class.__table__.columns if c.key != 'id']
     return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=columns, tech=tech, obj=obj_dict)
@@ -1006,10 +1048,7 @@ def rf_detail(tech, id):
 @app.route('/conges-3g')
 @login_required
 def conges_3g():
-    # 1. Lấy 3 ngày dữ liệu mới nhất
     dates_query = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).limit(3).all()
-    print(f"DEBUG: Found {len(dates_query)} dates: {dates_query}") # Log để kiểm tra
-
     if len(dates_query) < 3:
         found_dates = [d[0] for d in dates_query]
         flash(f'Chưa đủ 3 ngày dữ liệu KPI 3G để phân tích xu hướng. Hiện có: {", ".join(found_dates)}', 'warning')
@@ -1017,8 +1056,6 @@ def conges_3g():
     
     target_dates = [d[0] for d in dates_query]
     
-    # 2. Truy vấn các cell thỏa mãn điều kiện nghẽn trong 3 ngày này
-    # Condition: (CSCONGES > 2% AND CS_SO_ATT > 100) OR (PSCONGES > 2% AND PS_SO_ATT > 500)
     subquery = db.session.query(KPI3G.ten_cell, KPI3G.thoi_gian).filter(
         KPI3G.thoi_gian.in_(target_dates),
         (
@@ -1027,26 +1064,21 @@ def conges_3g():
         )
     ).all()
     
-    # 3. Xử lý Logic đếm số lần xuất hiện liên tiếp
     cell_counts = defaultdict(set)
     for cell_name, date in subquery:
         cell_counts[cell_name].add(date)
     
-    # Lọc ra các cell xuất hiện đủ trong cả 3 ngày
     congested_cells = [cell for cell, dates in cell_counts.items() if len(dates) == 3]
     
-    # 4. Lấy thông tin RF cho các cell bị nghẽn
     results = []
     if congested_cells:
-        # Chuẩn hóa tên cell nếu cần (ví dụ bỏ khoảng trắng thừa)
-        # SỬ DỤNG CELL_CODE để map (theo yêu cầu mới) thay vì cell_name
         rf_info = RF3G.query.filter(RF3G.cell_code.in_(congested_cells)).all()
         rf_map = {r.cell_code: r for r in rf_info}
         
         for cell in congested_cells:
             rf = rf_map.get(cell)
             results.append({
-                'cell_name': cell, # Đây là tên cell từ KPI (khớp với cell_code bên RF)
+                'cell_name': cell,
                 'rf_id': rf.id if rf else '#',
                 'site_code': rf.site_code if rf else 'N/A',
                 'csht': rf.csht_code if rf else 'N/A',
@@ -1080,8 +1112,6 @@ def import_data():
         if not files or files[0].filename == '':
             flash('Chưa chọn file!', 'warning'); return redirect(url_for('import_data'))
 
-        # Định nghĩa các model map và các cột BẮT BUỘC (Signature columns)
-        # Các cột này PHẢI xuất hiện trong file để được coi là hợp lệ
         type_config = {
             '3g': {'model': RF3G, 'required': ['antena', 'azimuth']}, # RF 3G
             '4g': {'model': RF4G, 'required': ['enodeb_id', 'pci']},    # RF 4G
@@ -1103,17 +1133,16 @@ def import_data():
             for file in files:
                 filename = file.filename
                 
-                # Hàm chuẩn hóa tên cột
                 def clean_col(col_name):
                     col_name = str(col_name).strip()
                     map_kpi = {
                         'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
                         'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
-                        'Total Data Traffic Volume (GB)': 'traffic', # 5G Total Traffic
+                        'Total Data Traffic Volume (GB)': 'traffic', 
                         'Cell Uplink Average Throughput': 'cell_uplink_average_throughput',
                         'Cell Downlink Average Throughput': 'cell_downlink_average_throughput',
-                        'A User Downlink Average Throughput': 'user_dl_avg_throughput', # 5G User Thput
-                        'CQI_5G': 'cqi_5g', # 5G CQI
+                        'A User Downlink Average Throughput': 'user_dl_avg_throughput', 
+                        'CQI_5G': 'cqi_5g', 
                         'Cell avaibility rate': 'cell_avaibility_rate',
                         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
                         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
@@ -1128,9 +1157,7 @@ def import_data():
                         'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
                         'PCI': 'pci',
                         'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
-                        'PSTRAFFIC': 'pstraffic', # 3G PS Traffic
-                        'RES_BLK_DL': 'res_blk_dl', # 4G PRB
-                        'CQI_4G': 'cqi_4g' # 4G CQI
+                        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl', 'CQI_4G': 'cqi_4g'
                     }
                     if col_name in map_kpi: return map_kpi[col_name]
                     clean = col_name.lower()
@@ -1139,28 +1166,23 @@ def import_data():
 
                 valid_db_columns = [c.key for c in target_model.__table__.columns if c.key != 'id']
 
-                # Đọc header trước để validate
                 if filename.lower().endswith('.csv'):
-                    df_header = pd.read_csv(file, nrows=0) # Chỉ đọc header
+                    df_header = pd.read_csv(file, nrows=0)
                 elif filename.lower().endswith(('.xls', '.xlsx')):
                     df_header = pd.read_excel(file, nrows=0)
                 else:
                     flash(f'Bỏ qua {filename}: Định dạng file không hỗ trợ', 'warning')
                     continue
 
-                # Chuẩn hóa header file
                 file_cols = [clean_col(c) for c in df_header.columns]
                 
-                # VALIDATE: Kiểm tra cột bắt buộc
                 missing_cols = [req for req in required_cols if req not in file_cols]
                 if missing_cols:
                     flash(f"LỖI FILE {filename}: Không đúng định dạng {import_type.upper()}. Thiếu cột: {', '.join(missing_cols)}", 'danger')
-                    continue # Bỏ qua file này, không import
+                    continue
 
-                # Reset file pointer để đọc data
                 file.stream.seek(0)
 
-                # Bắt đầu import
                 if filename.lower().endswith('.csv'):
                     for chunk in pd.read_csv(file, chunksize=2000):
                         chunk.columns = [clean_col(c) for c in chunk.columns]
@@ -1170,7 +1192,6 @@ def import_data():
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
                             
-                            # Xử lý mapping đặc biệt cho 4G Traffic nếu file chỉ có vol_dl/ul
                             if import_type == 'kpi4g' and 'traffic' not in filtered_row:
                                 if 'traffic_vol_dl' in filtered_row:
                                     filtered_row['traffic'] = filtered_row['traffic_vol_dl']
@@ -1219,26 +1240,19 @@ def import_data():
 
         return redirect(url_for('import_data'))
 
-    # Lấy danh sách ngày đã import KPI để hiển thị
     dates_3g = []
     dates_4g = []
     dates_5g = []
     try:
-        # Query distinct thoi_gian
-        # Cần tối ưu query nếu dữ liệu lớn (thêm index cho cột thoi_gian)
         kpi3g_dates = db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()
         dates_3g = [d[0] for d in kpi3g_dates]
-        
         kpi4g_dates = db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()
         dates_4g = [d[0] for d in kpi4g_dates]
-        
         kpi5g_dates = db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()
         dates_5g = [d[0] for d in kpi5g_dates]
-        
     except Exception as e:
         print(f"Error fetching dates: {e}")
 
-    # Zip lists để hiển thị song song
     kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
 
     return render_page(CONTENT_TEMPLATE, title="Import Dữ liệu", active_page='import', kpi_rows=kpi_rows)
@@ -1290,6 +1304,96 @@ def change_password():
         current_user.set_password(request.form['new_password']); db.session.commit(); flash('Đã đổi mật khẩu', 'success')
     else: flash('Sai mật khẩu cũ', 'danger')
     return redirect(url_for('profile'))
+
+# --- BACKUP / RESTORE ROUTES ---
+@app.route('/backup-restore')
+@login_required
+def backup_restore():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup & Restore", active_page='backup_restore')
+
+@app.route('/backup', methods=['POST'])
+@login_required
+def backup_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    
+    models = [User, RF3G, RF4G, RF5G, KPI3G, KPI4G, KPI5G]
+    buffer = BytesIO()
+    
+    with zipfile.ZipFile(buffer, 'w') as zf:
+        for model in models:
+            # Query all records
+            records = model.query.all()
+            if records:
+                data = []
+                for r in records:
+                    row = r.__dict__.copy()
+                    row.pop('_sa_instance_state', None)
+                    data.append(row)
+                df = pd.DataFrame(data)
+                csv_data = df.to_csv(index=False)
+                zf.writestr(f"{model.__tablename__}.csv", csv_data)
+            else:
+                # Create empty csv with headers
+                cols = [c.key for c in model.__table__.columns]
+                df = pd.DataFrame(columns=cols)
+                csv_data = df.to_csv(index=False)
+                zf.writestr(f"{model.__tablename__}.csv", csv_data)
+                
+    buffer.seek(0)
+    filename = f"backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.zip"
+    return send_file(buffer, download_name=filename, as_attachment=True)
+
+@app.route('/restore', methods=['POST'])
+@login_required
+def restore_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    
+    file = request.files.get('file')
+    if not file or not file.filename.endswith('.zip'):
+        flash('Vui lòng chọn file .zip', 'danger')
+        return redirect(url_for('backup_restore'))
+        
+    try:
+        with zipfile.ZipFile(file) as zf:
+            table_map = {
+                'user.csv': User,
+                'rf_3g.csv': RF3G,
+                'rf_4g.csv': RF4G,
+                'rf_5g.csv': RF5G,
+                'kpi_3g.csv': KPI3G,
+                'kpi_4g.csv': KPI4G,
+                'kpi_5g.csv': KPI5G
+            }
+            
+            for filename in zf.namelist():
+                if filename in table_map:
+                    model = table_map[filename]
+                    with zf.open(filename) as f:
+                        df = pd.read_csv(f)
+                        
+                        # Clear existing data
+                        db.session.query(model).delete()
+                        
+                        # Insert new data
+                        records = df.to_dict(orient='records')
+                        
+                        # Handle NaN values
+                        for row in records:
+                            for k, v in row.items():
+                                if pd.isna(v): row[k] = None
+                                
+                        if records:
+                            db.session.bulk_insert_mappings(model, records)
+                            
+            db.session.commit()
+            flash('Khôi phục dữ liệu thành công!', 'success')
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi khôi phục: {str(e)}', 'danger')
+        
+    return redirect(url_for('backup_restore'))
 
 if __name__ == '__main__':
     app.run(debug=True)
