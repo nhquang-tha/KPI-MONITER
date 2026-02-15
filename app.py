@@ -669,8 +669,7 @@ CONTENT_TEMPLATE = """
                         <div class="tab-pane fade" id="kpi4g">
                             <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
                             <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3">
-                                    <label class="form-label">Chọn các file KPI 4G (.csv)</label>
+                                <div class="mb-3"><label class="form-label">Chọn các file KPI 4G (.csv)</label>
                                     <input type="file" name="file" class="form-control" accept=".csv" multiple required>
                                 </div>
                                 <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
@@ -679,8 +678,7 @@ CONTENT_TEMPLATE = """
                         <div class="tab-pane fade" id="kpi5g">
                             <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
                             <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3">
-                                    <label class="form-label">Chọn các file KPI 5G (.csv)</label>
+                                <div class="mb-3"><label class="form-label">Chọn các file KPI 5G (.csv)</label>
                                     <input type="file" name="file" class="form-control" accept=".csv" multiple required>
                                 </div>
                                 <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
