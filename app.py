@@ -691,10 +691,10 @@ CONTENT_TEMPLATE = """
                     <thead class="table-light">
                         <tr>
                             <th>Cell Name</th>
-                            <th>Site Code</th>
-                            <th>CSHT</th>
-                            <th>Antenna</th>
-                            <th>Tilt</th>
+                            <th>Avg CS Traffic</th>
+                            <th>Avg CS Conges (%)</th>
+                            <th>Avg PS Traffic</th>
+                            <th>Avg PS Conges (%)</th>
                             <th class="text-center">Hành động</th>
                         </tr>
                     </thead>
@@ -702,12 +702,12 @@ CONTENT_TEMPLATE = """
                         {% for row in conges_data %}
                         <tr>
                             <td class="fw-bold text-primary">{{ row.cell_name }}</td>
-                            <td>{{ row.site_code }}</td>
-                            <td>{{ row.csht }}</td>
-                            <td>{{ row.antena }}</td>
-                            <td>{{ row.tilt }}</td>
+                            <td>{{ row.avg_cs_traffic }}</td>
+                            <td>{{ row.avg_cs_conges }}</td>
+                            <td>{{ row.avg_ps_traffic }}</td>
+                            <td>{{ row.avg_ps_conges }}</td>
                             <td class="text-center">
-                                <a href="/rf/detail/3g/{{ row.rf_id }}" class="btn btn-sm btn-info text-white" title="Chi tiết RF"><i class="fa-solid fa-eye"></i></a>
+                                <a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> Biểu đồ</a>
                             </td>
                         </tr>
                         {% else %}
@@ -1123,6 +1123,8 @@ def kpi():
     RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
 
     if poi_input:
+        # Nếu chọn POI, cần tìm cell code 3G, 4G hoặc 5G tùy theo tab đang chọn
+        # Lưu ý: POI table chỉ có 4G và 5G, không có 3G
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
@@ -1284,29 +1286,26 @@ def conges_3g():
             )
         ).all()
         
-        # 4. Đếm số lần xuất hiện của mỗi cell
-        cell_counts = defaultdict(int)
-        for r in records:
-            cell_counts[r.ten_cell] += 1
-            
-        # 5. Lọc ra các cell xuất hiện đủ 3 lần (nghẽn liên tiếp 3 ngày)
-        congested_cells = [cell for cell, count in cell_counts.items() if count == 3]
+        # 4. Gom nhóm dữ liệu theo Cell để tính trung bình
+        cell_stats = defaultdict(lambda: {'count': 0, 'cs_traf': 0, 'cs_cong': 0, 'ps_traf': 0, 'ps_cong': 0})
         
-        # 6. Join với RF để lấy thông tin hiển thị
-        results = []
-        if congested_cells:
-            rf_info = RF3G.query.filter(RF3G.cell_code.in_(congested_cells)).all()
-            rf_map = {r.cell_code: r for r in rf_info}
+        for r in records:
+            cell_stats[r.ten_cell]['count'] += 1
+            cell_stats[r.ten_cell]['cs_traf'] += (r.traffic or 0)
+            cell_stats[r.ten_cell]['cs_cong'] += (r.csconges or 0)
+            cell_stats[r.ten_cell]['ps_traf'] += (r.pstraffic or 0)
+            cell_stats[r.ten_cell]['ps_cong'] += (r.psconges or 0)
             
-            for cell in congested_cells:
-                rf = rf_map.get(cell)
+        # 5. Lọc ra các cell xuất hiện đủ 3 lần (nghẽn liên tiếp 3 ngày) và tính trung bình
+        results = []
+        for cell, stats in cell_stats.items():
+            if stats['count'] == 3:
                 results.append({
                     'cell_name': cell,
-                    'rf_id': rf.id if rf else '#',
-                    'site_code': rf.site_code if rf else 'N/A',
-                    'csht': rf.csht_code if rf else 'N/A',
-                    'antena': rf.antena if rf else 'N/A',
-                    'tilt': rf.total_tilt if rf else 'N/A'
+                    'avg_cs_traffic': round(stats['cs_traf'] / 3, 2),
+                    'avg_cs_conges': round(stats['cs_cong'] / 3, 2),
+                    'avg_ps_traffic': round(stats['ps_traf'] / 3, 2),
+                    'avg_ps_conges': round(stats['ps_cong'] / 3, 2)
                 })
                 
         return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=results, dates=target_dates_str)
