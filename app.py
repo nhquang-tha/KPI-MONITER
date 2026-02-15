@@ -58,7 +58,7 @@ def clean_header(col_name):
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name' # Map cột POI trong file Excel sang poi_name trong DB
+        'POI': 'poi_name'
     }
     if col_name in special_map: return special_map[col_name]
 
@@ -74,7 +74,7 @@ def clean_header(col_name):
         'anten_height': 'anten_height', 'total_tilt': 'total_tilt',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
-        'poi': 'poi_name' # Fallback map
+        'poi': 'poi_name'
     }
     return common_map.get(clean, clean)
 
@@ -273,7 +273,8 @@ def init_database():
             db.session.add(u); db.session.commit()
 init_database()
 
-# --- TEMPLATES ---
+# --- TEMPLATES (DEFINED FIRST) ---
+
 BASE_LAYOUT = """
 <!DOCTYPE html>
 <html lang="vi">
@@ -283,7 +284,6 @@ BASE_LAYOUT = """
     <title>KPI Monitor System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background-color: #f0f2f5; font-family: 'Roboto', sans-serif; overflow-x: hidden; }
@@ -335,7 +335,44 @@ BASE_LAYOUT = """
             {% block content %}{% endblock %}
         </div>
     </div>
+    
+    <!-- Modal for Chart Details -->
+    <div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Chi tiết KPI</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Ngày:</strong> <span id="modalDate"></span></p>
+                    <p><strong>Cell Name:</strong> <span id="modalCell"></span></p>
+                    <p><strong>Chỉ số:</strong> <span id="modalMetric"></span></p>
+                    <p><strong>Giá trị:</strong> <span id="modalValue" class="fw-bold text-primary"></span></p>
+                    <hr>
+                    <div class="d-grid">
+                         <a href="#" id="modalRfLink" class="btn btn-outline-info btn-sm">Xem chi tiết RF Cell này</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function showDetailModal(cellName, date, value, metricLabel) {
+            document.getElementById('modalDate').innerText = date;
+            document.getElementById('modalCell').innerText = cellName;
+            document.getElementById('modalValue').innerText = value;
+            document.getElementById('modalMetric').innerText = metricLabel;
+            
+            // Link to RF detail (assuming tech is known or can be inferred, here defaulting to current context if possible)
+            // Ideally we'd need RF ID, but Cell Name search is better here if ID unknown
+            document.getElementById('modalRfLink').href = "/rf?cell_search=" + encodeURIComponent(cellName); // Placeholder link
+            
+            new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
+        }
+    </script>
 </body>
 </html>
 """
@@ -427,11 +464,24 @@ CONTENT_TEMPLATE = """
                             </select>
                         </div>
                         <div class="col-auto">
-                            <label class="col-form-label fw-bold">Cell/Site:</label>
+                            <label class="col-form-label fw-bold">Chọn POI:</label>
                         </div>
-                        <div class="col-md-6">
+                         <div class="col-md-3">
+                            <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
+                                   placeholder="Chọn POI..." value="{{ selected_poi }}">
+                            <datalist id="poi_list_kpi">
+                                {% for p in poi_list %}
+                                <option value="{{ p }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-auto"><span class="fw-bold">HOẶC</span></div>
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Nhập Cell/Site:</label>
+                        </div>
+                        <div class="col-md-3">
                             <input type="text" name="cell_name" class="form-control" 
-                                   placeholder="Nhập Site Code (để vẽ toàn trạm) hoặc danh sách Cell Code (cách nhau bởi dấu phẩy/dấu cách)..." 
+                                   placeholder="Site Code hoặc list Cell..." 
                                    value="{{ cell_name_input }}">
                         </div>
                         <div class="col-auto">
@@ -463,8 +513,19 @@ CONTENT_TEMPLATE = """
                                 responsive: true,
                                 maintainAspectRatio: false,
                                 interaction: {
-                                    mode: 'index',
-                                    intersect: false,
+                                    mode: 'nearest',
+                                    intersect: true,
+                                },
+                                onClick: (e, activeEls) => {
+                                    if (activeEls.length > 0) {
+                                        const index = activeEls[0].index;
+                                        const datasetIndex = activeEls[0].datasetIndex;
+                                        const label = {{ chart_data | tojson }}.labels[index];
+                                        const value = {{ chart_data | tojson }}.datasets[datasetIndex].data[index];
+                                        const cellName = {{ chart_data | tojson }}.datasets[datasetIndex].label;
+                                        const metricTitle = '{{ chart_data.title }}';
+                                        showDetailModal(cellName, label, value, metricTitle);
+                                    }
                                 },
                                 plugins: {
                                     title: {
@@ -487,14 +548,14 @@ CONTENT_TEMPLATE = """
                     })();
                     {% endfor %}
                 </script>
-            {% elif cell_name_input %}
+            {% elif cell_name_input or selected_poi %}
                 <div class="alert alert-warning">
-                    Không tìm thấy dữ liệu cho <strong>{{ cell_name_input }}</strong>. 
+                    Không tìm thấy dữ liệu KPI phù hợp.
                 </div>
             {% else %}
                 <div class="text-center text-muted py-5">
                     <i class="fa-solid fa-chart-area fa-3x mb-3"></i>
-                    <p>Nhập tên Site hoặc danh sách Cell để xem biểu đồ KPI so sánh.</p>
+                    <p>Chọn POI hoặc nhập tên Site/Cell để xem biểu đồ KPI.</p>
                 </div>
             {% endif %}
 
@@ -515,7 +576,7 @@ CONTENT_TEMPLATE = """
                             </datalist>
                         </div>
                         <div class="col-auto">
-                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo</button>
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo Tổng Hợp</button>
                         </div>
                     </form>
                 </div>
@@ -1135,69 +1196,117 @@ def import_data():
         return redirect(url_for('import_data'))
 
     # Fetch dates for KPI list
-    dates_3g, dates_4g, dates_5g = [], [], []
+    dates = []
     try:
-        dates_3g = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
-        dates_4g = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
-        dates_5g = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    except Exception as e:
-        print(f"Error fetching dates: {e}")
+        for M, label in [(KPI3G, '3G'), (KPI4G, '4G'), (KPI5G, '5G')]:
+            ds = db.session.query(M.thoi_gian).distinct().all()
+            dates.extend([{'type': f'KPI {label}', 'date': d[0]} for d in ds])
+        dates.sort(key=lambda x: x['date'], reverse=True)
+    except: pass
     
-    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
-    
-    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=kpi_rows)
+    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', imported_kpi_dates=dates)
 
 @app.route('/kpi')
 @login_required
 def kpi():
-    tech = request.args.get('tech', '3g')
-    cell_input = request.args.get('cell_name', '').strip()
-    charts = {}
+    selected_tech = request.args.get('tech', '3g')
+    cell_name_input = request.args.get('cell_name', '').strip()
+    poi_input = request.args.get('poi_name', '').strip()
+    charts = {} 
+
+    colors = [
+        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
+        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d'
+    ]
     
-    if cell_input:
-        KModel = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
-        RModel = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-        
-        # Find cells from input (Site code or Cell list)
-        cells = [c.strip() for c in re.split(r'[,\s]+', cell_input) if c.strip()]
-        
-        # If input looks like a Site Code (usually shorter, distinct pattern), try finding child cells
-        # Assuming Site Code doesn't contain commas
-        if len(cells) == 1:
-            site_cells = RModel.query.filter(RModel.site_code == cells[0]).all()
-            if site_cells:
-                cells = [c.cell_code for c in site_cells]
+    target_cells = []
+    KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
+    RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
 
-        if cells:
-            data = KModel.query.filter(KModel.ten_cell.in_(cells)).all()
-            # Sort by date
-            try: data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-            except: pass
+    if poi_input:
+        POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
+        if POI_Model:
+            target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
+    elif cell_name_input and RF_Model:
+        # Check if site code
+        site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
+        if site_cells:
+            target_cells = [c.cell_code for c in site_cells]
+        else:
+            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+
+    if target_cells and KPI_Model:
+        data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
+        try:
+            data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+        except ValueError: pass 
+
+        if data:
+            all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
+            data_by_cell = defaultdict(list)
+            for x in data:
+                data_by_cell[x.ten_cell].append(x)
+
+            metrics_config = {
+                '3g': [
+                    {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
+                    {'key': 'traffic', 'label': 'TRAFFIC (Erl)'},
+                    {'key': 'psconges', 'label': 'PS CONGESTION (%)'},
+                    {'key': 'csconges', 'label': 'CS CONGESTION (%)'}
+                ],
+                '4g': [
+                    {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
+                    {'key': 'user_dl_avg_thput', 'label': 'USER DL AVG THPUT (Mbps)'},
+                    {'key': 'res_blk_dl', 'label': 'RES BLOCK DL (%)'},
+                    {'key': 'cqi_4g', 'label': 'CQI 4G'}
+                ],
+                '5g': [
+                    {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
+                    {'key': 'user_dl_avg_throughput', 'label': 'USER DL AVG THPUT (Mbps)'},
+                    {'key': 'cqi_5g', 'label': 'CQI 5G'}
+                ]
+            }
             
-            if data:
-                all_dates = sorted(list(set(d.thoi_gian for d in data)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-                grouped = defaultdict(list)
-                for d in data: grouped[d.ten_cell].append(d)
-                
-                # Chart Configs
-                cfgs = {
-                    '3g': [('traffic', 'Traffic'), ('cssr', 'CSSR'), ('csconges', 'CS Congestion')],
-                    '4g': [('traffic', 'Traffic'), ('user_dl_avg_thput', 'Thput DL'), ('cqi_4g', 'CQI')],
-                    '5g': [('traffic', 'Traffic'), ('user_dl_avg_throughput', 'Thput DL'), ('cqi_5g', 'CQI')]
-                }.get(tech, [])
-                
-                colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8']
-                
-                for key, label in cfgs:
-                    ds = []
-                    for i, (cell, rows) in enumerate(grouped.items()):
-                        row_map = {r.thoi_gian: getattr(r, key) for r in rows}
-                        vals = [row_map.get(d, None) for d in all_dates]
-                        ds.append({'label': cell, 'data': vals, 'borderColor': colors[i % 5], 'fill': False})
-                    
-                    charts[key] = {'title': label, 'labels': all_dates, 'datasets': ds}
+            current_metrics = metrics_config.get(selected_tech, [])
 
-    return render_page(CONTENT_TEMPLATE, title="KPI Chart", active_page='kpi', charts=charts, selected_tech=tech, cell_name_input=cell_input)
+            for metric in current_metrics:
+                metric_key = metric['key']
+                metric_label = metric['label']
+                datasets = []
+                for i, cell_code in enumerate(target_cells):
+                    cell_data = data_by_cell.get(cell_code, [])
+                    data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
+                    aligned_data = [data_map.get(label, None) for label in all_labels]
+                    color = colors[i % len(colors)]
+                    datasets.append({
+                        'label': cell_code,
+                        'data': aligned_data,
+                        'borderColor': color,
+                        'backgroundColor': color,
+                        'tension': 0.1,
+                        'fill': False,
+                        'spanGaps': True
+                    })
+                
+                chart_id = f"chart_{metric_key}"
+                charts[chart_id] = {
+                    'title': metric_label,
+                    'labels': all_labels,
+                    'datasets': datasets
+                }
+
+    # Fetch POI List for datalist
+    poi_list = []
+    with app.app_context():
+        try:
+            p4 = [r[0] for r in db.session.query(POI4G.poi_name).distinct()]
+            p5 = [r[0] for r in db.session.query(POI5G.poi_name).distinct()]
+            poi_list = sorted(list(set(p4 + p5)))
+        except: pass
+
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
+                       selected_tech=selected_tech, cell_name_input=cell_name_input, 
+                       selected_poi=poi_input, poi_list=poi_list, charts=charts)
 
 @app.route('/poi')
 @login_required
