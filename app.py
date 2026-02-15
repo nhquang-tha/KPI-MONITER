@@ -1014,8 +1014,8 @@ def import_data():
             'kpi3g': {'model': KPI3G, 'required': ['traffic', 'cssr']}, 
             'kpi4g': {'model': KPI4G, 'required': ['traffic_vol_dl', 'erab_ssrate_all']}, 
             'kpi5g': {'model': KPI5G, 'required': ['dl_traffic_volume_gb']},
-            'poi4g': {'model': POI4G, 'required': ['poi']},
-            'poi5g': {'model': POI5G, 'required': ['poi']}
+            'poi4g': {'model': POI4G, 'required': ['poi_name']},
+            'poi5g': {'model': POI5G, 'required': ['poi_name']}
         }
         
         config = type_config.get(import_type)
