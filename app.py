@@ -6,7 +6,7 @@ import gc
 import re
 import zipfile
 import unicodedata
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
 from flask_sqlalchemy import SQLAlchemy
@@ -22,7 +22,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'bi_mat_khong_the_bat_mi')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///local.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_recycle': 280, 'pool_pre_ping': True}
-app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024  # 32MB max upload
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -43,10 +43,7 @@ def remove_accents(input_str):
     return s
 
 def clean_header(col_name):
-    # 1. Chuyển về chuỗi, xóa khoảng trắng đầu cuối
     col_name = str(col_name).strip()
-    
-    # 2. Map các trường hợp đặc biệt (Case sensitive keys)
     special_map = {
         'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
         'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'Frenquency': 'frequency',
@@ -62,20 +59,13 @@ def clean_header(col_name):
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g'
     }
-    if col_name in special_map:
-        return special_map[col_name]
+    if col_name in special_map: return special_map[col_name]
 
-    # 3. Xử lý tiếng Việt và ký tự lạ
-    # Bỏ dấu tiếng Việt
     no_accent = remove_accents(col_name)
-    # Chuyển về chữ thường
     lower = no_accent.lower()
-    # Thay thế khoảng trắng và ký tự không phải chữ/số bằng gạch dưới
     clean = re.sub(r'[^a-z0-9]', '_', lower)
-    # Xóa gạch dưới kép nếu có
     clean = re.sub(r'_+', '_', clean)
     
-    # Map lại các cột phổ biến sau khi clean
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
@@ -84,7 +74,6 @@ def clean_header(col_name):
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges'
     }
-    
     return common_map.get(clean, clean)
 
 # --- MODELS ---
@@ -211,7 +200,6 @@ class KPI3G(db.Model):
     ps_so_att = db.Column(db.Float)
     csconges = db.Column(db.Float)
     psconges = db.Column(db.Float)
-    # Thêm các cột phụ để tránh lỗi nếu file CSV có
     stt = db.Column(db.String(50))
     nha_cung_cap = db.Column(db.String(50))
     tinh = db.Column(db.String(50))
@@ -238,7 +226,6 @@ class KPI4G(db.Model):
     unvailable = db.Column(db.Float)
     res_blk_dl = db.Column(db.Float)
     cqi_4g = db.Column(db.Float)
-    # Phụ
     stt = db.Column(db.String(50))
     nha_cung_cap = db.Column(db.String(50))
     tinh = db.Column(db.String(50))
@@ -263,7 +250,6 @@ class KPI5G(db.Model):
     cell_avaibility_rate = db.Column(db.Float)
     sgnb_addition_success_rate = db.Column(db.Float)
     sgnb_abnormal_release_rate = db.Column(db.Float)
-    # Phụ
     nha_cung_cap = db.Column(db.String(50))
     tinh = db.Column(db.String(50))
     ten_gnodeb = db.Column(db.String(100))
@@ -285,16 +271,691 @@ def init_database():
             db.session.add(u); db.session.commit()
 init_database()
 
+# --- TEMPLATES ---
+BASE_LAYOUT = """
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KPI Monitor System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Roboto', sans-serif; overflow-x: hidden; }
+        .sidebar { height: 100vh; width: 250px; position: fixed; top: 0; left: 0; background-color: #ffffff; box-shadow: 2px 0 5px rgba(0,0,0,0.05); z-index: 1000; transition: 0.3s; }
+        .sidebar-header { padding: 20px; background: #0d6efd; color: white; text-align: center; }
+        .sidebar-menu { padding: 10px 0; list-style: none; margin: 0; }
+        .sidebar-menu a { display: block; padding: 12px 20px; color: #333; text-decoration: none; border-left: 4px solid transparent; transition: 0.3s; }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background-color: #e9ecef; border-left-color: #0d6efd; color: #0d6efd; }
+        .sidebar-menu i { margin-right: 10px; width: 20px; text-align: center; }
+        .main-content { margin-left: 250px; padding: 20px; transition: 0.3s; }
+        .card { border: none; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); background: white; margin-bottom: 20px; }
+        .card-header { background-color: white; border-bottom: 1px solid #f0f0f0; padding: 15px 20px; font-weight: bold; color: #444; }
+        @media (max-width: 768px) { .sidebar { margin-left: -250px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; } }
+        .btn-action { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
+    </style>
+</head>
+<body>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header"><h4><i class="fa-solid fa-network-wired"></i> KPI Monitor</h4></div>
+        <ul class="sidebar-menu">
+            <li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li>
+            <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI</a></li>
+            <li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF</a></li>
+            <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-location-dot"></i> POI</a></li>
+            <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cell</a></li>
+            <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Conges 3G</a></li>
+            <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
+            <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
+            <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-file-import"></i> Import</a></li>
+            <li class="mt-3 text-muted ps-3"><small>HỆ THỐNG</small></li>
+            {% if current_user.role == 'admin' %}
+            <li><a href="/users" class="{{ 'active' if active_page == 'users' else '' }}"><i class="fa-solid fa-users-gear"></i> Quản lý User</a></li>
+            <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
+            {% endif %}
+            <li><a href="/profile" class="{{ 'active' if active_page == 'profile' else '' }}"><i class="fa-solid fa-user-shield"></i> Tài khoản</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</a></li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <button class="btn btn-primary d-md-none mb-3" onclick="document.getElementById('sidebar').classList.toggle('active')"><i class="fa-solid fa-bars"></i> Menu</button>
+        <div class="container-fluid">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+"""
+
+LOGIN_PAGE = """
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>body { background: #e0e5ec; height: 100vh; display: flex; align-items: center; justify-content: center; } .login-card { width: 100%; max-width: 400px; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }</style>
+</head>
+<body>
+    <div class="login-card">
+        <h3 class="text-center mb-4 text-primary">Đăng nhập</h3>
+        {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }}">{{ message }}</div>{% endfor %}{% endif %}{% endwith %}
+        <form method="POST">
+            <div class="mb-3"><label>Username</label><input type="text" name="username" class="form-control" required></div>
+            <div class="mb-3"><label>Password</label><input type="password" name="password" class="form-control" required></div>
+            <button type="submit" class="btn btn-primary w-100">Đăng nhập</button>
+        </form>
+    </div>
+</body>
+</html>
+"""
+
+CONTENT_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">{{ title }} <span class="badge bg-primary float-end">{{ current_user.role }}</span></div>
+    <div class="card-body">
+        {% if active_page == 'dashboard' %}
+            <div class="row g-4 text-center">
+                <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-primary">98.5%</h3><p class="text-muted mb-0">KPI Tuần</p></div></div>
+                <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-danger">12</h3><p class="text-muted mb-0">Worst Cells</p></div></div>
+                <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-warning">5</h3><p class="text-muted mb-0">Congestion</p></div></div>
+                <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-success">OK</h3><p class="text-muted mb-0">System</p></div></div>
+            </div>
+            
+            <hr class="my-4">
+            <h5><i class="fa-solid fa-server"></i> Trạng thái Dữ liệu</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center active">RF Data</li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            RF 3G <span class="badge bg-primary rounded-pill">{{ count_rf3g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            RF 4G <span class="badge bg-primary rounded-pill">{{ count_rf4g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            RF 5G <span class="badge bg-primary rounded-pill">{{ count_rf5g }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                     <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center list-group-item-success">KPI Data</li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            KPI 3G <span class="badge bg-success rounded-pill">{{ count_kpi3g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            KPI 4G <span class="badge bg-success rounded-pill">{{ count_kpi4g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            KPI 5G <span class="badge bg-success rounded-pill">{{ count_kpi5g }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <hr><p>Chào mừng <strong>{{ current_user.username }}</strong>!</p>
+        
+        {% elif active_page == 'kpi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/kpi" class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Công nghệ:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select name="tech" class="form-select">
+                                <option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option>
+                                <option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option>
+                                <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Cell/Site:</label>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" name="cell_name" class="form-control" 
+                                   placeholder="Nhập Site Code (để vẽ toàn trạm) hoặc danh sách Cell Code (cách nhau bởi dấu phẩy/dấu cách)..." 
+                                   value="{{ cell_name_input }}">
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-line"></i> Vẽ biểu đồ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if charts %}
+                {% for chart_id, chart_config in charts.items() %}
+                <div class="card mb-4 border shadow-sm">
+                    <div class="card-body">
+                        <div class="chart-container" style="position: relative; height:40vh; width:100%">
+                            <canvas id="{{ chart_id }}"></canvas>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <script>
+                    {% for chart_id, chart_data in charts.items() %}
+                    (function() {
+                        const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {{ chart_data | tojson }},
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    mode: 'index',
+                                    intersect: false,
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '{{ chart_data.title }}',
+                                        font: { size: 16 }
+                                    },
+                                    legend: {
+                                        position: 'bottom'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: { display: true, text: 'Giá trị' }
+                                    }
+                                }
+                            }
+                        });
+                    })();
+                    {% endfor %}
+                </script>
+            {% elif cell_name_input %}
+                <div class="alert alert-warning">
+                    Không tìm thấy dữ liệu cho <strong>{{ cell_name_input }}</strong>. 
+                </div>
+            {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="fa-solid fa-chart-area fa-3x mb-3"></i>
+                    <p>Nhập tên Site hoặc danh sách Cell để xem biểu đồ KPI so sánh.</p>
+                </div>
+            {% endif %}
+
+        {% elif active_page == 'poi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/poi" class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Chọn POI:</label>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" name="poi_name" list="poi_list" class="form-control" 
+                                   placeholder="Nhập hoặc chọn tên POI..." value="{{ selected_poi }}">
+                            <datalist id="poi_list">
+                                {% for p in poi_list %}
+                                <option value="{{ p }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if poi_charts %}
+                <div class="row">
+                    {% for chart_id, chart_data in poi_charts.items() %}
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="chart-container" style="position: relative; height:35vh; width:100%">
+                                    <canvas id="{{ chart_id }}"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <script>
+                    {% for chart_id, chart_data in poi_charts.items() %}
+                    (function() {
+                        const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {{ chart_data | tojson }},
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: { display: true, text: '{{ chart_data.title }}', font: { size: 14 } },
+                                    legend: { position: 'bottom' }
+                                }
+                            }
+                        });
+                    })();
+                    {% endfor %}
+                </script>
+            {% elif selected_poi %}
+                <div class="alert alert-warning">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>
+            {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="fa-solid fa-map-location-dot fa-3x mb-3"></i>
+                    <p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p>
+                </div>
+            {% endif %}
+
+        {% elif active_page == 'conges_3g' %}
+            <div class="alert alert-info">
+                <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
+                (CS_CONG > 2% & CS_ATT > 100) HOẶC (PS_CONG > 2% & PS_ATT > 500) <br>
+                <strong><i class="fa-solid fa-clock"></i> Thời gian:</strong> Xảy ra liên tiếp trong 3 ngày dữ liệu gần nhất 
+                ({% for d in dates %}{{ d }}{{ ", " if not loop.last else "" }}{% endfor %})
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover small">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Cell Name</th>
+                            <th>Site Code</th>
+                            <th>CSHT</th>
+                            <th>Antenna</th>
+                            <th>Tilt</th>
+                            <th class="text-center">Hành động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in conges_data %}
+                        <tr>
+                            <td class="fw-bold text-primary">{{ row.cell_name }}</td>
+                            <td>{{ row.site_code }}</td>
+                            <td>{{ row.csht }}</td>
+                            <td>{{ row.antena }}</td>
+                            <td>{{ row.tilt }}</td>
+                            <td class="text-center">
+                                <a href="/rf/detail/3g/{{ row.rf_id }}" class="btn btn-sm btn-info text-white" title="Chi tiết RF"><i class="fa-solid fa-eye"></i></a>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="6" class="text-center py-4 text-muted">Tuyệt vời! Không có cell nào bị nghẽn liên tiếp 3 ngày.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        {% elif active_page == 'rf' %}
+            <div class="mb-3 d-flex justify-content-between">
+                <div class="btn-group">
+                    <a href="/rf?tech=3g" class="btn btn-{{ 'primary' if current_tech == '3g' else 'outline-primary' }}">3G</a>
+                    <a href="/rf?tech=4g" class="btn btn-{{ 'primary' if current_tech == '4g' else 'outline-primary' }}">4G</a>
+                    <a href="/rf?tech=5g" class="btn btn-{{ 'primary' if current_tech == '5g' else 'outline-primary' }}">5G</a>
+                </div>
+                <div>
+                    <a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary me-2"><i class="fa-solid fa-plus"></i> Thêm mới</a>
+                    <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV)</a>
+                </div>
+            </div>
+
+            <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
+                <table class="table table-sm table-bordered table-hover small">
+                    <thead class="table-light position-sticky top-0 shadow-sm" style="z-index: 10;">
+                        <tr>
+                            <th class="text-center bg-light" style="width: 120px; position: sticky; left: 0; z-index: 20;">Hành động</th>
+                            {% for col in rf_columns %}
+                            <th style="white-space: nowrap;">{{ col | replace('_', ' ') | upper }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rf_data %}
+                        <tr>
+                            <td class="text-center bg-white" style="position: sticky; left: 0; z-index: 5;">
+                                <a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-info btn-action text-white" title="Chi tiết"><i class="fa-solid fa-eye"></i></a>
+                                <a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-warning btn-action text-white" title="Sửa"><i class="fa-solid fa-pen-to-square"></i></a>
+                                <a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-danger btn-action" title="Xóa" onclick="return confirm('Bạn có chắc muốn xóa bản ghi này?')"><i class="fa-solid fa-trash"></i></a>
+                            </td>
+                            {% for col in rf_columns %}
+                            <td style="white-space: nowrap;">{{ row[col] if row[col] is not none else '' }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="{{ rf_columns|length + 1 }}" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên hoặc nhấn Thêm mới.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="text-muted small mt-2 fst-italic">Hiển thị tối đa 500 bản ghi trên web. Để xem đầy đủ, vui lòng chọn "Xuất Excel".</div>
+            </div>
+
+        {% elif active_page == 'import' %}
+            <div class="row">
+                <div class="col-md-8">
+                    <ul class="nav nav-tabs" id="importTabs" role="tablist">
+                        <!-- RF Tabs -->
+                        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rf3g">Import RF 3G</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf4g">Import RF 4G</button></li>
+                        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf5g">Import RF 5G</button></li>
+                        <!-- POI Tabs -->
+                        <li class="nav-item"><button class="nav-link text-warning" data-bs-toggle="tab" data-bs-target="#poi4g">Import POI 4G</button></li>
+                        <li class="nav-item"><button class="nav-link text-warning" data-bs-toggle="tab" data-bs-target="#poi5g">Import POI 5G</button></li>
+                        <!-- KPI Tabs -->
+                        <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi3g">KPI 3G</button></li>
+                        <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi4g">KPI 4G</button></li>
+                        <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi5g">KPI 5G</button></li>
+                    </ul>
+                    <div class="tab-content p-4 border border-top-0 rounded-bottom">
+                        <!-- RF Forms -->
+                        <div class="tab-pane fade show active" id="rf3g">
+                            <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file RF 3G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
+                                    <a href="/rf/reset?type=3g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 3G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 3G</a>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="rf4g">
+                            <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file RF 4G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
+                                    <a href="/rf/reset?type=4g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 4G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 4G</a>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="rf5g">
+                            <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file RF 5G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <div class="d-flex justify-content-between">
+                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
+                                    <a href="/rf/reset?type=5g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 5G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 5G</a>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <!-- POI Forms -->
+                        <div class="tab-pane fade" id="poi4g">
+                            <h5 class="text-warning">Import Danh sách POI 4G</h5>
+                            <form action="/import?type=poi4g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file POI 4G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-warning text-dark"><i class="fa-solid fa-map-pin"></i> Tải lên POI 4G</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="poi5g">
+                            <h5 class="text-warning">Import Danh sách POI 5G</h5>
+                            <form action="/import?type=poi5g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file POI 5G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-warning text-dark"><i class="fa-solid fa-map-pin"></i> Tải lên POI 5G</button>
+                            </form>
+                        </div>
+
+                        <!-- KPI Forms -->
+                        <div class="tab-pane fade" id="kpi3g">
+                            <h5 class="text-success">Import KPI 3G Hàng Ngày</h5>
+                            <form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn các file KPI 3G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                    <small class="text-muted">Có thể chọn nhiều file cùng lúc để import.</small>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 3G</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="kpi4g">
+                            <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
+                            <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn các file KPI 4G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="kpi5g">
+                            <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
+                            <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn các file KPI 5G (.csv)</label>
+                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
+                                </div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card h-100">
+                        <div class="card-header bg-info text-white"><i class="fa-solid fa-calendar-check"></i> Dữ liệu KPI đã có</div>
+                        <div class="card-body p-0" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-bordered table-striped small mb-0 text-center">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>KPI 3G</th>
+                                        <th>KPI 4G</th>
+                                        <th>KPI 5G</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for r3, r4, r5 in kpi_rows %}
+                                    <tr>
+                                        <td class="{{ 'text-success fw-bold' if r3 else 'text-muted' }}">{{ r3 if r3 else '-' }}</td>
+                                        <td class="{{ 'text-success fw-bold' if r4 else 'text-muted' }}">{{ r4 if r4 else '-' }}</td>
+                                        <td class="{{ 'text-success fw-bold' if r5 else 'text-muted' }}">{{ r5 if r5 else '-' }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="3" class="text-center text-muted">Chưa có dữ liệu</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        {% else %}
+            <div class="text-center py-5 text-muted"><h5>Chức năng {{ title }} đang xây dựng</h5></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+"""
+
+USER_MANAGEMENT_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4">
+        <div class="card"><div class="card-header">Thêm User</div><div class="card-body">
+            <form action="/users/add" method="POST">
+                <div class="mb-2"><label>Username</label><input type="text" name="username" class="form-control" required></div>
+                <div class="mb-2"><label>Password</label><input type="password" name="password" class="form-control" required></div>
+                <div class="mb-3"><label>Role</label><select name="role" class="form-select"><option value="user">User</option><option value="admin">Admin</option></select></div>
+                <button class="btn btn-success w-100">Tạo</button>
+            </form>
+        </div></div>
+    </div>
+    <div class="col-md-8">
+        <div class="card"><div class="card-header">Danh sách User</div><div class="card-body p-0">
+            <table class="table table-hover mb-0">
+                <thead class="table-light"><tr><th>ID</th><th>User</th><th>Role</th><th>Thao tác</th></tr></thead>
+                <tbody>
+                    {% for u in users %}
+                    <tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td><span class="badge bg-{{ 'danger' if u.role=='admin' else 'info' }}">{{ u.role }}</span></td>
+                    <td>{% if u.username != 'admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa?')">Xóa</a> <button class="btn btn-sm btn-outline-warning" onclick="promptReset({{ u.id }}, '{{ u.username }}')">Đổi Pass</button>{% endif %}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div></div>
+    </div>
+</div>
+<script>function promptReset(id, name) { let p = prompt("Pass mới cho " + name); if(p) location.href="/users/reset-pass/"+id+"?new_pass="+encodeURIComponent(p); }</script>
+{% endblock %}
+"""
+
+PROFILE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-6"><div class="card"><div class="card-header">Đổi mật khẩu</div><div class="card-body">
+    <p>User: <strong>{{ current_user.username }}</strong></p><hr>
+    <form action="/change-password" method="POST">
+        <div class="mb-3"><label>Mật khẩu cũ</label><input type="password" name="current_password" class="form-control" required></div>
+        <div class="mb-3"><label>Mật khẩu mới</label><input type="password" name="new_password" class="form-control" required></div>
+        <button class="btn btn-primary">Lưu thay đổi</button>
+    </form>
+</div></div></div></div>
+{% endblock %}
+"""
+
+BACKUP_RESTORE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <!-- Backup Section -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Sao lưu Dữ liệu (Backup)</h5>
+                </div>
+                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
+                    <p class="text-center text-muted mb-4">
+                        Tải xuống toàn bộ dữ liệu hiện tại (User, RF, KPI, POI) dưới dạng file nén (.zip).
+                    </p>
+                    <form action="/backup" method="POST">
+                        <button type="submit" class="btn btn-primary btn-lg px-5">
+                            <i class="fa-solid fa-file-zipper me-2"></i> Tải xuống bản sao lưu
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Restore Section -->
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Khôi phục Dữ liệu (Restore)</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-danger" role="alert">
+                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                        <strong>CẢNH BÁO:</strong> Dữ liệu hiện tại sẽ bị xóa và thay thế bằng dữ liệu trong file backup.
+                    </div>
+                    <form action="/restore" method="POST" enctype="multipart/form-data">
+                        <div class="mb-4">
+                            <label for="backupFile" class="form-label fw-bold">Chọn file Backup (.zip)</label>
+                            <input class="form-control form-control-lg" type="file" id="backupFile" name="file" accept=".zip" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Bạn có chắc chắn muốn khôi phục dữ liệu?')">
+                                <i class="fa-solid fa-rotate-left me-2"></i> Tiến hành Khôi phục
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
+RF_FORM_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="h5">{{ title }}</span>
+        <a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm float-end">Quay lại</a>
+    </div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row g-3">
+                {% for col in columns %}
+                <div class="col-md-4">
+                    <label class="form-label fw-bold small text-uppercase text-muted">{{ col }}</label>
+                    <input type="text" name="{{ col }}" class="form-control" 
+                           value="{{ obj[col] if obj and obj[col] is not none else '' }}">
+                </div>
+                {% endfor %}
+            </div>
+            <hr>
+            <div class="d-flex justify-content-end">
+                <button type="submit" class="btn btn-primary px-4"><i class="fa-solid fa-save"></i> Lưu lại</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+"""
+
+RF_DETAIL_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <span class="h5">Chi tiết bản ghi RF {{ tech.upper() }} #{{ obj.id }}</span>
+        <div class="float-end">
+            <a href="/rf/edit/{{ tech }}/{{ obj.id }}" class="btn btn-warning btn-sm text-white"><i class="fa-solid fa-pen"></i> Sửa</a>
+            <a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm">Quay lại</a>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-striped">
+                <tbody>
+                    {% for col, val in obj.items() %}
+                        {% if col != '_sa_instance_state' %}
+                        <tr>
+                            <th class="bg-light" style="width: 30%">{{ col.upper() }}</th>
+                            <td>{{ val if val is not none else '' }}</td>
+                        </tr>
+                        {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
+# --- CẤU HÌNH LOADER TEMPLATE ẢO ---
+app.jinja_loader = jinja2.DictLoader({
+    'base': BASE_LAYOUT,
+    'backup_restore': BACKUP_RESTORE_TEMPLATE
+})
+
+def render_page(tpl, **kwargs):
+    if tpl == BACKUP_RESTORE_TEMPLATE:
+        return render_template_string(tpl, **kwargs)
+    return render_template_string(tpl, **kwargs)
+
 # --- ROUTES ---
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.check_password(request.form['password']):
-            login_user(user)
-            return redirect(url_for('index'))
-        flash('Sai thông tin đăng nhập', 'danger')
+        try:
+            user = User.query.filter_by(username=request.form['username']).first()
+            if user and user.check_password(request.form['password']):
+                login_user(user)
+                return redirect(url_for('index'))
+            flash('Sai thông tin đăng nhập', 'danger')
+        except Exception as e: flash(f"Lỗi DB: {e}", 'danger')
     return render_template_string(LOGIN_PAGE)
 
 @app.route('/logout')
@@ -447,14 +1108,14 @@ def import_data():
                     for row in df.to_dict('records'):
                         clean_row = {}
                         for k, v in row.items():
-                            if k in valid_db_columns:
+                            if k in valid_cols:
                                 val = v
                                 if pd.isna(val): val = None
                                 elif isinstance(val, str): val = val.strip() # TRIM WHITESPACE
                                 clean_row[k] = val
                                 
                         # KPI Specific: Fallback for traffic column
-                        if 'kpi' in itype and 'traffic' in valid_db_columns and 'traffic' not in clean_row:
+                        if 'kpi' in itype and 'traffic' in valid_cols and 'traffic' not in clean_row:
                              if 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
                         
                         records.append(clean_row)
