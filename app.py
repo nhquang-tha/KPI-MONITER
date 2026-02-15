@@ -939,21 +939,7 @@ def logout(): logout_user(); return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
-def index():
-    # Thống kê dữ liệu cho dashboard
-    try:
-        count_rf3g = db.session.query(func.count(RF3G.id)).scalar()
-        count_rf4g = db.session.query(func.count(RF4G.id)).scalar()
-        count_rf5g = db.session.query(func.count(RF5G.id)).scalar()
-        count_kpi3g = db.session.query(func.count(KPI3G.id)).scalar()
-        count_kpi4g = db.session.query(func.count(KPI4G.id)).scalar()
-        count_kpi5g = db.session.query(func.count(KPI5G.id)).scalar()
-    except:
-        count_rf3g = count_rf4g = count_rf5g = count_kpi3g = count_kpi4g = count_kpi5g = 0
-
-    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard',
-                       count_rf3g=count_rf3g, count_rf4g=count_rf4g, count_rf5g=count_rf5g,
-                       count_kpi3g=count_kpi3g, count_kpi4g=count_kpi4g, count_kpi5g=count_kpi5g)
+def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard')
 
 # Các route menu khác
 @app.route('/kpi')
