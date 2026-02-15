@@ -296,6 +296,8 @@ BASE_LAYOUT = """
         .main-content { margin-left: 250px; padding: 20px; transition: 0.3s; }
         .card { border: none; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); background: white; margin-bottom: 20px; }
         .card-header { background-color: white; border-bottom: 1px solid #f0f0f0; padding: 15px 20px; font-weight: bold; color: #444; }
+        /* Cursor style for chart */
+        .chart-container canvas { cursor: zoom-in; }
         @media (max-width: 768px) { .sidebar { margin-left: -250px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; } }
         .btn-action { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
     </style>
@@ -336,7 +338,7 @@ BASE_LAYOUT = """
         </div>
     </div>
     
-    <!-- Modal for Chart Details -->
+    <!-- Modal for Chart Details (Simplified & XL) -->
     <div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
@@ -347,43 +349,9 @@ BASE_LAYOUT = """
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div class="row">
-                        <!-- Cột Thông tin -->
-                        <div class="col-md-3 border-end">
-                            <div class="p-3 bg-light rounded h-100">
-                                <h6 class="text-uppercase text-muted fw-bold mb-3">Thông tin điểm dữ liệu</h6>
-                                <div class="mb-3">
-                                    <small class="d-block text-secondary">Ngày:</small>
-                                    <span id="modalDate" class="fw-bold fs-5"></span>
-                                </div>
-                                <div class="mb-3">
-                                    <small class="d-block text-secondary">Cell Name:</small>
-                                    <span id="modalCell" class="fw-bold text-break text-primary"></span>
-                                </div>
-                                <div class="mb-3">
-                                    <small class="d-block text-secondary">Chỉ số:</small>
-                                    <span id="modalMetric" class="fw-bold"></span>
-                                </div>
-                                <div class="mb-3">
-                                    <small class="d-block text-secondary">Giá trị:</small>
-                                    <span id="modalValue" class="fw-bold text-danger fs-4"></span>
-                                </div>
-                                <hr>
-                                <div class="d-grid">
-                                     <a href="#" id="modalRfLink" class="btn btn-outline-info">
-                                        <i class="fa-solid fa-circle-info me-1"></i> Xem thông tin RF
-                                     </a>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Cột Biểu đồ -->
-                        <div class="col-md-9">
-                            <h6 class="text-center text-uppercase text-secondary mb-3">Xu hướng riêng của Cell này</h6>
-                            <div class="chart-container" style="position: relative; height:50vh; width:100%">
-                                <canvas id="modalChart"></canvas>
-                            </div>
-                        </div>
+                    <!-- Chỉ hiển thị biểu đồ, loại bỏ thông tin text bên trái -->
+                    <div class="chart-container" style="position: relative; height:70vh; width:100%">
+                        <canvas id="modalChart"></canvas>
                     </div>
                 </div>
             </div>
@@ -395,16 +363,10 @@ BASE_LAYOUT = """
         let modalChartInstance = null;
 
         function showDetailModal(cellName, date, value, metricLabel, cellData, allLabels) {
-            // 1. Fill Text Data
-            document.getElementById('modalDate').innerText = date;
-            document.getElementById('modalCell').innerText = cellName;
-            document.getElementById('modalValue').innerText = value;
-            document.getElementById('modalMetric').innerText = metricLabel;
+            // Update Modal Title only
+            document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' - ' + cellName;
             
-            // Link to RF detail
-            document.getElementById('modalRfLink').href = "/rf?cell_search=" + encodeURIComponent(cellName); 
-            
-            // 2. Draw Specific Chart
+            // Draw Specific Chart
             const ctx = document.getElementById('modalChart').getContext('2d');
             
             // Destroy old chart if exists
@@ -418,14 +380,14 @@ BASE_LAYOUT = """
                     labels: allLabels,
                     datasets: [{
                         label: cellName,
-                        data: cellData, // Full series data for this cell
-                        borderColor: '#dc3545', // Red color for highlight
+                        data: cellData,
+                        borderColor: '#dc3545',
                         backgroundColor: 'rgba(220, 53, 69, 0.1)',
                         borderWidth: 3,
                         pointBackgroundColor: '#fff',
                         pointBorderColor: '#dc3545',
-                        pointRadius: 5,
-                        pointHoverRadius: 7,
+                        pointRadius: 6,
+                        pointHoverRadius: 9,
                         tension: 0.2,
                         fill: true
                     }]
@@ -434,8 +396,10 @@ BASE_LAYOUT = """
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: true, labels: { font: { size: 14 } } },
+                        legend: { display: true, labels: { font: { size: 16 } } },
                         tooltip: {
+                            bodyFont: { size: 14 },
+                            titleFont: { size: 14 },
                             callbacks: {
                                 label: function(context) {
                                     return context.dataset.label + ': ' + context.parsed.y;
@@ -446,11 +410,13 @@ BASE_LAYOUT = """
                     scales: {
                         y: {
                             beginAtZero: true,
-                            grid: { color: '#f0f0f0' },
-                            title: { display: true, text: metricLabel, font: { weight: 'bold' } }
+                            grid: { color: '#e0e0e0' },
+                            title: { display: true, text: metricLabel, font: { size: 16, weight: 'bold' } },
+                            ticks: { font: { size: 12 } }
                         },
                         x: {
-                            grid: { display: false }
+                            grid: { display: false },
+                            ticks: { font: { size: 12 } }
                         }
                     }
                 }
@@ -603,10 +569,12 @@ CONTENT_TEMPLATE = """
                                 maintainAspectRatio: false,
                                 interaction: {
                                     mode: 'nearest',
-                                    intersect: true,
+                                    intersect: false, // Update: click anywhere in range
+                                    axis: 'x'
                                 },
                                 onClick: (e, activeEls) => {
                                     if (activeEls.length > 0) {
+                                        // Pick the first element (nearest)
                                         const index = activeEls[0].index;
                                         const datasetIndex = activeEls[0].datasetIndex;
                                         const label = chartData.labels[index];
@@ -700,6 +668,11 @@ CONTENT_TEMPLATE = """
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
+                                interaction: {
+                                    mode: 'nearest',
+                                    intersect: false, // Update: click anywhere in range
+                                    axis: 'x'
+                                },
                                 plugins: {
                                     title: { display: true, text: '{{ chart_data.title }}', font: { size: 14 } },
                                     legend: { position: 'bottom' }
@@ -1131,7 +1104,18 @@ def logout(): logout_user(); return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
-def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard')
+def index():
+    try:
+        cnt = {
+            'rf3g': db.session.query(func.count(RF3G.id)).scalar(),
+            'rf4g': db.session.query(func.count(RF4G.id)).scalar(),
+            'rf5g': db.session.query(func.count(RF5G.id)).scalar(),
+            'kpi3g': db.session.query(func.count(KPI3G.id)).scalar(),
+            'kpi4g': db.session.query(func.count(KPI4G.id)).scalar(),
+            'kpi5g': db.session.query(func.count(KPI5G.id)).scalar(),
+        }
+    except: cnt = defaultdict(int)
+    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
 # Các route menu khác
 @app.route('/kpi')
