@@ -43,10 +43,7 @@ def remove_accents(input_str):
     return s
 
 def clean_header(col_name):
-    # 1. Chuyển về chuỗi, xóa khoảng trắng đầu cuối
     col_name = str(col_name).strip()
-    
-    # 2. Map các trường hợp đặc biệt (Case sensitive hoặc có dấu lạ)
     special_map = {
         'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
         'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'CELL_NAME': 'cell_name',
@@ -75,23 +72,20 @@ def clean_header(col_name):
         'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl'
     }
     
-    # Ưu tiên map chính xác trước
     if col_name in special_map:
         return special_map[col_name]
     
-    # Nếu không có trong map, thử xử lý chung (lowercase + remove accent)
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
-    clean = re.sub(r'[^a-z0-9]', '_', lower) # Thay ký tự lạ bằng _
-    clean = re.sub(r'_+', '_', clean) # Xóa _ thừa
+    clean = re.sub(r'[^a-z0-9]', '_', lower)
+    clean = re.sub(r'_+', '_', clean)
     
-    # Map lại lần nữa cho chắc (các trường hợp viết thường)
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
-        'poi': 'poi_name' # Fallback map
+        'poi': 'poi_name'
     }
     return common_map.get(clean, clean)
 
@@ -1294,15 +1288,24 @@ def import_data():
         return redirect(url_for('import_data'))
 
     # Fetch dates for KPI list
-    dates = []
+    dates_3g = []
+    dates_4g = []
+    dates_5g = []
     try:
-        for M, label in [(KPI3G, '3G'), (KPI4G, '4G'), (KPI5G, '5G')]:
-            ds = db.session.query(M.thoi_gian).distinct().all()
-            dates.extend([{'type': f'KPI {label}', 'date': d[0]} for d in ds])
-        dates.sort(key=lambda x: x['date'], reverse=True)
-    except: pass
-    
-    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', imported_kpi_dates=dates)
+        dates_3g = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
+        dates_3g.sort(key=lambda x: datetime.strptime(x, '%d/%m/%Y') if x else datetime.min, reverse=True)
+        
+        dates_4g = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
+        dates_4g.sort(key=lambda x: datetime.strptime(x, '%d/%m/%Y') if x else datetime.min, reverse=True)
+        
+        dates_5g = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().all()]
+        dates_5g.sort(key=lambda x: datetime.strptime(x, '%d/%m/%Y') if x else datetime.min, reverse=True)
+    except Exception as e:
+        print(f"Error fetching dates: {e}")
+
+    kpi_rows = list(zip_longest(dates_3g, dates_4g, dates_5g, fillvalue=None))
+
+    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=kpi_rows)
 
 @app.route('/kpi')
 @login_required
