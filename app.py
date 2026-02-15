@@ -363,10 +363,12 @@ CONTENT_TEMPLATE = """
                             </select>
                         </div>
                         <div class="col-auto">
-                            <label class="col-form-label fw-bold">Tên Cell:</label>
+                            <label class="col-form-label fw-bold">Cell/Site:</label>
                         </div>
-                        <div class="col-auto">
-                            <input type="text" name="cell_name" class="form-control" placeholder="Nhập tên cell..." value="{{ cell_name }}">
+                        <div class="col-md-6">
+                            <input type="text" name="cell_name" class="form-control" 
+                                   placeholder="Nhập Site Code (để vẽ toàn trạm) hoặc danh sách Cell Code (cách nhau bởi dấu phẩy/dấu cách)..." 
+                                   value="{{ cell_name_input }}">
                         </div>
                         <div class="col-auto">
                             <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-line"></i> Vẽ biểu đồ</button>
@@ -375,59 +377,68 @@ CONTENT_TEMPLATE = """
                 </div>
             </div>
 
-            {% if chart_data %}
-            <div class="chart-container" style="position: relative; height:60vh; width:100%">
-                <canvas id="kpiChart"></canvas>
-            </div>
-            <script>
-                const ctx = document.getElementById('kpiChart').getContext('2d');
-                const chartData = {{ chart_data | safe }};
-                new Chart(ctx, {
-                    type: 'line',
-                    data: chartData,
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: {
-                            mode: 'index',
-                            intersect: false,
-                        },
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: 'Biểu đồ KPI Cell {{ cell_name }}'
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.dataset.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed.y !== null) {
-                                            label += context.parsed.y;
-                                        }
-                                        return label;
+            {% if charts %}
+                {% for chart_id, chart_config in charts.items() %}
+                <div class="card mb-4 border shadow-sm">
+                    <div class="card-body">
+                        <div class="chart-container" style="position: relative; height:40vh; width:100%">
+                            <canvas id="{{ chart_id }}"></canvas>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+                
+                <script>
+                    // Render tất cả các biểu đồ
+                    {% for chart_id, chart_data in charts.items() %}
+                    (function() {
+                        const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {{ chart_data | safe }},
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    mode: 'index',
+                                    intersect: false,
+                                },
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '{{ chart_data.title }}',
+                                        font: { size: 16 }
+                                    },
+                                    legend: {
+                                        position: 'bottom'
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: true,
+                                        title: { display: true, text: 'Giá trị' }
                                     }
                                 }
                             }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                title: {
-                                    display: true,
-                                    text: 'Giá trị'
-                                }
-                            }
-                        }
-                    }
-                });
-            </script>
-            {% elif cell_name %}
-                <div class="alert alert-warning">Không tìm thấy dữ liệu cho Cell <strong>{{ cell_name }}</strong>. Vui lòng kiểm tra lại tên hoặc import dữ liệu KPI.</div>
+                        });
+                    })();
+                    {% endfor %}
+                </script>
+            {% elif cell_name_input %}
+                <div class="alert alert-warning">
+                    Không tìm thấy dữ liệu cho <strong>{{ cell_name_input }}</strong>. 
+                    <br>Vui lòng kiểm tra:
+                    <ul>
+                        <li>Tên Cell/Site đã đúng chưa?</li>
+                        <li>Đã chọn đúng công nghệ (3G/4G/5G) chưa?</li>
+                        <li>Đã import dữ liệu KPI cho các cell này chưa?</li>
+                    </ul>
+                </div>
             {% else %}
-                <div class="text-center text-muted py-5">Vui lòng nhập tên Cell để xem biểu đồ KPI.</div>
+                <div class="text-center text-muted py-5">
+                    <i class="fa-solid fa-chart-area fa-3x mb-3"></i>
+                    <p>Nhập tên Site hoặc danh sách Cell để xem biểu đồ KPI so sánh.</p>
+                </div>
             {% endif %}
 
         {% elif active_page == 'conges_3g' %}
@@ -843,64 +854,114 @@ def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page
 @login_required
 def kpi():
     selected_tech = request.args.get('tech', '3g')
-    cell_name = request.args.get('cell_name', '').strip()
-    chart_data = None
+    cell_name_input = request.args.get('cell_name', '').strip()
+    charts = {} # Dictionary to store multiple chart data objects
 
-    if cell_name:
-        model_map = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}
-        Model = model_map.get(selected_tech)
+    # Danh sách màu sắc để phân biệt các Cell trên biểu đồ
+    colors = [
+        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
+        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d'
+    ]
+
+    if cell_name_input:
+        KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
+        RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
         
-        if Model:
-            data = Model.query.filter(
-                (Model.ten_cell == cell_name) | (Model.ten_cell.like(f"%{cell_name}%"))
-            ).all()
-            
-            try:
-                data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-            except ValueError:
-                pass
+        target_cells = []
 
-            if data:
-                labels = [x.thoi_gian for x in data]
-                datasets = []
+        if KPI_Model and RF_Model:
+            # 1. Kiểm tra xem input có phải là Site Code không
+            site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
+            
+            if site_cells:
+                # Nếu là Site Code, lấy toàn bộ Cell Code thuộc trạm đó
+                target_cells = [cell.cell_code for cell in site_cells]
+            else:
+                # Nếu không phải Site Code, tách chuỗi input thành danh sách Cell
+                # Hỗ trợ dấu phẩy, dấu cách, dấu chấm phẩy
+                target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+
+            if target_cells:
+                # 2. Query dữ liệu KPI cho tất cả các cell tìm được
+                data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
                 
-                metrics_config = {
-                    '3g': [
-                        {'key': 'pstraffic', 'label': 'PSTRAFFIC', 'color': 'blue'},
-                        {'key': 'traffic', 'label': 'TRAFFIC', 'color': 'cyan'},
-                        {'key': 'psconges', 'label': 'PSCONGES (%)', 'color': 'orange'},
-                        {'key': 'csconges', 'label': 'CSCONGES (%)', 'color': 'red'}
-                    ],
-                    '4g': [
-                        {'key': 'traffic', 'label': 'TRAFFIC (DL+UL or Total)', 'color': 'blue'},
-                        {'key': 'user_dl_avg_thput', 'label': 'USER_DL_AVG_THPUT (Mbps)', 'color': 'green'},
-                        {'key': 'res_blk_dl', 'label': 'RES_BLK_DL (%)', 'color': 'orange'},
-                        {'key': 'cqi_4g', 'label': 'CQI', 'color': 'purple'}
-                    ],
-                    '5g': [
-                        {'key': 'traffic', 'label': 'TRAFFIC (GB)', 'color': 'blue'},
-                        {'key': 'user_dl_avg_throughput', 'label': 'USER_DL_AVG_THPUT (Mbps)', 'color': 'green'},
-                        {'key': 'cqi_5g', 'label': 'CQI', 'color': 'purple'}
-                    ]
-                }
-                
-                configs = metrics_config.get(selected_tech, [])
-                
-                for conf in configs:
-                    dataset = {
-                        'label': conf['label'],
-                        'data': [getattr(x, conf['key'], 0) or 0 for x in data],
-                        'borderColor': conf['color'],
-                        'tension': 0.1,
-                        'fill': False
+                # Sắp xếp dữ liệu theo thời gian để vẽ biểu đồ đúng
+                try:
+                    data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+                except ValueError:
+                    pass 
+
+                if data:
+                    # Lấy danh sách tất cả các ngày (trục X)
+                    all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
+                    
+                    # Gom nhóm dữ liệu theo Cell
+                    data_by_cell = defaultdict(list)
+                    for x in data:
+                        data_by_cell[x.ten_cell].append(x)
+
+                    # Cấu hình các chỉ số cần vẽ (Metrics)
+                    metrics_config = {
+                        '3g': [
+                            {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
+                            {'key': 'traffic', 'label': 'TRAFFIC (Erl)'},
+                            {'key': 'psconges', 'label': 'PS CONGESTION (%)'},
+                            {'key': 'csconges', 'label': 'CS CONGESTION (%)'}
+                        ],
+                        '4g': [
+                            {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
+                            {'key': 'user_dl_avg_thput', 'label': 'USER DL AVG THPUT (Mbps)'},
+                            {'key': 'res_blk_dl', 'label': 'RES BLOCK DL (%)'},
+                            {'key': 'cqi_4g', 'label': 'CQI 4G'}
+                        ],
+                        '5g': [
+                            {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
+                            {'key': 'user_dl_avg_throughput', 'label': 'USER DL AVG THPUT (Mbps)'},
+                            {'key': 'cqi_5g', 'label': 'CQI 5G'}
+                        ]
                     }
-                    datasets.append(dataset)
-                
-                chart_data = json.dumps({'labels': labels, 'datasets': datasets})
-                if data: cell_name = data[0].ten_cell
+                    
+                    current_metrics = metrics_config.get(selected_tech, [])
+
+                    # 3. Tạo dữ liệu cho từng biểu đồ riêng biệt
+                    for metric in current_metrics:
+                        metric_key = metric['key']
+                        metric_label = metric['label']
+                        
+                        datasets = []
+                        # Tạo dataset cho từng cell
+                        for i, cell_code in enumerate(target_cells):
+                            # Tìm dữ liệu của cell này
+                            cell_data = data_by_cell.get(cell_code, [])
+                            
+                            # Map dữ liệu vào trục thời gian chung (all_labels)
+                            # Nếu ngày nào thiếu dữ liệu thì điền None (đứt nét) hoặc 0
+                            data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
+                            aligned_data = [data_map.get(label, None) for label in all_labels]
+                            
+                            # Chọn màu (xoay vòng nếu nhiều hơn số màu có sẵn)
+                            color = colors[i % len(colors)]
+                            
+                            datasets.append({
+                                'label': cell_code,
+                                'data': aligned_data,
+                                'borderColor': color,
+                                'backgroundColor': color,
+                                'tension': 0.1,
+                                'fill': False,
+                                'spanGaps': True # Nối liền nếu thiếu dữ liệu giữa chừng
+                            })
+                        
+                        # Lưu cấu hình biểu đồ
+                        chart_id = f"chart_{metric_key}"
+                        charts[chart_id] = json.dumps({
+                            'title': metric_label,
+                            'labels': all_labels,
+                            'datasets': datasets
+                        })
 
     return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
-                       selected_tech=selected_tech, cell_name=cell_name, chart_data=chart_data)
+                       selected_tech=selected_tech, cell_name_input=cell_name_input, charts=charts)
 
 @app.route('/rf')
 @login_required
