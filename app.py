@@ -28,6 +28,8 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_recycle': 280,
     'pool_pre_ping': True
 }
+# Tăng giới hạn upload file lên 16MB
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024 
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -235,10 +237,11 @@ def init_database():
     with app.app_context():
         try:
             db.create_all()
+            # Kiểm tra xem các bảng KPI đã có các cột mới chưa
             try:
-                db.session.execute(text("SELECT poi_name FROM poi_4g LIMIT 1"))
+                db.session.execute(text("SELECT pstraffic FROM kpi_3g LIMIT 1"))
             except Exception:
-                print(">>> Cập nhật cấu trúc Database (Thêm bảng POI)...")
+                print(">>> Cập nhật cấu trúc Database...")
                 db.session.rollback()
                 db.drop_all()         
                 db.create_all()       
@@ -357,6 +360,39 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-danger">12</h3><p class="text-muted mb-0">Worst Cells</p></div></div>
                 <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-warning">5</h3><p class="text-muted mb-0">Congestion</p></div></div>
                 <div class="col-md-3"><div class="p-3 border rounded bg-light"><h3 class="text-success">OK</h3><p class="text-muted mb-0">System</p></div></div>
+            </div>
+            
+            <hr class="my-4">
+            <h5><i class="fa-solid fa-server"></i> Trạng thái Dữ liệu</h5>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center active">RF Data</li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            RF 3G <span class="badge bg-primary rounded-pill">{{ count_rf3g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            RF 4G <span class="badge bg-primary rounded-pill">{{ count_rf4g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            RF 5G <span class="badge bg-primary rounded-pill">{{ count_rf5g }}</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                     <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center list-group-item-success">KPI Data</li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            KPI 3G <span class="badge bg-success rounded-pill">{{ count_kpi3g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            KPI 4G <span class="badge bg-success rounded-pill">{{ count_kpi4g }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            KPI 5G <span class="badge bg-success rounded-pill">{{ count_kpi5g }}</span>
+                        </li>
+                    </ul>
+                </div>
             </div>
             <hr><p>Chào mừng <strong>{{ current_user.username }}</strong>!</p>
         
@@ -718,106 +754,6 @@ CONTENT_TEMPLATE = """
         {% else %}
             <div class="text-center py-5 text-muted"><h5>Chức năng {{ title }} đang xây dựng</h5></div>
         {% endif %}
-    </div>
-</div>
-{% endblock %}
-"""
-
-USER_MANAGEMENT_TEMPLATE = """
-{% extends "base" %}
-{% block content %}
-<div class="row">
-    <div class="col-md-4">
-        <div class="card"><div class="card-header">Thêm User</div><div class="card-body">
-            <form action="/users/add" method="POST">
-                <div class="mb-2"><label>Username</label><input type="text" name="username" class="form-control" required></div>
-                <div class="mb-2"><label>Password</label><input type="password" name="password" class="form-control" required></div>
-                <div class="mb-3"><label>Role</label><select name="role" class="form-select"><option value="user">User</option><option value="admin">Admin</option></select></div>
-                <button class="btn btn-success w-100">Tạo</button>
-            </form>
-        </div></div>
-    </div>
-    <div class="col-md-8">
-        <div class="card"><div class="card-header">Danh sách User</div><div class="card-body p-0">
-            <table class="table table-hover mb-0">
-                <thead class="table-light"><tr><th>ID</th><th>User</th><th>Role</th><th>Thao tác</th></tr></thead>
-                <tbody>
-                    {% for u in users %}
-                    <tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td><span class="badge bg-{{ 'danger' if u.role=='admin' else 'info' }}">{{ u.role }}</span></td>
-                    <td>{% if u.username != 'admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Xóa?')">Xóa</a> <button class="btn btn-sm btn-outline-warning" onclick="promptReset({{ u.id }}, '{{ u.username }}')">Đổi Pass</button>{% endif %}</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div></div>
-    </div>
-</div>
-<script>function promptReset(id, name) { let p = prompt("Pass mới cho " + name); if(p) location.href="/users/reset-pass/"+id+"?new_pass="+encodeURIComponent(p); }</script>
-{% endblock %}
-"""
-
-PROFILE_TEMPLATE = """
-{% extends "base" %}
-{% block content %}
-<div class="row justify-content-center"><div class="col-md-6"><div class="card"><div class="card-header">Đổi mật khẩu</div><div class="card-body">
-    <p>User: <strong>{{ current_user.username }}</strong></p><hr>
-    <form action="/change-password" method="POST">
-        <div class="mb-3"><label>Mật khẩu cũ</label><input type="password" name="current_password" class="form-control" required></div>
-        <div class="mb-3"><label>Mật khẩu mới</label><input type="password" name="new_password" class="form-control" required></div>
-        <button class="btn btn-primary">Lưu thay đổi</button>
-    </form>
-</div></div></div></div>
-{% endblock %}
-"""
-
-BACKUP_RESTORE_TEMPLATE = """
-{% extends "base" %}
-{% block content %}
-<div class="container py-4">
-    <div class="row g-4">
-        <!-- Backup Section -->
-        <div class="col-md-6">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Sao lưu Dữ liệu (Backup)</h5>
-                </div>
-                <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
-                    <p class="text-center text-muted mb-4">
-                        Tải xuống toàn bộ dữ liệu hiện tại (User, RF, KPI, POI) dưới dạng file nén (.zip).
-                    </p>
-                    <form action="/backup" method="POST">
-                        <button type="submit" class="btn btn-primary btn-lg px-5">
-                            <i class="fa-solid fa-file-zipper me-2"></i> Tải xuống bản sao lưu
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-
-        <!-- Restore Section -->
-        <div class="col-md-6">
-            <div class="card h-100 shadow-sm border-warning">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Khôi phục Dữ liệu (Restore)</h5>
-                </div>
-                <div class="card-body p-4">
-                    <div class="alert alert-danger" role="alert">
-                        <i class="fa-solid fa-triangle-exclamation me-2"></i>
-                        <strong>CẢNH BÁO:</strong> Dữ liệu hiện tại sẽ bị xóa và thay thế bằng dữ liệu trong file backup.
-                    </div>
-                    <form action="/restore" method="POST" enctype="multipart/form-data">
-                        <div class="mb-4">
-                            <label for="backupFile" class="form-label fw-bold">Chọn file Backup (.zip)</label>
-                            <input class="form-control form-control-lg" type="file" id="backupFile" name="file" accept=".zip" required>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Bạn có chắc chắn muốn khôi phục dữ liệu?')">
-                                <i class="fa-solid fa-rotate-left me-2"></i> Tiến hành Khôi phục
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 {% endblock %}
