@@ -703,9 +703,9 @@ CONTENT_TEMPLATE = """
                         <tr>
                             <td class="fw-bold text-primary">{{ row.cell_name }}</td>
                             <td>{{ row.avg_cs_traffic }}</td>
-                            <td>{{ row.avg_cs_conges }}</td>
+                            <td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 else '' }}">{{ row.avg_cs_conges }}</td>
                             <td>{{ row.avg_ps_traffic }}</td>
-                            <td>{{ row.avg_ps_conges }}</td>
+                            <td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 else '' }}">{{ row.avg_ps_conges }}</td>
                             <td class="text-center">
                                 <a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> Biểu đồ</a>
                             </td>
