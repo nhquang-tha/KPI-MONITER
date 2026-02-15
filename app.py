@@ -132,6 +132,21 @@ class RF5G(db.Model):
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
 
+# --- MODELS (POI) ---
+class POI4G(db.Model):
+    __tablename__ = 'poi_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    poi_name = db.Column(db.String(200)) # Tên POI
+
+class POI5G(db.Model):
+    __tablename__ = 'poi_5g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    poi_name = db.Column(db.String(200)) # Tên POI
+
 # --- MODELS (KPI DATA) ---
 class KPI3G(db.Model):
     __tablename__ = 'kpi_3g'
@@ -148,7 +163,7 @@ class KPI3G(db.Model):
     thoi_gian = db.Column(db.String(50))
     # Metrics
     traffic = db.Column(db.Float)
-    pstraffic = db.Column(db.Float) # New for Chart
+    pstraffic = db.Column(db.Float) 
     cssr = db.Column(db.Float)
     dcr = db.Column(db.Float)
     ps_cssr = db.Column(db.Float)
@@ -174,7 +189,7 @@ class KPI4G(db.Model):
     cell_id = db.Column(db.String(50))
     thoi_gian = db.Column(db.String(50))
     # Metrics
-    traffic = db.Column(db.Float) # New for Chart (Total Data Traffic)
+    traffic = db.Column(db.Float)
     traffic_vol_dl = db.Column(db.Float)
     traffic_vol_ul = db.Column(db.Float)
     cell_dl_avg_thputs = db.Column(db.Float)
@@ -184,8 +199,8 @@ class KPI4G(db.Model):
     erab_ssrate_all = db.Column(db.Float)
     service_drop_all = db.Column(db.Float)
     unvailable = db.Column(db.Float)
-    res_blk_dl = db.Column(db.Float) # New for Chart
-    cqi_4g = db.Column(db.Float)     # New for Chart
+    res_blk_dl = db.Column(db.Float) 
+    cqi_4g = db.Column(db.Float)     
 
 class KPI5G(db.Model):
     __tablename__ = 'kpi_5g'
@@ -200,13 +215,13 @@ class KPI5G(db.Model):
     cell_id = db.Column(db.String(50))
     thoi_gian = db.Column(db.String(50))
     # Metrics
-    traffic = db.Column(db.Float) # New for Chart
+    traffic = db.Column(db.Float) 
     dl_traffic_volume_gb = db.Column(db.Float)
     ul_traffic_volume_gb = db.Column(db.Float)
     cell_downlink_average_throughput = db.Column(db.Float)
     cell_uplink_average_throughput = db.Column(db.Float)
-    user_dl_avg_throughput = db.Column(db.Float) # New for Chart
-    cqi_5g = db.Column(db.Float) # New for Chart
+    user_dl_avg_throughput = db.Column(db.Float) 
+    cqi_5g = db.Column(db.Float) 
     cell_avaibility_rate = db.Column(db.Float)
     sgnb_addition_success_rate = db.Column(db.Float)
     sgnb_abnormal_release_rate = db.Column(db.Float)
@@ -220,13 +235,10 @@ def init_database():
     with app.app_context():
         try:
             db.create_all()
-            # Kiểm tra xem các bảng KPI đã có các cột mới chưa
             try:
-                db.session.execute(text("SELECT pstraffic FROM kpi_3g LIMIT 1"))
-                db.session.execute(text("SELECT cqi_4g FROM kpi_4g LIMIT 1"))
-                db.session.execute(text("SELECT cqi_5g FROM kpi_5g LIMIT 1"))
+                db.session.execute(text("SELECT poi_name FROM poi_4g LIMIT 1"))
             except Exception:
-                print(">>> Cập nhật cấu trúc Database (Thêm cột cho KPI để vẽ biểu đồ)...")
+                print(">>> Cập nhật cấu trúc Database (Thêm bảng POI)...")
                 db.session.rollback()
                 db.drop_all()         
                 db.create_all()       
@@ -389,7 +401,6 @@ CONTENT_TEMPLATE = """
                 {% endfor %}
                 
                 <script>
-                    // Render tất cả các biểu đồ
                     {% for chart_id, chart_data in charts.items() %}
                     (function() {
                         const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
@@ -427,12 +438,6 @@ CONTENT_TEMPLATE = """
             {% elif cell_name_input %}
                 <div class="alert alert-warning">
                     Không tìm thấy dữ liệu cho <strong>{{ cell_name_input }}</strong>. 
-                    <br>Vui lòng kiểm tra:
-                    <ul>
-                        <li>Tên Cell/Site đã đúng chưa?</li>
-                        <li>Đã chọn đúng công nghệ (3G/4G/5G) chưa?</li>
-                        <li>Đã import dữ liệu KPI cho các cell này chưa?</li>
-                    </ul>
                 </div>
             {% else %}
                 <div class="text-center text-muted py-5">
@@ -441,103 +446,70 @@ CONTENT_TEMPLATE = """
                 </div>
             {% endif %}
 
-        {% elif active_page == 'conges_3g' %}
-            <div class="alert alert-info">
-                <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
-                (CS_CONG > 2% & CS_ATT > 100) HOẶC (PS_CONG > 2% & PS_ATT > 500) <br>
-                <strong><i class="fa-solid fa-clock"></i> Thời gian:</strong> Xảy ra liên tiếp trong 3 ngày dữ liệu gần nhất 
-                ({% for d in dates %}{{ d }}{{ ", " if not loop.last else "" }}{% endfor %})
-            </div>
-            
-            <div class="table-responsive">
-                <table class="table table-bordered table-hover small">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Cell Name</th>
-                            <th>Site Code</th>
-                            <th>CSHT</th>
-                            <th>Antenna</th>
-                            <th>Tilt</th>
-                            <th class="text-center">Hành động</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in conges_data %}
-                        <tr>
-                            <td class="fw-bold text-primary">{{ row.cell_name }}</td>
-                            <td>{{ row.site_code }}</td>
-                            <td>{{ row.csht }}</td>
-                            <td>{{ row.antena }}</td>
-                            <td>{{ row.tilt }}</td>
-                            <td class="text-center">
-                                <a href="/rf/detail/3g/{{ row.rf_id }}" class="btn btn-sm btn-info text-white" title="Chi tiết RF"><i class="fa-solid fa-eye"></i></a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="6" class="text-center py-4 text-muted">Tuyệt vời! Không có cell nào bị nghẽn liên tiếp 3 ngày.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-        {% elif active_page == 'rf' %}
-            <div class="mb-3 d-flex justify-content-between">
-                <div class="btn-group">
-                    <a href="/rf?tech=3g" class="btn btn-{{ 'primary' if current_tech == '3g' else 'outline-primary' }}">3G</a>
-                    <a href="/rf?tech=4g" class="btn btn-{{ 'primary' if current_tech == '4g' else 'outline-primary' }}">4G</a>
-                    <a href="/rf?tech=5g" class="btn btn-{{ 'primary' if current_tech == '5g' else 'outline-primary' }}">5G</a>
-                </div>
-                <div>
-                    <a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary me-2"><i class="fa-solid fa-plus"></i> Thêm mới</a>
-                    <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV)</a>
+        {% elif active_page == 'poi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/poi" class="row g-3 align-items-center">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold">Chọn POI:</label>
+                        </div>
+                        <div class="col-md-6">
+                            <input type="text" name="poi_name" list="poi_list" class="form-control" 
+                                   placeholder="Nhập hoặc chọn tên POI..." value="{{ selected_poi }}">
+                            <datalist id="poi_list">
+                                {% for p in poi_list %}
+                                <option value="{{ p }}">
+                                {% endfor %}
+                            </datalist>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-primary"><i class="fa-solid fa-chart-pie"></i> Xem Báo Cáo</button>
+                        </div>
+                    </form>
                 </div>
             </div>
 
-            <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
-                <table class="table table-sm table-bordered table-hover small">
-                    <thead class="table-light position-sticky top-0 shadow-sm">
-                        <tr>
-                            <th class="text-center" style="width: 100px;">Hành động</th>
-                            <th>CSHT Code</th>
-                            <th>{{ 'Site Name' if current_tech == '5g' else 'Cell Name' }}</th>
-                            <th>Cell Code</th>
-                            <th>Site Code</th>
-                            <th>Long</th>
-                            <th>Lat</th>
-                            <th>Freq</th>
-                            <th>Azimuth</th>
-                            <th>Tilt</th>
-                            <th>Antenna</th>
-                            <th>Ghi chú</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in rf_data %}
-                        <tr>
-                            <td class="text-center">
-                                <a href="/rf/detail/{{ current_tech }}/{{ row.id }}" class="btn btn-info btn-action text-white" title="Chi tiết"><i class="fa-solid fa-eye"></i></a>
-                                <a href="/rf/edit/{{ current_tech }}/{{ row.id }}" class="btn btn-warning btn-action text-white" title="Sửa"><i class="fa-solid fa-pen-to-square"></i></a>
-                                <a href="/rf/delete/{{ current_tech }}/{{ row.id }}" class="btn btn-danger btn-action" title="Xóa" onclick="return confirm('Bạn có chắc muốn xóa bản ghi này?')"><i class="fa-solid fa-trash"></i></a>
-                            </td>
-                            <td>{{ row.csht_code }}</td>
-                            <td>{{ row.site_name if current_tech == '5g' else row.cell_name }}</td>
-                            <td>{{ row.cell_code }}</td>
-                            <td>{{ row.site_code }}</td>
-                            <td>{{ row.longitude }}</td>
-                            <td>{{ row.latitude }}</td>
-                            <td>{{ row.frequency }}</td>
-                            <td>{{ row.azimuth }}</td>
-                            <td>{{ row.total_tilt }}</td>
-                            <td>{{ row.antena }}</td>
-                            <td>{{ row.ghi_chu }}</td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="12" class="text-center py-3">Không có dữ liệu. Vui lòng vào menu Import để tải file lên hoặc nhấn Thêm mới.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-                <div class="text-muted small mt-2 fst-italic">Hiển thị tối đa 500 bản ghi trên web. Để xem đầy đủ, vui lòng chọn "Xuất Excel".</div>
-            </div>
+            {% if poi_charts %}
+                <div class="row">
+                    {% for chart_id, chart_data in poi_charts.items() %}
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 shadow-sm">
+                            <div class="card-body">
+                                <div class="chart-container" style="position: relative; height:35vh; width:100%">
+                                    <canvas id="{{ chart_id }}"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <script>
+                    {% for chart_id, chart_data in poi_charts.items() %}
+                    (function() {
+                        const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {{ chart_data | safe }},
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: { display: true, text: '{{ chart_data.title }}', font: { size: 14 } },
+                                    legend: { position: 'bottom' }
+                                }
+                            }
+                        });
+                    })();
+                    {% endfor %}
+                </script>
+            {% elif selected_poi %}
+                <div class="alert alert-warning">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>
+            {% else %}
+                <div class="text-center text-muted py-5">
+                    <i class="fa-solid fa-map-location-dot fa-3x mb-3"></i>
+                    <p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p>
+                </div>
+            {% endif %}
 
         {% elif active_page == 'import' %}
             <div class="row">
@@ -547,6 +519,9 @@ CONTENT_TEMPLATE = """
                         <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#rf3g">Import RF 3G</button></li>
                         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf4g">Import RF 4G</button></li>
                         <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#rf5g">Import RF 5G</button></li>
+                        <!-- POI Tabs -->
+                        <li class="nav-item"><button class="nav-link text-warning" data-bs-toggle="tab" data-bs-target="#poi4g">Import POI 4G</button></li>
+                        <li class="nav-item"><button class="nav-link text-warning" data-bs-toggle="tab" data-bs-target="#poi5g">Import POI 5G</button></li>
                         <!-- KPI Tabs -->
                         <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi3g">KPI 3G</button></li>
                         <li class="nav-item"><button class="nav-link text-success" data-bs-toggle="tab" data-bs-target="#kpi4g">KPI 4G</button></li>
@@ -556,62 +531,56 @@ CONTENT_TEMPLATE = """
                         <!-- RF Forms -->
                         <div class="tab-pane fade show active" id="rf3g">
                             <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 3G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <div class="d-flex justify-content-between">
-                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 3G</button>
-                                    <a href="/rf/reset?type=3g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 3G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 3G</a>
-                                </div>
+                                <div class="mb-3"><label class="form-label">Chọn file RF 3G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên</button>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="rf4g">
                             <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 4G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <div class="d-flex justify-content-between">
-                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 4G</button>
-                                    <a href="/rf/reset?type=4g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 4G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 4G</a>
-                                </div>
+                                <div class="mb-3"><label class="form-label">Chọn file RF 4G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên</button>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="rf5g">
                             <form action="/import?type=5g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3"><label class="form-label">Chọn file Excel/CSV RF 5G</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
-                                <div class="d-flex justify-content-between">
-                                    <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên RF 5G</button>
-                                    <a href="/rf/reset?type=5g" class="btn btn-danger" onclick="return confirm('CẢNH BÁO: Hành động này sẽ XÓA SẠCH dữ liệu RF 5G. Bạn có chắc chắn không?')"><i class="fa-solid fa-trash-can"></i> Xóa toàn bộ RF 5G</a>
-                                </div>
+                                <div class="mb-3"><label class="form-label">Chọn file RF 5G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Tải lên</button>
                             </form>
                         </div>
                         
+                        <!-- POI Forms -->
+                        <div class="tab-pane fade" id="poi4g">
+                            <h5 class="text-warning">Import Danh sách POI 4G</h5>
+                            <form action="/import?type=poi4g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file POI 4G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-warning text-dark"><i class="fa-solid fa-map-pin"></i> Tải lên POI 4G</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="poi5g">
+                            <h5 class="text-warning">Import Danh sách POI 5G</h5>
+                            <form action="/import?type=poi5g" method="POST" enctype="multipart/form-data">
+                                <div class="mb-3"><label class="form-label">Chọn file POI 5G (.xlsx/.csv)</label><input type="file" name="file" class="form-control" accept=".xlsx, .xls, .csv" required></div>
+                                <button type="submit" class="btn btn-warning text-dark"><i class="fa-solid fa-map-pin"></i> Tải lên POI 5G</button>
+                            </form>
+                        </div>
+
                         <!-- KPI Forms -->
                         <div class="tab-pane fade" id="kpi3g">
-                            <h5 class="text-success">Import KPI 3G Hàng Ngày</h5>
                             <form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3">
-                                    <label class="form-label">Chọn các file KPI 3G (.csv)</label>
-                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
-                                    <small class="text-muted">Có thể chọn nhiều file cùng lúc để import.</small>
-                                </div>
-                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 3G</button>
+                                <div class="mb-3"><label class="form-label">Chọn KPI 3G (.csv)</label><input type="file" name="file" class="form-control" accept=".csv" multiple required></div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI</button>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="kpi4g">
-                            <h5 class="text-success">Import KPI 4G Hàng Ngày</h5>
                             <form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3">
-                                    <label class="form-label">Chọn các file KPI 4G (.csv)</label>
-                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
-                                </div>
-                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 4G</button>
+                                <div class="mb-3"><label class="form-label">Chọn KPI 4G (.csv)</label><input type="file" name="file" class="form-control" accept=".csv" multiple required></div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI</button>
                             </form>
                         </div>
                         <div class="tab-pane fade" id="kpi5g">
-                            <h5 class="text-success">Import KPI 5G Hàng Ngày</h5>
                             <form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data">
-                                <div class="mb-3">
-                                    <label class="form-label">Chọn các file KPI 5G (.csv)</label>
-                                    <input type="file" name="file" class="form-control" accept=".csv" multiple required>
-                                </div>
-                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI 5G</button>
+                                <div class="mb-3"><label class="form-label">Chọn KPI 5G (.csv)</label><input type="file" name="file" class="form-control" accept=".csv" multiple required></div>
+                                <button type="submit" class="btn btn-success"><i class="fa-solid fa-chart-line"></i> Tải lên KPI</button>
                             </form>
                         </div>
                     </div>
@@ -712,8 +681,7 @@ BACKUP_RESTORE_TEMPLATE = """
                 </div>
                 <div class="card-body d-flex flex-column justify-content-center align-items-center p-5">
                     <p class="text-center text-muted mb-4">
-                        Tải xuống toàn bộ dữ liệu hiện tại (User, RF, KPI) dưới dạng file nén (.zip).<br>
-                        File này có thể được sử dụng để khôi phục dữ liệu sau này.
+                        Tải xuống toàn bộ dữ liệu hiện tại (User, RF, KPI, POI) dưới dạng file nén (.zip).
                     </p>
                     <form action="/backup" method="POST">
                         <button type="submit" class="btn btn-primary btn-lg px-5">
@@ -733,8 +701,7 @@ BACKUP_RESTORE_TEMPLATE = """
                 <div class="card-body p-4">
                     <div class="alert alert-danger" role="alert">
                         <i class="fa-solid fa-triangle-exclamation me-2"></i>
-                        <strong>CẢNH BÁO QUAN TRỌNG:</strong><br>
-                        Hành động này sẽ <strong>XÓA TOÀN BỘ</strong> dữ liệu hiện tại trong các bảng tương ứng có trong file backup và thay thế bằng dữ liệu mới.
+                        <strong>CẢNH BÁO:</strong> Dữ liệu hiện tại sẽ bị xóa và thay thế bằng dữ liệu trong file backup.
                     </div>
                     <form action="/restore" method="POST" enctype="multipart/form-data">
                         <div class="mb-4">
@@ -742,7 +709,7 @@ BACKUP_RESTORE_TEMPLATE = """
                             <input class="form-control form-control-lg" type="file" id="backupFile" name="file" accept=".zip" required>
                         </div>
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Bạn có chắc chắn muốn khôi phục dữ liệu? Mọi dữ liệu hiện tại sẽ bị ghi đè!')">
+                            <button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Bạn có chắc chắn muốn khôi phục dữ liệu?')">
                                 <i class="fa-solid fa-rotate-left me-2"></i> Tiến hành Khôi phục
                             </button>
                         </div>
@@ -822,7 +789,6 @@ app.jinja_loader = jinja2.DictLoader({
 })
 
 def render_page(tpl, **kwargs):
-    # Nếu là template tên 'backup_restore', load từ DictLoader
     if tpl == BACKUP_RESTORE_TEMPLATE:
         return render_template_string(tpl, **kwargs)
     return render_template_string(tpl, **kwargs)
@@ -855,9 +821,8 @@ def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page
 def kpi():
     selected_tech = request.args.get('tech', '3g')
     cell_name_input = request.args.get('cell_name', '').strip()
-    charts = {} # Dictionary to store multiple chart data objects
+    charts = {} 
 
-    # Danh sách màu sắc để phân biệt các Cell trên biểu đồ
     colors = [
         '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
         '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d'
@@ -870,37 +835,24 @@ def kpi():
         target_cells = []
 
         if KPI_Model and RF_Model:
-            # 1. Kiểm tra xem input có phải là Site Code không
             site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
-            
             if site_cells:
-                # Nếu là Site Code, lấy toàn bộ Cell Code thuộc trạm đó
                 target_cells = [cell.cell_code for cell in site_cells]
             else:
-                # Nếu không phải Site Code, tách chuỗi input thành danh sách Cell
-                # Hỗ trợ dấu phẩy, dấu cách, dấu chấm phẩy
                 target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
             if target_cells:
-                # 2. Query dữ liệu KPI cho tất cả các cell tìm được
                 data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
-                
-                # Sắp xếp dữ liệu theo thời gian để vẽ biểu đồ đúng
                 try:
                     data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-                except ValueError:
-                    pass 
+                except ValueError: pass 
 
                 if data:
-                    # Lấy danh sách tất cả các ngày (trục X)
                     all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
-                    
-                    # Gom nhóm dữ liệu theo Cell
                     data_by_cell = defaultdict(list)
                     for x in data:
                         data_by_cell[x.ten_cell].append(x)
 
-                    # Cấu hình các chỉ số cần vẽ (Metrics)
                     metrics_config = {
                         '3g': [
                             {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
@@ -923,25 +875,15 @@ def kpi():
                     
                     current_metrics = metrics_config.get(selected_tech, [])
 
-                    # 3. Tạo dữ liệu cho từng biểu đồ riêng biệt
                     for metric in current_metrics:
                         metric_key = metric['key']
                         metric_label = metric['label']
-                        
                         datasets = []
-                        # Tạo dataset cho từng cell
                         for i, cell_code in enumerate(target_cells):
-                            # Tìm dữ liệu của cell này
                             cell_data = data_by_cell.get(cell_code, [])
-                            
-                            # Map dữ liệu vào trục thời gian chung (all_labels)
-                            # Nếu ngày nào thiếu dữ liệu thì điền None (đứt nét) hoặc 0
                             data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
                             aligned_data = [data_map.get(label, None) for label in all_labels]
-                            
-                            # Chọn màu (xoay vòng nếu nhiều hơn số màu có sẵn)
                             color = colors[i % len(colors)]
-                            
                             datasets.append({
                                 'label': cell_code,
                                 'data': aligned_data,
@@ -949,10 +891,9 @@ def kpi():
                                 'backgroundColor': color,
                                 'tension': 0.1,
                                 'fill': False,
-                                'spanGaps': True # Nối liền nếu thiếu dữ liệu giữa chừng
+                                'spanGaps': True
                             })
                         
-                        # Lưu cấu hình biểu đồ
                         chart_id = f"chart_{metric_key}"
                         charts[chart_id] = json.dumps({
                             'title': metric_label,
@@ -962,6 +903,101 @@ def kpi():
 
     return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
                        selected_tech=selected_tech, cell_name_input=cell_name_input, charts=charts)
+
+@app.route('/poi')
+@login_required
+def poi():
+    selected_poi = request.args.get('poi_name', '').strip()
+    poi_list = []
+    
+    # Lấy danh sách POI để hiển thị trong datalist
+    with app.app_context():
+        # Gộp danh sách POI từ cả 2 bảng 4G và 5G
+        p4 = db.session.query(POI4G.poi_name).distinct().all()
+        p5 = db.session.query(POI5G.poi_name).distinct().all()
+        poi_list = sorted(list(set([r[0] for r in p4] + [r[0] for r in p5])))
+
+    poi_charts = {}
+    if selected_poi:
+        # --- XỬ LÝ 4G ---
+        # 1. Tìm các cell 4G thuộc POI này
+        cells_4g = db.session.query(POI4G.cell_code).filter(POI4G.poi_name == selected_poi).all()
+        cells_4g_list = [c[0] for c in cells_4g]
+        
+        data_4g_Agg = []
+        if cells_4g_list:
+            # 2. Query KPI 4G và Group by Thời gian
+            kpi4g_data = KPI4G.query.filter(KPI4G.ten_cell.in_(cells_4g_list)).all()
+            
+            # Aggregate trong Python (để đơn giản hóa việc xử lý ngày tháng dạng chuỗi)
+            grouped_4g = defaultdict(lambda: {'traffic_sum': 0, 'thput_sum': 0, 'count': 0})
+            
+            for item in kpi4g_data:
+                grouped_4g[item.thoi_gian]['traffic_sum'] += (item.traffic or 0)
+                grouped_4g[item.thoi_gian]['thput_sum'] += (item.user_dl_avg_thput or 0)
+                grouped_4g[item.thoi_gian]['count'] += 1
+            
+            # Chuyển về list và sort
+            for date, val in grouped_4g.items():
+                avg_thput = val['thput_sum'] / val['count'] if val['count'] > 0 else 0
+                data_4g_Agg.append({'date': date, 'traffic': val['traffic_sum'], 'thput': avg_thput})
+            
+            try:
+                data_4g_Agg.sort(key=lambda x: datetime.strptime(x['date'], '%d/%m/%Y'))
+            except: pass
+
+        # --- XỬ LÝ 5G ---
+        cells_5g = db.session.query(POI5G.cell_code).filter(POI5G.poi_name == selected_poi).all()
+        cells_5g_list = [c[0] for c in cells_5g]
+        
+        data_5g_Agg = []
+        if cells_5g_list:
+            kpi5g_data = KPI5G.query.filter(KPI5G.ten_cell.in_(cells_5g_list)).all()
+            grouped_5g = defaultdict(lambda: {'traffic_sum': 0, 'thput_sum': 0, 'count': 0})
+            
+            for item in kpi5g_data:
+                grouped_5g[item.thoi_gian]['traffic_sum'] += (item.traffic or 0)
+                grouped_5g[item.thoi_gian]['thput_sum'] += (item.user_dl_avg_throughput or 0)
+                grouped_5g[item.thoi_gian]['count'] += 1
+            
+            for date, val in grouped_5g.items():
+                avg_thput = val['thput_sum'] / val['count'] if val['count'] > 0 else 0
+                data_5g_Agg.append({'date': date, 'traffic': val['traffic_sum'], 'thput': avg_thput})
+                
+            try:
+                data_5g_Agg.sort(key=lambda x: datetime.strptime(x['date'], '%d/%m/%Y'))
+            except: pass
+
+        # --- TẠO BIỂU ĐỒ ---
+        if data_4g_Agg or data_5g_Agg:
+            # Chart 1: 4G Traffic
+            if data_4g_Agg:
+                poi_charts['chart_4g_traffic'] = json.dumps({
+                    'title': 'Tổng Traffic 4G (GB)',
+                    'labels': [x['date'] for x in data_4g_Agg],
+                    'datasets': [{'label': 'Traffic 4G', 'data': [x['traffic'] for x in data_4g_Agg], 'borderColor': 'blue', 'tension': 0.1, 'fill': False}]
+                })
+                poi_charts['chart_4g_thput'] = json.dumps({
+                    'title': 'User DL Avg Throughput 4G (Mbps)',
+                    'labels': [x['date'] for x in data_4g_Agg],
+                    'datasets': [{'label': 'Throughput 4G', 'data': [x['thput'] for x in data_4g_Agg], 'borderColor': 'green', 'tension': 0.1, 'fill': False}]
+                })
+            
+            # Chart 2: 5G Traffic
+            if data_5g_Agg:
+                poi_charts['chart_5g_traffic'] = json.dumps({
+                    'title': 'Tổng Traffic 5G (GB)',
+                    'labels': [x['date'] for x in data_5g_Agg],
+                    'datasets': [{'label': 'Traffic 5G', 'data': [x['traffic'] for x in data_5g_Agg], 'borderColor': 'orange', 'tension': 0.1, 'fill': False}]
+                })
+                poi_charts['chart_5g_thput'] = json.dumps({
+                    'title': 'User DL Avg Throughput 5G (Mbps)',
+                    'labels': [x['date'] for x in data_5g_Agg],
+                    'datasets': [{'label': 'Throughput 5G', 'data': [x['thput'] for x in data_5g_Agg], 'borderColor': 'purple', 'tension': 0.1, 'fill': False}]
+                })
+
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo POI", active_page='poi', 
+                       poi_list=poi_list, selected_poi=selected_poi, poi_charts=poi_charts)
 
 @app.route('/rf')
 @login_required
@@ -1152,7 +1188,87 @@ def conges_3g():
 
 @app.route('/poi')
 @login_required
-def poi(): return render_page(CONTENT_TEMPLATE, title="POI", active_page='poi')
+def poi():
+    selected_poi = request.args.get('poi_name', '').strip()
+    poi_list = []
+    
+    with app.app_context():
+        p4 = db.session.query(POI4G.poi_name).distinct().all()
+        p5 = db.session.query(POI5G.poi_name).distinct().all()
+        poi_list = sorted(list(set([r[0] for r in p4] + [r[0] for r in p5])))
+
+    poi_charts = {}
+    if selected_poi:
+        cells_4g = db.session.query(POI4G.cell_code).filter(POI4G.poi_name == selected_poi).all()
+        cells_4g_list = [c[0] for c in cells_4g]
+        
+        data_4g_Agg = []
+        if cells_4g_list:
+            kpi4g_data = KPI4G.query.filter(KPI4G.ten_cell.in_(cells_4g_list)).all()
+            grouped_4g = defaultdict(lambda: {'traffic_sum': 0, 'thput_sum': 0, 'count': 0})
+            
+            for item in kpi4g_data:
+                grouped_4g[item.thoi_gian]['traffic_sum'] += (item.traffic or 0)
+                grouped_4g[item.thoi_gian]['thput_sum'] += (item.user_dl_avg_thput or 0)
+                grouped_4g[item.thoi_gian]['count'] += 1
+            
+            for date, val in grouped_4g.items():
+                avg_thput = val['thput_sum'] / val['count'] if val['count'] > 0 else 0
+                data_4g_Agg.append({'date': date, 'traffic': val['traffic_sum'], 'thput': avg_thput})
+            
+            try:
+                data_4g_Agg.sort(key=lambda x: datetime.strptime(x['date'], '%d/%m/%Y'))
+            except: pass
+
+        cells_5g = db.session.query(POI5G.cell_code).filter(POI5G.poi_name == selected_poi).all()
+        cells_5g_list = [c[0] for c in cells_5g]
+        
+        data_5g_Agg = []
+        if cells_5g_list:
+            kpi5g_data = KPI5G.query.filter(KPI5G.ten_cell.in_(cells_5g_list)).all()
+            grouped_5g = defaultdict(lambda: {'traffic_sum': 0, 'thput_sum': 0, 'count': 0})
+            
+            for item in kpi5g_data:
+                grouped_5g[item.thoi_gian]['traffic_sum'] += (item.traffic or 0)
+                grouped_5g[item.thoi_gian]['thput_sum'] += (item.user_dl_avg_throughput or 0)
+                grouped_5g[item.thoi_gian]['count'] += 1
+            
+            for date, val in grouped_5g.items():
+                avg_thput = val['thput_sum'] / val['count'] if val['count'] > 0 else 0
+                data_5g_Agg.append({'date': date, 'traffic': val['traffic_sum'], 'thput': avg_thput})
+                
+            try:
+                data_5g_Agg.sort(key=lambda x: datetime.strptime(x['date'], '%d/%m/%Y'))
+            except: pass
+
+        if data_4g_Agg or data_5g_Agg:
+            if data_4g_Agg:
+                poi_charts['chart_4g_traffic'] = json.dumps({
+                    'title': 'Tổng Traffic 4G (GB)',
+                    'labels': [x['date'] for x in data_4g_Agg],
+                    'datasets': [{'label': 'Traffic 4G', 'data': [x['traffic'] for x in data_4g_Agg], 'borderColor': 'blue', 'tension': 0.1, 'fill': False}]
+                })
+                poi_charts['chart_4g_thput'] = json.dumps({
+                    'title': 'User DL Avg Throughput 4G (Mbps)',
+                    'labels': [x['date'] for x in data_4g_Agg],
+                    'datasets': [{'label': 'Throughput 4G', 'data': [x['thput'] for x in data_4g_Agg], 'borderColor': 'green', 'tension': 0.1, 'fill': False}]
+                })
+            
+            if data_5g_Agg:
+                poi_charts['chart_5g_traffic'] = json.dumps({
+                    'title': 'Tổng Traffic 5G (GB)',
+                    'labels': [x['date'] for x in data_5g_Agg],
+                    'datasets': [{'label': 'Traffic 5G', 'data': [x['traffic'] for x in data_5g_Agg], 'borderColor': 'orange', 'tension': 0.1, 'fill': False}]
+                })
+                poi_charts['chart_5g_thput'] = json.dumps({
+                    'title': 'User DL Avg Throughput 5G (Mbps)',
+                    'labels': [x['date'] for x in data_5g_Agg],
+                    'datasets': [{'label': 'Throughput 5G', 'data': [x['thput'] for x in data_5g_Agg], 'borderColor': 'purple', 'tension': 0.1, 'fill': False}]
+                })
+
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo POI", active_page='poi', 
+                       poi_list=poi_list, selected_poi=selected_poi, poi_charts=poi_charts)
+
 @app.route('/worst-cell')
 @login_required
 def worst_cell(): return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell')
@@ -1168,18 +1284,20 @@ def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='
 def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
-        import_type = request.args.get('type') # 3g, 4g, 5g, kpi3g, kpi4g, kpi5g
+        import_type = request.args.get('type') # 3g, 4g, 5g, kpi3g, kpi4g, kpi5g, poi4g, poi5g
         
         if not files or files[0].filename == '':
             flash('Chưa chọn file!', 'warning'); return redirect(url_for('import_data'))
 
         type_config = {
-            '3g': {'model': RF3G, 'required': ['antena', 'azimuth']}, # RF 3G
-            '4g': {'model': RF4G, 'required': ['enodeb_id', 'pci']},    # RF 4G
-            '5g': {'model': RF5G, 'required': ['gnodeb_id', 'pci']},   # RF 5G
-            'kpi3g': {'model': KPI3G, 'required': ['traffic', 'cssr']}, # KPI 3G (Traffic/CSSR)
-            'kpi4g': {'model': KPI4G, 'required': ['traffic_vol_dl', 'erab_ssrate_all']}, # KPI 4G
-            'kpi5g': {'model': KPI5G, 'required': ['dl_traffic_volume_gb']} # KPI 5G
+            '3g': {'model': RF3G, 'required': ['antena', 'azimuth']}, 
+            '4g': {'model': RF4G, 'required': ['enodeb_id', 'pci']},    
+            '5g': {'model': RF5G, 'required': ['gnodeb_id', 'pci']},   
+            'kpi3g': {'model': KPI3G, 'required': ['traffic', 'cssr']}, 
+            'kpi4g': {'model': KPI4G, 'required': ['traffic_vol_dl', 'erab_ssrate_all']}, 
+            'kpi5g': {'model': KPI5G, 'required': ['dl_traffic_volume_gb']},
+            'poi4g': {'model': POI4G, 'required': ['poi']},
+            'poi5g': {'model': POI5G, 'required': ['poi']}
         }
         
         config = type_config.get(import_type)
@@ -1218,7 +1336,8 @@ def import_data():
                         'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
                         'PCI': 'pci',
                         'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
-                        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl', 'CQI_4G': 'cqi_4g'
+                        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl', 'CQI_4G': 'cqi_4g',
+                        'Cell_Code': 'cell_code', 'Site_Code': 'site_code', 'POI': 'poi_name'
                     }
                     if col_name in map_kpi: return map_kpi[col_name]
                     clean = col_name.lower()
@@ -1378,7 +1497,7 @@ def backup_restore():
 def backup_db():
     if current_user.role != 'admin': return redirect(url_for('index'))
     
-    models = [User, RF3G, RF4G, RF5G, KPI3G, KPI4G, KPI5G]
+    models = [User, RF3G, RF4G, RF5G, KPI3G, KPI4G, KPI5G, POI4G, POI5G]
     buffer = BytesIO()
     
     with zipfile.ZipFile(buffer, 'w') as zf:
@@ -1422,6 +1541,8 @@ def restore_db():
                 'rf_3g.csv': RF3G,
                 'rf_4g.csv': RF4G,
                 'rf_5g.csv': RF5G,
+                'poi_4g.csv': POI4G,
+                'poi_5g.csv': POI5G,
                 'kpi_3g.csv': KPI3G,
                 'kpi_4g.csv': KPI4G,
                 'kpi_5g.csv': KPI5G
