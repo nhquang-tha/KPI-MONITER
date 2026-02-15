@@ -1192,6 +1192,7 @@ def import_data():
                             filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
+                                elif isinstance(v, str): filtered_row[k] = v.strip() # Clean data
                             
                             if import_type == 'kpi4g' and 'traffic' not in filtered_row:
                                 if 'traffic_vol_dl' in filtered_row:
@@ -1219,6 +1220,7 @@ def import_data():
                             filtered_row = {k: v for k, v in row.items() if k in valid_db_columns}
                             for k, v in filtered_row.items():
                                 if pd.isna(v): filtered_row[k] = None
+                                elif isinstance(v, str): filtered_row[k] = v.strip() # Clean data
                             
                             if import_type == 'kpi4g' and 'traffic' not in filtered_row:
                                 if 'traffic_vol_dl' in filtered_row:
