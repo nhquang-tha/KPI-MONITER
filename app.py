@@ -575,6 +575,7 @@ CONTENT_TEMPLATE = """
                                 },
                                 onClick: (e, activeEls) => {
                                     if (activeEls.length > 0) {
+                                        // Pick the first element (nearest)
                                         const index = activeEls[0].index;
                                         const datasetIndex = activeEls[0].datasetIndex;
                                         const label = chartData.labels[index];
