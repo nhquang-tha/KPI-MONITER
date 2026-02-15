@@ -59,7 +59,7 @@ def clean_header(col_name):
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name'
+        'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code'
     }
     if col_name in special_map: return special_map[col_name]
 
