@@ -6,6 +6,7 @@ import gc
 import re
 import zipfile
 import unicodedata
+import random
 from io import BytesIO, StringIO
 from datetime import datetime
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
@@ -84,6 +85,18 @@ def clean_header(col_name):
         'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
     }
     return common_map.get(clean, clean)
+
+def generate_colors(n):
+    """Generate n distinct colors."""
+    base_colors = [
+        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
+        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
+        '#343a40', '#007bff', '#6f42c1', '#e83e8c'
+    ]
+    if n <= len(base_colors):
+        return base_colors[:n]
+    # If more needed, generate random
+    return base_colors + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base_colors))]
 
 # --- MODELS ---
 class User(UserMixin, db.Model):
@@ -183,14 +196,14 @@ class POI4G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cell_code = db.Column(db.String(50))
     site_code = db.Column(db.String(50))
-    poi_name = db.Column(db.String(200))
+    poi_name = db.Column(db.String(200), index=True)
 
 class POI5G(db.Model):
     __tablename__ = 'poi_5g'
     id = db.Column(db.Integer, primary_key=True)
     cell_code = db.Column(db.String(50))
     site_code = db.Column(db.String(50))
-    poi_name = db.Column(db.String(200))
+    poi_name = db.Column(db.String(200), index=True)
 
 class KPI3G(db.Model):
     __tablename__ = 'kpi_3g'
@@ -369,9 +382,9 @@ BASE_LAYOUT = """
     <script>
         let modalChartInstance = null;
 
-        function showDetailModal(cellName, date, value, metricLabel, cellData, allLabels) {
+        function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
             // Update Modal Title only
-            document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' - ' + cellName;
+            document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' (' + date + ')';
             
             // Draw Specific Chart
             const ctx = document.getElementById('modalChart').getContext('2d');
@@ -385,25 +398,13 @@ BASE_LAYOUT = """
                 type: 'line',
                 data: {
                     labels: allLabels,
-                    datasets: [{
-                        label: cellName,
-                        data: cellData,
-                        borderColor: '#dc3545',
-                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
-                        borderWidth: 3,
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: '#dc3545',
-                        pointRadius: 6,
-                        pointHoverRadius: 9,
-                        tension: 0.2,
-                        fill: true
-                    }]
+                    datasets: allDatasets // Pass ALL datasets (all cells) to the popup chart
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: true, labels: { font: { size: 16 } } },
+                        legend: { display: true, labels: { font: { size: 14 } } },
                         tooltip: {
                             bodyFont: { size: 14 },
                             titleFont: { size: 14 },
@@ -514,7 +515,20 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-12">
                     <form method="GET" action="/kpi" class="row g-3 align-items-center">
                         <div class="col-auto">
-                            <label class="col-form-label fw-bold">Công nghệ:</label>
+                            <label class="col-form-label fw-bold">Chọn POI:</label>
+                        </div>
+                        <div class="col-md-4">
+                             <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
+                                    placeholder="Chọn POI để vẽ tất cả các cell 4G và 5G..." value="{{ selected_poi }}">
+                             <datalist id="poi_list_kpi">
+                                 {% for p in poi_list %}
+                                 <option value="{{ p }}">
+                                 {% endfor %}
+                             </datalist>
+                        </div>
+
+                        <div class="col-auto ms-4 border-start ps-4">
+                            <label class="col-form-label fw-bold text-muted">Hoặc Lọc Thủ Công:</label>
                         </div>
                         <div class="col-auto">
                             <select name="tech" class="form-select">
@@ -523,25 +537,9 @@ CONTENT_TEMPLATE = """
                                 <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
                             </select>
                         </div>
-                        <div class="col-auto">
-                            <label class="col-form-label fw-bold">Chọn POI:</label>
-                        </div>
-                         <div class="col-md-3">
-                             <input type="text" name="poi_name" list="poi_list_kpi" class="form-control" 
-                                    placeholder="Chọn POI..." value="{{ selected_poi }}">
-                             <datalist id="poi_list_kpi">
-                                 {% for p in poi_list %}
-                                 <option value="{{ p }}">
-                                 {% endfor %}
-                             </datalist>
-                        </div>
-                        <div class="col-auto"><span class="fw-bold">HOẶC</span></div>
-                        <div class="col-auto">
-                            <label class="col-form-label fw-bold">Nhập Cell/Site:</label>
-                        </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <input type="text" name="cell_name" class="form-control" 
-                                   placeholder="Site Code hoặc list Cell..." 
+                                   placeholder="Site/Cell Code..." 
                                    value="{{ cell_name_input }}">
                         </div>
                         <div class="col-auto">
@@ -590,7 +588,7 @@ CONTENT_TEMPLATE = """
                                         const metricTitle = '{{ chart_data.title }}';
                                         
                                         // Pass FULL datasets to popup
-                                        showDetailModal(cellName, label, value, metricTitle, chartData.datasets[datasetIndex].data, chartData.labels);
+                                        showDetailModal(cellName, label, value, metricTitle, chartData.datasets, chartData.labels);
                                     }
                                 },
                                 plugins: {
@@ -1139,32 +1137,46 @@ def kpi():
     KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
     RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
 
+    # 1. LOGIC TÌM KIẾM: POI -> Site Code -> Cell Name
     if poi_input:
-        # Nếu chọn POI, cần tìm cell code 3G, 4G hoặc 5G tùy theo tab đang chọn
-        # Lưu ý: POI table chỉ có 4G và 5G, không có 3G
-        POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
-        if POI_Model:
-            target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
+        # Tìm tất cả cell trong POI (cả 4G và 5G)
+        cells_4g = [r.cell_code for r in POI4G.query.filter(POI4G.poi_name == poi_input).all()]
+        cells_5g = [r.cell_code for r in POI5G.query.filter(POI5G.poi_name == poi_input).all()]
+        
+        # Nếu đang ở tab 3G/4G thì ưu tiên lấy cell 4G, tab 5G lấy 5G
+        if selected_tech == '5g':
+            target_cells = cells_5g
+        else:
+            target_cells = cells_4g # 3G thường dùng chung site với 4G hoặc logic riêng, ở đây tạm lấy theo POI 4G
+            
     elif cell_name_input and RF_Model:
-        # Check if site code
+        # Check if input is Site Code
         site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
         if site_cells:
             target_cells = [c.cell_code for c in site_cells]
         else:
+            # Assume list of cells
             target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
+    # 2. VẼ BIỂU ĐỒ NẾU CÓ CELL
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
+        
+        # Sort data by date
         try:
             data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
         except ValueError: pass 
 
         if data:
+            # X Axis: Unique sorted dates
             all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
+            
+            # Group data by Cell
             data_by_cell = defaultdict(list)
             for x in data:
                 data_by_cell[x.ten_cell].append(x)
 
+            # Define Metrics to Plot
             metrics_config = {
                 '3g': [
                     {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
@@ -1191,10 +1203,14 @@ def kpi():
                 metric_key = metric['key']
                 metric_label = metric['label']
                 datasets = []
+                
+                # Create a line for each cell
                 for i, cell_code in enumerate(target_cells):
                     cell_data = data_by_cell.get(cell_code, [])
+                    # Map data to timeline (fill missing dates with null or 0)
                     data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
                     aligned_data = [data_map.get(label, None) for label in all_labels]
+                    
                     color = colors[i % len(colors)]
                     datasets.append({
                         'label': cell_code,
@@ -1212,8 +1228,8 @@ def kpi():
                     'labels': all_labels,
                     'datasets': datasets
                 }
-
-    # Fetch POI List for datalist
+    
+    # 3. LẤY DANH SÁCH POI CHO DATALIST
     poi_list = []
     with app.app_context():
         try:
