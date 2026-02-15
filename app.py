@@ -273,8 +273,7 @@ def init_database():
             db.session.add(u); db.session.commit()
 init_database()
 
-# --- TEMPLATES (DEFINED FIRST) ---
-
+# --- TEMPLATES ---
 BASE_LAYOUT = """
 <!DOCTYPE html>
 <html lang="vi">
@@ -284,6 +283,7 @@ BASE_LAYOUT = """
     <title>KPI Monitor System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background-color: #f0f2f5; font-family: 'Roboto', sans-serif; overflow-x: hidden; }
@@ -338,20 +338,52 @@ BASE_LAYOUT = """
     
     <!-- Modal for Chart Details -->
     <div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-xl">
             <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Chi tiết KPI</h5>
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title text-primary fw-bold" id="modalTitle">
+                        <i class="fa-solid fa-chart-line me-2"></i>Chi tiết KPI
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p><strong>Ngày:</strong> <span id="modalDate"></span></p>
-                    <p><strong>Cell Name:</strong> <span id="modalCell"></span></p>
-                    <p><strong>Chỉ số:</strong> <span id="modalMetric"></span></p>
-                    <p><strong>Giá trị:</strong> <span id="modalValue" class="fw-bold text-primary"></span></p>
-                    <hr>
-                    <div class="d-grid">
-                         <a href="#" id="modalRfLink" class="btn btn-outline-info btn-sm">Xem chi tiết RF Cell này</a>
+                    <div class="row">
+                        <!-- Cột Thông tin -->
+                        <div class="col-md-3 border-end">
+                            <div class="p-3 bg-light rounded h-100">
+                                <h6 class="text-uppercase text-muted fw-bold mb-3">Thông tin điểm dữ liệu</h6>
+                                <div class="mb-3">
+                                    <small class="d-block text-secondary">Ngày:</small>
+                                    <span id="modalDate" class="fw-bold fs-5"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="d-block text-secondary">Cell Name:</small>
+                                    <span id="modalCell" class="fw-bold text-break text-primary"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="d-block text-secondary">Chỉ số:</small>
+                                    <span id="modalMetric" class="fw-bold"></span>
+                                </div>
+                                <div class="mb-3">
+                                    <small class="d-block text-secondary">Giá trị:</small>
+                                    <span id="modalValue" class="fw-bold text-danger fs-4"></span>
+                                </div>
+                                <hr>
+                                <div class="d-grid">
+                                     <a href="#" id="modalRfLink" class="btn btn-outline-info">
+                                        <i class="fa-solid fa-circle-info me-1"></i> Xem thông tin RF
+                                     </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Cột Biểu đồ -->
+                        <div class="col-md-9">
+                            <h6 class="text-center text-uppercase text-secondary mb-3">Xu hướng riêng của Cell này</h6>
+                            <div class="chart-container" style="position: relative; height:50vh; width:100%">
+                                <canvas id="modalChart"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -360,16 +392,71 @@ BASE_LAYOUT = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        function showDetailModal(cellName, date, value, metricLabel) {
+        let modalChartInstance = null;
+
+        function showDetailModal(cellName, date, value, metricLabel, cellData, allLabels) {
+            // 1. Fill Text Data
             document.getElementById('modalDate').innerText = date;
             document.getElementById('modalCell').innerText = cellName;
             document.getElementById('modalValue').innerText = value;
             document.getElementById('modalMetric').innerText = metricLabel;
             
-            // Link to RF detail (assuming tech is known or can be inferred, here defaulting to current context if possible)
-            // Ideally we'd need RF ID, but Cell Name search is better here if ID unknown
-            document.getElementById('modalRfLink').href = "/rf?cell_search=" + encodeURIComponent(cellName); // Placeholder link
+            // Link to RF detail
+            document.getElementById('modalRfLink').href = "/rf?cell_search=" + encodeURIComponent(cellName); 
             
+            // 2. Draw Specific Chart
+            const ctx = document.getElementById('modalChart').getContext('2d');
+            
+            // Destroy old chart if exists
+            if (modalChartInstance) {
+                modalChartInstance.destroy();
+            }
+
+            modalChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: allLabels,
+                    datasets: [{
+                        label: cellName,
+                        data: cellData, // Full series data for this cell
+                        borderColor: '#dc3545', // Red color for highlight
+                        backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                        borderWidth: 3,
+                        pointBackgroundColor: '#fff',
+                        pointBorderColor: '#dc3545',
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        tension: 0.2,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, labels: { font: { size: 14 } } },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: '#f0f0f0' },
+                            title: { display: true, text: metricLabel, font: { weight: 'bold' } }
+                        },
+                        x: {
+                            grid: { display: false }
+                        }
+                    }
+                }
+            });
+
+            // Show Modal
             new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
         }
     </script>
@@ -506,9 +593,11 @@ CONTENT_TEMPLATE = """
                     {% for chart_id, chart_data in charts.items() %}
                     (function() {
                         const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
+                        const chartData = {{ chart_data | tojson }};
+                        
                         new Chart(ctx, {
                             type: 'line',
-                            data: {{ chart_data | tojson }},
+                            data: chartData,
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
@@ -520,11 +609,16 @@ CONTENT_TEMPLATE = """
                                     if (activeEls.length > 0) {
                                         const index = activeEls[0].index;
                                         const datasetIndex = activeEls[0].datasetIndex;
-                                        const label = {{ chart_data | tojson }}.labels[index];
-                                        const value = {{ chart_data | tojson }}.datasets[datasetIndex].data[index];
-                                        const cellName = {{ chart_data | tojson }}.datasets[datasetIndex].label;
+                                        const label = chartData.labels[index];
+                                        const value = chartData.datasets[datasetIndex].data[index];
+                                        const cellName = chartData.datasets[datasetIndex].label;
                                         const metricTitle = '{{ chart_data.title }}';
-                                        showDetailModal(cellName, label, value, metricTitle);
+                                        
+                                        // Get full data series for this cell
+                                        const cellData = chartData.datasets[datasetIndex].data;
+                                        const allLabels = chartData.labels;
+                                        
+                                        showDetailModal(cellName, label, value, metricTitle, cellData, allLabels);
                                     }
                                 },
                                 plugins: {
@@ -674,6 +768,16 @@ CONTENT_TEMPLATE = """
                     <a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary me-2"><i class="fa-solid fa-plus"></i> Thêm mới</a>
                     <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success"><i class="fa-solid fa-file-csv"></i> Xuất Excel (CSV)</a>
                 </div>
+            </div>
+            
+            <div class="mb-3">
+                <form method="GET" action="/rf">
+                     <input type="hidden" name="tech" value="{{ current_tech }}">
+                     <div class="input-group">
+                         <input type="text" name="cell_search" class="form-control" placeholder="Tìm kiếm Cell Code..." value="{{ request.args.get('cell_search', '') }}">
+                         <button class="btn btn-outline-secondary" type="submit">Tìm</button>
+                     </div>
+                </form>
             </div>
 
             <div class="table-responsive" style="max-height: 70vh; overflow-y: auto;">
@@ -1027,185 +1131,9 @@ def logout(): logout_user(); return redirect(url_for('login'))
 
 @app.route('/')
 @login_required
-def index():
-    try:
-        cnt = {
-            'rf3g': db.session.query(func.count(RF3G.id)).scalar(),
-            'rf4g': db.session.query(func.count(RF4G.id)).scalar(),
-            'rf5g': db.session.query(func.count(RF5G.id)).scalar(),
-            'kpi3g': db.session.query(func.count(KPI3G.id)).scalar(),
-            'kpi4g': db.session.query(func.count(KPI4G.id)).scalar(),
-            'kpi5g': db.session.query(func.count(KPI5G.id)).scalar(),
-        }
-    except: cnt = defaultdict(int)
-    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
+def index(): return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard')
 
-@app.route('/rf')
-@login_required
-def rf():
-    tech = request.args.get('tech', '3g')
-    action = request.args.get('action')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech, RF3G)
-    
-    if action == 'export':
-        def generate():
-            yield '\ufeff'.encode('utf-8')
-            cols = [c.key for c in Model.__table__.columns]
-            yield (','.join(cols) + '\n').encode('utf-8')
-            query = db.select(Model).execution_options(yield_per=100)
-            for row in db.session.execute(query).scalars():
-                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
-        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
-
-    # Dynamic columns
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    rows = Model.query.limit(500).all()
-    data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in rows]
-    
-    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
-
-@app.route('/rf/add', methods=['GET', 'POST'])
-@login_required
-def rf_add():
-    tech = request.args.get('tech', '3g')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if not Model: return redirect(url_for('rf'))
-    
-    if request.method == 'POST':
-        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
-        db.session.add(Model(**data))
-        db.session.commit()
-        flash('Thêm mới thành công', 'success')
-        return redirect(url_for('rf', tech=tech))
-        
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Thêm RF {tech.upper()}", columns=cols, tech=tech, obj={})
-
-@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
-@login_required
-def rf_edit(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if not obj: return redirect(url_for('rf', tech=tech))
-    
-    if request.method == 'POST':
-        for k, v in request.form.items():
-            if hasattr(obj, k): setattr(obj, k, v)
-        db.session.commit()
-        flash('Cập nhật thành công', 'success')
-        return redirect(url_for('rf', tech=tech))
-        
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=cols, tech=tech, obj=obj.__dict__)
-
-@app.route('/rf/delete/<tech>/<int:id>')
-@login_required
-def rf_delete(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if obj:
-        db.session.delete(obj)
-        db.session.commit()
-        flash('Đã xóa', 'success')
-    return redirect(url_for('rf', tech=tech))
-
-@app.route('/rf/reset')
-@login_required
-def rf_reset():
-    if current_user.role != 'admin': return redirect(url_for('import_data'))
-    tech = request.args.get('type')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if Model:
-        db.session.query(Model).delete()
-        db.session.commit()
-        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
-    return redirect(url_for('import_data'))
-
-@app.route('/rf/detail/<tech>/<int:id>')
-@login_required
-def rf_detail(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
-
-@app.route('/import', methods=['GET', 'POST'])
-@login_required
-def import_data():
-    if request.method == 'POST':
-        files = request.files.getlist('file')
-        itype = request.args.get('type')
-        
-        cfg = {
-            '3g': (RF3G, ['antena', 'azimuth']), '4g': (RF4G, ['enodeb_id']), '5g': (RF5G, ['gnodeb_id']),
-            'kpi3g': (KPI3G, ['traffic']), 'kpi4g': (KPI4G, ['traffic_vol_dl']), 'kpi5g': (KPI5G, ['dl_traffic_volume_gb']),
-            'poi4g': (POI4G, ['poi_name']), 'poi5g': (POI5G, ['poi_name'])
-        }
-        
-        Model, req_cols = cfg.get(itype, (None, []))
-        if not Model: return redirect(url_for('import_data'))
-        
-        valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-        count = 0
-        
-        for file in files:
-            if not file.filename: continue
-            try:
-                # Read file
-                if file.filename.endswith('.csv'):
-                    chunks = pd.read_csv(file, chunksize=2000)
-                else:
-                    df = pd.read_excel(file)
-                    chunks = [df]
-                
-                for df in chunks:
-                    # Clean columns
-                    df.columns = [clean_header(c) for c in df.columns]
-                    
-                    # Validate
-                    if not all(r in df.columns for r in req_cols):
-                        flash(f'File {file.filename} thiếu cột bắt buộc: {req_cols}', 'danger')
-                        break
-                    
-                    # Clean data & Insert
-                    records = []
-                    for row in df.to_dict('records'):
-                        clean_row = {}
-                        for k, v in row.items():
-                            if k in valid_cols:
-                                val = v
-                                if pd.isna(val): val = None
-                                elif isinstance(val, str): val = val.strip() # TRIM WHITESPACE
-                                clean_row[k] = val
-                                
-                        # KPI Specific: Fallback for traffic column
-                        if 'kpi' in itype and 'traffic' in valid_cols and 'traffic' not in clean_row:
-                             if 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
-                        
-                        records.append(clean_row)
-                    
-                    if records:
-                        db.session.bulk_insert_mappings(Model, records)
-                        db.session.commit()
-                        count += len(records)
-                        
-            except Exception as e:
-                db.session.rollback()
-                flash(f'Lỗi import {file.filename}: {e}', 'danger')
-        
-        if count > 0: flash(f'Đã import {count} dòng.', 'success')
-        return redirect(url_for('import_data'))
-
-    # Fetch dates for KPI list
-    dates = []
-    try:
-        for M, label in [(KPI3G, '3G'), (KPI4G, '4G'), (KPI5G, '5G')]:
-            ds = db.session.query(M.thoi_gian).distinct().all()
-            dates.extend([{'type': f'KPI {label}', 'date': d[0]} for d in ds])
-        dates.sort(key=lambda x: x['date'], reverse=True)
-    except: pass
-    
-    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', imported_kpi_dates=dates)
-
+# Các route menu khác
 @app.route('/kpi')
 @login_required
 def kpi():
@@ -1379,6 +1307,112 @@ def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", a
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
+
+@app.route('/rf')
+@login_required
+def rf():
+    tech = request.args.get('tech', '3g')
+    action = request.args.get('action')
+    cell_search = request.args.get('cell_search', '').strip()
+    
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech, RF3G)
+    
+    # Export logic
+    if action == 'export':
+        def generate():
+            yield '\ufeff'.encode('utf-8')
+            cols = [c.key for c in Model.__table__.columns]
+            yield (','.join(cols) + '\n').encode('utf-8')
+            
+            query = db.select(Model).execution_options(yield_per=100)
+            if cell_search:
+                query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
+                
+            for row in db.session.execute(query).scalars():
+                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
+
+    # Fetch Data
+    query = Model.query
+    if cell_search:
+        query = query.filter(Model.cell_code.like(f"%{cell_search}%"))
+    
+    rows = query.limit(500).all()
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    
+    # Map objects to dict for template
+    data = []
+    for r in rows:
+        item = {'id': r.id}
+        for c in cols:
+            item[c] = getattr(r, c)
+        data.append(item)
+    
+    return render_page(CONTENT_TEMPLATE, title="Dữ liệu RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
+
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
+def rf_add():
+    tech = request.args.get('tech', '3g')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if not Model: return redirect(url_for('rf'))
+    
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
+        db.session.add(Model(**data))
+        db.session.commit()
+        flash('Thêm mới thành công', 'success')
+        return redirect(url_for('rf', tech=tech))
+        
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Thêm RF {tech.upper()}", columns=cols, tech=tech, obj={})
+
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def rf_edit(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if not obj: return redirect(url_for('rf', tech=tech))
+    
+    if request.method == 'POST':
+        for k, v in request.form.items():
+            if hasattr(obj, k): setattr(obj, k, v)
+        db.session.commit()
+        flash('Cập nhật thành công', 'success')
+        return redirect(url_for('rf', tech=tech))
+        
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Sửa RF {tech.upper()}", columns=cols, tech=tech, obj=obj.__dict__)
+
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if obj:
+        db.session.delete(obj)
+        db.session.commit()
+        flash('Đã xóa', 'success')
+    return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/reset')
+@login_required
+def rf_reset():
+    if current_user.role != 'admin': return redirect(url_for('import_data'))
+    tech = request.args.get('type')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if Model:
+        db.session.query(Model).delete()
+        db.session.commit()
+        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
+    return redirect(url_for('import_data'))
+
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech) if obj else redirect(url_for('rf'))
 
 # --- TEMPLATE LOADERS & UTILS ---
 app.jinja_loader = jinja2.DictLoader({
