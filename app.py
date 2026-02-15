@@ -406,7 +406,7 @@ CONTENT_TEMPLATE = """
                         const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
                         new Chart(ctx, {
                             type: 'line',
-                            data: {{ chart_data | safe }},
+                            data: {{ chart_data | tojson }},
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
@@ -489,7 +489,7 @@ CONTENT_TEMPLATE = """
                         const ctx = document.getElementById('{{ chart_id }}').getContext('2d');
                         new Chart(ctx, {
                             type: 'line',
-                            data: {{ chart_data | safe }},
+                            data: {{ chart_data | tojson }},
                             options: {
                                 responsive: true,
                                 maintainAspectRatio: false,
@@ -1014,11 +1014,11 @@ def kpi():
                             })
                         
                         chart_id = f"chart_{metric_key}"
-                        charts[chart_id] = json.dumps({
+                        charts[chart_id] = {
                             'title': metric_label,
                             'labels': all_labels,
                             'datasets': datasets
-                        })
+                        }
 
     return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
                        selected_tech=selected_tech, cell_name_input=cell_name_input, charts=charts)
@@ -1080,28 +1080,28 @@ def poi():
 
         if data_4g_Agg or data_5g_Agg:
             if data_4g_Agg:
-                poi_charts['chart_4g_traffic'] = json.dumps({
+                poi_charts['chart_4g_traffic'] = {
                     'title': 'Tổng Traffic 4G (GB)',
                     'labels': [x['date'] for x in data_4g_Agg],
                     'datasets': [{'label': 'Traffic 4G', 'data': [x['traffic'] for x in data_4g_Agg], 'borderColor': 'blue', 'tension': 0.1, 'fill': False}]
-                })
-                poi_charts['chart_4g_thput'] = json.dumps({
+                }
+                poi_charts['chart_4g_thput'] = {
                     'title': 'User DL Avg Throughput 4G (Mbps)',
                     'labels': [x['date'] for x in data_4g_Agg],
                     'datasets': [{'label': 'Throughput 4G', 'data': [x['thput'] for x in data_4g_Agg], 'borderColor': 'green', 'tension': 0.1, 'fill': False}]
-                })
+                }
             
             if data_5g_Agg:
-                poi_charts['chart_5g_traffic'] = json.dumps({
+                poi_charts['chart_5g_traffic'] = {
                     'title': 'Tổng Traffic 5G (GB)',
                     'labels': [x['date'] for x in data_5g_Agg],
                     'datasets': [{'label': 'Traffic 5G', 'data': [x['traffic'] for x in data_5g_Agg], 'borderColor': 'orange', 'tension': 0.1, 'fill': False}]
-                })
-                poi_charts['chart_5g_thput'] = json.dumps({
+                }
+                poi_charts['chart_5g_thput'] = {
                     'title': 'User DL Avg Throughput 5G (Mbps)',
                     'labels': [x['date'] for x in data_5g_Agg],
                     'datasets': [{'label': 'Throughput 5G', 'data': [x['thput'] for x in data_5g_Agg], 'borderColor': 'purple', 'tension': 0.1, 'fill': False}]
-                })
+                }
 
     return render_page(CONTENT_TEMPLATE, title="Báo cáo POI", active_page='poi', 
                        poi_list=poi_list, selected_poi=selected_poi, poi_charts=poi_charts)
