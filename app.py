@@ -59,10 +59,22 @@ def clean_header(col_name):
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code'
+        'POI': 'poi_name', 'Hãng_SX': 'hang_sx', 'Hãng SX': 'hang_sx',
+        'Ghi_chú': 'ghi_chu', 'Ghi chú': 'ghi_chu',
+        'Đồng_bộ': 'dong_bo', 'Dong_bo': 'dong_bo',
+        'Cell_code': 'cell_code', 'Site_code': 'site_code', 'CSHT_code': 'csht_code',
+        'Antena': 'antena', 'Anten_height': 'anten_height', 'Azimuth': 'azimuth',
+        'Total_tilt': 'total_tilt', 'Latitude': 'latitude', 'Longitude': 'longitude',
+        'Equipment': 'equipment', 'Swap': 'swap', 'Start_day': 'start_day',
+        'TRAFFIC_VOL_DL': 'traffic_vol_dl', 'TRAFFIC_VOL_UL': 'traffic_vol_ul',
+        'CELL_DL_AVG_THPUTS': 'cell_dl_avg_thputs', 'UNVAILABLE': 'unvailable',
+        'CS_SO_ATT': 'cs_so_att', 'PS_SO_ATT': 'ps_so_att', 'CSCONGES': 'csconges', 'PSCONGES': 'psconges',
+        'PSTRAFFIC': 'pstraffic', 'RES_BLK_DL': 'res_blk_dl'
     }
-    if col_name in special_map: return special_map[col_name]
-
+    
+    if col_name in special_map:
+        return special_map[col_name]
+    
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
@@ -71,8 +83,6 @@ def clean_header(col_name):
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
-        'cell_name': 'cell_name', 'cell_code': 'cell_code', 'site_code': 'site_code',
-        'anten_height': 'anten_height', 'total_tilt': 'total_tilt',
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
         'poi': 'poi_name'
@@ -575,7 +585,6 @@ CONTENT_TEMPLATE = """
                                 },
                                 onClick: (e, activeEls) => {
                                     if (activeEls.length > 0) {
-                                        // Pick the first element (nearest)
                                         const index = activeEls[0].index;
                                         const datasetIndex = activeEls[0].datasetIndex;
                                         const label = chartData.labels[index];
@@ -583,11 +592,8 @@ CONTENT_TEMPLATE = """
                                         const cellName = chartData.datasets[datasetIndex].label;
                                         const metricTitle = '{{ chart_data.title }}';
                                         
-                                        // Get full data series for this cell
-                                        const cellData = chartData.datasets[datasetIndex].data;
-                                        const allLabels = chartData.labels;
-                                        
-                                        showDetailModal(cellName, label, value, metricTitle, cellData, allLabels);
+                                        // Pass FULL datasets to popup
+                                        showDetailModal(metricTitle, label, chartData.datasets, chartData.labels);
                                     }
                                 },
                                 plugins: {
