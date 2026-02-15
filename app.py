@@ -12,7 +12,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from sqlalchemy import text, func
+from sqlalchemy import text, func, inspect
 from itertools import zip_longest
 from collections import defaultdict # Thêm để xử lý logic đếm ngày
 
