@@ -74,6 +74,8 @@ def clean_header(col_name):
         'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
         'cs_so_att': 'cs_so_att', 'ps_so_att': 'ps_so_att',
+        'service_drop_all': 'service_drop_all',
+        'user_dl_avg_thput': 'user_dl_avg_thput',
         'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
     }
     return common_map.get(clean, clean)
@@ -675,6 +677,63 @@ CONTENT_TEMPLATE = """
                     <p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p>
                 </div>
             {% endif %}
+
+        {% elif active_page == 'worst_cell' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                     <form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-auto">
+                            <label class="col-form-label fw-bold text-muted">Thời gian:</label>
+                        </div>
+                        <div class="col-auto">
+                            <select name="duration" class="form-select border-0 shadow-sm">
+                                <option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option>
+                                <option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option>
+                                <option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option>
+                                <option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option>
+                                <option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option>
+                            </select>
+                        </div>
+                        <div class="col-auto">
+                            <button type="submit" class="btn btn-danger shadow-sm"><i class="fa-solid fa-filter me-2"></i> Lọc Worst Cell</button>
+                        </div>
+                     </form>
+                </div>
+            </div>
+            
+            {% if dates %}
+                <div class="alert alert-info border-0 shadow-sm mb-4">
+                    <i class="fa-solid fa-calendar-days me-2"></i><strong>Dữ liệu xét duyệt:</strong> 
+                    {% for d in dates %}<span class="badge bg-white text-dark border ms-1">{{ d }}</span>{% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
+                <table class="table table-hover mb-0" style="font-size: 0.9rem;">
+                    <thead class="bg-light position-sticky top-0" style="z-index: 10;">
+                        <tr>
+                            <th class="border-bottom">Cell Name</th>
+                            <th class="text-center border-bottom">Avg User Thput (kbps)</th>
+                            <th class="text-center border-bottom">Avg PRB (%)</th>
+                            <th class="text-center border-bottom">Avg CQI (%)</th>
+                            <th class="text-center border-bottom">Avg Drop Rate (%)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in worst_cells %}
+                        <tr>
+                            <td class="fw-bold text-primary">{{ row.cell_name }}</td>
+                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 else '' }}">{{ row.avg_thput | round(2) }}</td>
+                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 else '' }}">{{ row.avg_res_blk | round(2) }}</td>
+                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 else '' }}">{{ row.avg_cqi | round(2) }}</td>
+                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 else '' }}">{{ row.avg_drop | round(2) }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="5" class="text-center py-5 text-muted">Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
         {% elif active_page == 'conges_3g' %}
             <div class="alert alert-info">
@@ -1327,7 +1386,61 @@ def restore_db(): return redirect(url_for('index')) # Placeholder
 
 @app.route('/worst-cell')
 @login_required
-def worst_cell(): return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell')
+def worst_cell():
+    # 1. Get Params
+    duration = int(request.args.get('duration', 1))
+    
+    # 2. Get dates sorted desc
+    all_dates_raw = db.session.query(KPI4G.thoi_gian).distinct().all()
+    date_objs = []
+    for d in all_dates_raw:
+        try:
+            date_objs.append(datetime.strptime(d[0], '%d/%m/%Y'))
+        except: pass
+    date_objs.sort(reverse=True)
+    
+    # 3. Get target dates
+    target_dates_dt = date_objs[:duration]
+    target_dates_str = [d.strftime('%d/%m/%Y') for d in target_dates_dt]
+    
+    if not target_dates_str:
+         return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=[], dates=[])
+
+    # 4. Query Bad Cells
+    # Condition: (User DL Avg Thput < 7000) OR ( Res Block DL > 20%) OR (CQI 4G < 93%) OR (Drop Rate > 0.3%)
+    records = KPI4G.query.filter(
+        KPI4G.thoi_gian.in_(target_dates_str),
+        (
+            (KPI4G.user_dl_avg_thput < 7000) |
+            (KPI4G.res_blk_dl > 20) |
+            (KPI4G.cqi_4g < 93) |
+            (KPI4G.service_drop_all > 0.3)
+        )
+    ).all()
+    
+    # 5. Process logic: Must appear in ALL selected days
+    cell_groups = defaultdict(list)
+    for r in records:
+        cell_groups[r.ten_cell].append(r)
+        
+    final_results = []
+    for cell, rows in cell_groups.items():
+        if len(rows) == duration: # Persistently bad
+            avg_thput = sum(r.user_dl_avg_thput or 0 for r in rows) / duration
+            avg_res_blk = sum(r.res_blk_dl or 0 for r in rows) / duration
+            avg_cqi = sum(r.cqi_4g or 0 for r in rows) / duration
+            avg_drop = sum(r.service_drop_all or 0 for r in rows) / duration
+            
+            final_results.append({
+                'cell_name': cell,
+                'avg_thput': avg_thput,
+                'avg_res_blk': avg_res_blk,
+                'avg_cqi': avg_cqi,
+                'avg_drop': avg_drop
+            })
+            
+    return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=final_results, dates=target_dates_str, duration=duration)
+
 @app.route('/traffic-down')
 @login_required
 def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down')
