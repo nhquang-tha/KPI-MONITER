@@ -75,13 +75,11 @@ def clean_header(col_name):
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
     
-    if col_name in special_map:
-        return special_map[col_name]
+    if col_name in special_map: return special_map[col_name]
     
     col_upper = col_name.upper()
     for key, val in special_map.items():
-        if key.upper() == col_upper:
-             return val
+        if key.upper() == col_upper: return val
 
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
@@ -101,13 +99,8 @@ def clean_header(col_name):
     return common_map.get(clean, clean)
 
 def generate_colors(n):
-    base_colors = [
-        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
-        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
-        '#343a40', '#007bff', '#6f42c1', '#e83e8c'
-    ]
-    if n <= len(base_colors):
-        return base_colors[:n]
+    base_colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d']
+    if n <= len(base_colors): return base_colors[:n]
     return base_colors + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base_colors))]
 
 # ==============================================================================
@@ -919,11 +912,11 @@ CONTENT_TEMPLATE = """
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 else '' }}">{{ row.avg_cqi | round(2) }}</td>
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 else '' }}">{{ row.avg_drop | round(2) }}</td>
                             <td class="text-center">
-                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm" title="Xem biểu đồ"><i class="fa-solid fa-chart-line"></i></a>
+                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> View</a>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-center py-5 text-muted">Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
+                        <tr><td colspan="6" class="text-center py-5 text-muted opacity-50"><i class="fa-solid fa-check-circle fa-2x mb-2 d-block"></i>Không có cell nào vi phạm</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
