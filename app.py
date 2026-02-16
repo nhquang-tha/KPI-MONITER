@@ -717,6 +717,7 @@ CONTENT_TEMPLATE = """
                             <th class="text-center border-bottom">Avg PRB (%)</th>
                             <th class="text-center border-bottom">Avg CQI (%)</th>
                             <th class="text-center border-bottom">Avg Drop Rate (%)</th>
+                            <th class="text-center border-bottom" style="width: 100px;">Hành động</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -727,9 +728,12 @@ CONTENT_TEMPLATE = """
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 else '' }}">{{ row.avg_res_blk | round(2) }}</td>
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 else '' }}">{{ row.avg_cqi | round(2) }}</td>
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 else '' }}">{{ row.avg_drop | round(2) }}</td>
+                            <td class="text-center">
+                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> View</a>
+                            </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="5" class="text-center py-5 text-muted">Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
+                        <tr><td colspan="6" class="text-center py-5 text-muted">Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
