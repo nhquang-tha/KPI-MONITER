@@ -302,7 +302,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -912,11 +912,11 @@ CONTENT_TEMPLATE = """
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 else '' }}">{{ row.avg_cqi | round(2) }}</td>
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 else '' }}">{{ row.avg_drop | round(2) }}</td>
                             <td class="text-center">
-                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> View</a>
+                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm" title="Xem biểu đồ"><i class="fa-solid fa-chart-line"></i></a>
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-center py-5 text-muted opacity-50"><i class="fa-solid fa-check-circle fa-2x mb-2 d-block"></i>Không có cell nào vi phạm</td></tr>
+                        <tr><td colspan="6" class="text-center py-5 text-muted opacity-50"><i class="fa-solid fa-check-circle fa-2x mb-2 d-block"></i>Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
