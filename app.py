@@ -80,8 +80,7 @@ def clean_header(col_name):
     
     col_upper = col_name.upper()
     for key, val in special_map.items():
-        if key.upper() == col_upper:
-             return val
+        if key.upper() == col_upper: return val
 
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
@@ -101,13 +100,8 @@ def clean_header(col_name):
     return common_map.get(clean, clean)
 
 def generate_colors(n):
-    base_colors = [
-        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
-        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
-        '#343a40', '#007bff', '#6f42c1', '#e83e8c'
-    ]
-    if n <= len(base_colors):
-        return base_colors[:n]
+    base_colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d']
+    if n <= len(base_colors): return base_colors[:n]
     return base_colors + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base_colors))]
 
 # ==============================================================================
