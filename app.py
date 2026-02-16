@@ -66,14 +66,26 @@ def clean_header(col_name):
         'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
         'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
         'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code'
+        'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code',
+        'CSHT_code': 'csht_code', 'Hãng_SX': 'hang_sx', 'Antena': 'antena',
+        'Swap': 'swap', 'Start_day': 'start_day', 'Ghi_chú': 'ghi_chu',
+        'Anten_height': 'anten_height', 'Azimuth': 'azimuth', 'M_T': 'm_t', 'E_T': 'e_t', 'Total_tilt': 'total_tilt',
+        'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac', 'CI': 'ci',
+        'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
+        'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
-    if col_name in special_map: return special_map[col_name]
     
+    # Check exact match first
+    if col_name in special_map:
+        return special_map[col_name]
+    
+    # Check case-insensitive match
     col_upper = col_name.upper()
     for key, val in special_map.items():
-        if key.upper() == col_upper: return val
+        if key.upper() == col_upper:
+             return val
 
+    # General cleaning fallback
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
@@ -295,7 +307,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (ALL DEFINED HERE TO AVOID NAME ERRORS)
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -905,7 +917,7 @@ CONTENT_TEMPLATE = """
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 else '' }}">{{ row.avg_cqi | round(2) }}</td>
                             <td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 else '' }}">{{ row.avg_drop | round(2) }}</td>
                             <td class="text-center">
-                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm" title="Xem biểu đồ"><i class="fa-solid fa-chart-line"></i></a>
+                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> View</a>
                             </td>
                         </tr>
                         {% else %}
