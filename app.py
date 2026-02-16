@@ -678,67 +678,6 @@ CONTENT_TEMPLATE = """
                 </div>
             {% endif %}
 
-        {% elif active_page == 'worst_cell' %}
-            <div class="row mb-4">
-                <div class="col-md-12">
-                     <form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
-                        <div class="col-auto">
-                            <label class="col-form-label fw-bold text-muted">Thời gian:</label>
-                        </div>
-                        <div class="col-auto">
-                            <select name="duration" class="form-select border-0 shadow-sm">
-                                <option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option>
-                                <option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option>
-                                <option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option>
-                                <option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option>
-                                <option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option>
-                            </select>
-                        </div>
-                        <div class="col-auto">
-                            <button type="submit" class="btn btn-danger shadow-sm"><i class="fa-solid fa-filter me-2"></i> Lọc Worst Cell</button>
-                        </div>
-                     </form>
-                </div>
-            </div>
-            
-            {% if dates %}
-                <div class="alert alert-info border-0 shadow-sm mb-4">
-                    <i class="fa-solid fa-calendar-days me-2"></i><strong>Dữ liệu xét duyệt:</strong> 
-                    {% for d in dates %}<span class="badge bg-white text-dark border ms-1">{{ d }}</span>{% endfor %}
-                </div>
-            {% endif %}
-
-            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
-                <table class="table table-hover mb-0" style="font-size: 0.9rem;">
-                    <thead class="bg-light position-sticky top-0" style="z-index: 10;">
-                        <tr>
-                            <th class="border-bottom">Cell Name</th>
-                            <th class="text-center border-bottom">Avg User Thput (kbps)</th>
-                            <th class="text-center border-bottom">Avg PRB (%)</th>
-                            <th class="text-center border-bottom">Avg CQI (%)</th>
-                            <th class="text-center border-bottom">Avg Drop Rate (%)</th>
-                            <th class="text-center border-bottom" style="width: 100px;">Hành động</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for row in worst_cells %}
-                        <tr>
-                            <td class="fw-bold text-primary">{{ row.cell_name }}</td>
-                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 else '' }}">{{ row.avg_thput | round(2) }}</td>
-                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 else '' }}">{{ row.avg_res_blk | round(2) }}</td>
-                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 else '' }}">{{ row.avg_cqi | round(2) }}</td>
-                            <td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 else '' }}">{{ row.avg_drop | round(2) }}</td>
-                            <td class="text-center">
-                                <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white" title="Xem biểu đồ KPI"><i class="fa-solid fa-chart-line"></i> View</a>
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr><td colspan="6" class="text-center py-5 text-muted">Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
         {% elif active_page == 'conges_3g' %}
             <div class="alert alert-info">
                 <strong><i class="fa-solid fa-filter"></i> Điều kiện lọc:</strong> 
@@ -1450,7 +1389,89 @@ def worst_cell():
 
 @app.route('/traffic-down')
 @login_required
-def traffic_down(): return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down')
+def traffic_down():
+    tech = request.args.get('tech', '4g') # Default 4G
+    
+    # Select Model
+    Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
+    if not Model:
+        return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', error="Invalid Tech")
+
+    # 1. Get all data sorted by date
+    # Optimization: Fetch only necessary columns to memory
+    all_data = db.session.query(Model.ten_cell, Model.thoi_gian, Model.traffic).all()
+    
+    # Convert to easier structure: dict[cell][date] = traffic
+    # And get list of unique dates to find Today and T-7
+    data_map = defaultdict(dict)
+    unique_dates = set()
+    
+    for r in all_data:
+        cell = r.ten_cell
+        # Filter unwanted cells
+        if cell.startswith('MBF_TH') or cell.startswith('VNP-4G'):
+            continue
+        
+        try:
+            date_obj = datetime.strptime(r.thoi_gian, '%d/%m/%Y')
+            data_map[cell][date_obj] = r.traffic or 0
+            unique_dates.add(date_obj)
+        except: pass
+        
+    sorted_dates = sorted(list(unique_dates), reverse=True)
+    
+    if not sorted_dates:
+         return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=[], degraded=[], tech=tech)
+         
+    latest_date = sorted_dates[0]
+    last_week_date = latest_date - timedelta(days=7)
+    
+    # Prepare results
+    zero_traffic_cells = []
+    degraded_cells = []
+    
+    for cell, dates_data in data_map.items():
+        # Logic 1: Zero Traffic
+        # Traffic today < 0.1
+        traffic_today = dates_data.get(latest_date, 0)
+        
+        if traffic_today < 0.1:
+            # Avg last 7 days (not including today)
+            # Find data for T-1 to T-7
+            sum_traffic = 0
+            count = 0
+            for i in range(1, 8):
+                d = latest_date - timedelta(days=i)
+                if d in dates_data:
+                    sum_traffic += dates_data[d]
+                    count += 1
+            
+            avg_traffic = sum_traffic / count if count > 0 else 0
+            
+            if avg_traffic > 2:
+                zero_traffic_cells.append({
+                    'cell_name': cell,
+                    'traffic_today': round(traffic_today, 3),
+                    'avg_last_7': round(avg_traffic, 3)
+                })
+
+        # Logic 2: Degraded
+        # Traffic today < 70% Traffic T-7 AND Traffic T-7 > 1
+        traffic_last_week = dates_data.get(last_week_date, 0)
+        
+        if traffic_last_week > 1:
+            if traffic_today < 0.7 * traffic_last_week:
+                degraded_cells.append({
+                    'cell_name': cell,
+                    'traffic_today': round(traffic_today, 3),
+                    'traffic_last_week': round(traffic_last_week, 3),
+                    'degrade_percent': round((1 - traffic_today/traffic_last_week)*100, 1)
+                })
+
+    return render_page(CONTENT_TEMPLATE, title="Traffic Down Analysis", active_page='traffic_down', 
+                       zero_traffic=zero_traffic_cells, degraded=degraded_cells, 
+                       tech=tech, analysis_date=latest_date.strftime('%d/%m/%Y'))
+
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
