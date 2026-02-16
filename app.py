@@ -928,7 +928,7 @@ CONTENT_TEMPLATE = """
                             </td>
                         </tr>
                         {% else %}
-                        <tr><td colspan="6" class="text-center py-5 text-muted opacity-50"><i class="fa-solid fa-check-circle fa-2x mb-2 d-block"></i>Không có cell nào vi phạm</td></tr>
+                        <tr><td colspan="6" class="text-center py-5 text-muted">Không có cell nào vi phạm điều kiện trong khoảng thời gian này.</td></tr>
                         {% endfor %}
                     </tbody>
                 </table>
@@ -1116,6 +1116,7 @@ CONTENT_TEMPLATE = """
              <div class="row">
                  <div class="col-md-8">
                      <div class="tab-content bg-white p-4 rounded-3 shadow-sm border">
+                        <!-- Nội dung các form import (giữ nguyên logic cũ) -->
                         <div class="tab-pane fade show active" id="rf3g">
                             <h5 class="mb-3 text-primary">Import RF 3G</h5>
                             <form action="/import?type=3g" method="POST" enctype="multipart/form-data">
@@ -1124,7 +1125,13 @@ CONTENT_TEMPLATE = """
                                 <a href="/rf/reset?type=3g" class="btn btn-outline-danger float-end" onclick="return confirm('Reset?')">Reset Data</a>
                             </form>
                         </div>
-                        <div class="tab-pane fade" id="rf4g"><form action="/import?type=4g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-3" required><button class="btn btn-primary">Upload RF 4G</button></form></div>
+                        <!-- ... (Lặp lại cho các tab khác tương tự, chỉ thay ID và Type) ... -->
+                        <!-- Để tiết kiệm không gian, tôi chỉ ví dụ 1 tab, logic backend đã xử lý hết -->
+                        <div class="tab-pane fade" id="rf4g">
+                             <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
+                                <input type="file" name="file" class="form-control mb-3" required><button class="btn btn-primary">Upload RF 4G</button>
+                             </form>
+                        </div>
                         <div class="tab-pane fade" id="rf5g"><form action="/import?type=5g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-3" required><button class="btn btn-primary">Upload RF 5G</button></form></div>
                         <div class="tab-pane fade" id="poi4g"><form action="/import?type=poi4g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-3" required><button class="btn btn-warning text-dark">Upload POI 4G</button></form></div>
                         <div class="tab-pane fade" id="poi5g"><form action="/import?type=poi5g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-3" required><button class="btn btn-warning text-dark">Upload POI 5G</button></form></div>
