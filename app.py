@@ -1408,8 +1408,11 @@ def worst_cell():
 
     # 4. Query Bad Cells
     # Condition: (User DL Avg Thput < 7000) OR ( Res Block DL > 20%) OR (CQI 4G < 93%) OR (Drop Rate > 0.3%)
+    # Exclusion: NOT start with MBF_TH, NOT start with VNP-4G
     records = KPI4G.query.filter(
         KPI4G.thoi_gian.in_(target_dates_str),
+        ~KPI4G.ten_cell.startswith('MBF_TH'),
+        ~KPI4G.ten_cell.startswith('VNP-4G'),
         (
             (KPI4G.user_dl_avg_thput < 7000) |
             (KPI4G.res_blk_dl > 20) |
