@@ -51,7 +51,6 @@ def remove_accents(input_str):
 
 def clean_header(col_name):
     col_name = str(col_name).strip()
-    # Map chính xác các cột từ file Excel của bạn
     special_map = {
         'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
         'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'CELL_NAME': 'cell_name',
@@ -76,17 +75,14 @@ def clean_header(col_name):
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
     
-    # Check exact match first
     if col_name in special_map:
         return special_map[col_name]
     
-    # Check case-insensitive match
     col_upper = col_name.upper()
     for key, val in special_map.items():
         if key.upper() == col_upper:
              return val
 
-    # General cleaning fallback
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
@@ -105,7 +101,6 @@ def clean_header(col_name):
     return common_map.get(clean, clean)
 
 def generate_colors(n):
-    """Generate n distinct colors."""
     base_colors = [
         '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
         '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
@@ -314,7 +309,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (DEFINED BEFORE USAGE)
+# 4. TEMPLATES
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -522,7 +517,7 @@ BASE_LAYOUT = """
             <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
             {% endif %}
             <li><a href="/profile" class="{{ 'active' if active_page == 'profile' else '' }}"><i class="fa-solid fa-user-shield"></i> Profile</a></li>
-            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</a></li>
         </ul>
     </div>
 
@@ -1125,8 +1120,6 @@ CONTENT_TEMPLATE = """
                                 <a href="/rf/reset?type=3g" class="btn btn-outline-danger float-end" onclick="return confirm('Reset?')">Reset Data</a>
                             </form>
                         </div>
-                        <!-- ... (Lặp lại cho các tab khác tương tự, chỉ thay ID và Type) ... -->
-                        <!-- Để tiết kiệm không gian, tôi chỉ ví dụ 1 tab, logic backend đã xử lý hết -->
                         <div class="tab-pane fade" id="rf4g">
                              <form action="/import?type=4g" method="POST" enctype="multipart/form-data">
                                 <input type="file" name="file" class="form-control mb-3" required><button class="btn btn-primary">Upload RF 4G</button>
