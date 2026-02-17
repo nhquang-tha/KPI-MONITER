@@ -49,8 +49,6 @@ def remove_accents(input_str):
 
 def clean_header(col_name):
     col_name = str(col_name).strip()
-    
-    # Map chính xác các cột từ file Excel của bạn (Case insensitive)
     special_map = {
         'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
         'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'CELL_NAME': 'cell_name',
@@ -79,7 +77,6 @@ def clean_header(col_name):
     for key, val in special_map.items():
         if key.upper() == col_upper: return val
 
-    # Xử lý chung nếu không khớp map trên
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
@@ -124,9 +121,6 @@ class RF3G(db.Model):
     csht_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
-    azimuth = db.Column(db.Integer)
-    total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
     psc = db.Column(db.String(50))
@@ -134,9 +128,12 @@ class RF3G(db.Model):
     bsc_lac = db.Column(db.String(50))
     ci = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
     hang_sx = db.Column(db.String(50))
+    antena = db.Column(db.String(100))
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
@@ -150,9 +147,6 @@ class RF4G(db.Model):
     csht_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
-    azimuth = db.Column(db.Integer)
-    total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
     dl_uarfcn = db.Column(db.String(50))
@@ -161,10 +155,13 @@ class RF4G(db.Model):
     enodeb_id = db.Column(db.String(50))
     lcrid = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
     mimo = db.Column(db.String(50))
     hang_sx = db.Column(db.String(50))
+    antena = db.Column(db.String(100))
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
@@ -178,9 +175,6 @@ class RF5G(db.Model):
     csht_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
-    azimuth = db.Column(db.Integer)
-    total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
     nrarfcn = db.Column(db.String(50))
@@ -189,10 +183,13 @@ class RF5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     lcrid = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
     mimo = db.Column(db.String(50))
     hang_sx = db.Column(db.String(50))
+    antena = db.Column(db.String(100))
     dong_bo = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
@@ -300,7 +297,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (DEFINED BEFORE USE)
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -309,184 +306,334 @@ BASE_LAYOUT = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KPI Monitor</title>
+    <title>KPI Monitor System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --sidebar-width: 260px;
+            --acrylic-bg: rgba(255, 255, 255, 0.6);
+            --acrylic-blur: blur(20px);
+            --sidebar-bg: rgba(240, 240, 245, 0.85);
             --primary-color: #0078d4;
-            --acrylic-bg: rgba(255, 255, 255, 0.85);
-            --blur: blur(20px);
+            --text-color: #212529;
+            --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
+            --border-radius: 12px;
         }
-        body { background: #f3f4f6; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
-        .sidebar { width: var(--sidebar-width); height: 100vh; position: fixed; top: 0; left: 0; background: rgba(240, 240, 245, 0.9); backdrop-filter: var(--blur); border-right: 1px solid rgba(0,0,0,0.1); z-index: 1000; transition: 0.3s; padding-top: 1rem; overflow-y: auto; }
-        .sidebar-header { padding: 1.5rem; color: var(--primary-color); font-weight: 700; font-size: 1.4rem; text-align: center; }
-        .sidebar-menu a { display: flex; align-items: center; padding: 12px 20px; color: #555; text-decoration: none; font-weight: 500; margin: 4px 12px; border-radius: 6px; transition: 0.2s; }
-        .sidebar-menu a:hover, .sidebar-menu a.active { background: #fff; color: var(--primary-color); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
-        .sidebar-menu i { margin-right: 12px; width: 24px; text-align: center; }
-        .main-content { margin-left: var(--sidebar-width); padding: 30px; transition: 0.3s; min-height: 100vh; }
-        .card { border: none; border-radius: 12px; background: rgba(255,255,255,0.8); backdrop-filter: var(--blur); box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 20px; }
-        .card-header { background: rgba(255,255,255,0.5); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 15px 20px; font-weight: 600; color: #333; }
-        @media(max-width: 768px) { .sidebar { margin-left: calc(-1 * var(--sidebar-width)); } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; } }
-        .btn-primary { background: var(--primary-color); border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .table thead th { background: rgba(248,249,250,0.8); border-bottom: 2px solid #eee; text-transform: uppercase; font-size: 0.85rem; color: #666; }
+
+        body {
+            background: linear-gradient(135deg, #f3f4f6 0%, #eef2f3 100%);
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            height: 100vh;
+            width: 260px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: var(--sidebar-bg);
+            backdrop-filter: var(--acrylic-blur);
+            -webkit-backdrop-filter: var(--acrylic-blur);
+            border-right: 1px solid rgba(255,255,255,0.5);
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-top: 1rem;
+            overflow-y: auto;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        .sidebar-menu { padding: 0; list-style: none; margin: 1rem 0; }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            padding: 14px 25px;
+            color: #555;
+            text-decoration: none;
+            font-weight: 500;
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease;
+            margin: 4px 12px;
+            border-radius: 8px;
+        }
+
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: var(--primary-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .sidebar-menu a.active {
+            border-left-color: var(--primary-color);
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+
+        .sidebar-menu i { margin-right: 15px; width: 24px; text-align: center; font-size: 1.1rem; }
+
+        .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; transition: all 0.3s ease; }
+
+        .card {
+            border: none;
+            border-radius: var(--border-radius);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-soft);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
+        .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+
+        .card-header {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.25rem 1.5rem;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .card-body { padding: 1.5rem; }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3);
+            border-radius: 6px;
+            padding: 0.5rem 1.25rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background-color: #0063b1;
+            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4);
+            transform: translateY(-1px);
+        }
+
+        .table { background: transparent; }
+        .table thead th {
+            background-color: rgba(248, 249, 250, 0.8);
+            border-bottom: 2px solid #e9ecef;
+            color: #555;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
+        .chart-container canvas { cursor: zoom-in; }
+
+        @media (max-width: 768px) {
+            .sidebar { margin-left: -260px; }
+            .sidebar.active { margin-left: 0; }
+            .main-content { margin-left: 0; padding: 15px; }
+        }
     </style>
 </head>
 <body>
     <div class="sidebar" id="sidebar">
-        <div class="sidebar-header"><i class="fa-solid fa-network-wired me-2"></i>NetOps</div>
-        <ul class="sidebar-menu list-unstyled">
+        <div class="sidebar-header"><i class="fa-solid fa-network-wired"></i> NetOps</div>
+        <ul class="sidebar-menu">
             <li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li>
             <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li>
             <li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF Database</a></li>
             <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-location-dot"></i> POI Report</a></li>
-            <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cell</a></li>
+            <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
             <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
-            <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Import Data</a></li>
+            <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
+            <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
+            
+            <li class="mt-4 mb-2 text-muted px-4 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">System</li>
+            
             {% if current_user.role == 'admin' %}
-            <li class="mt-3 text-muted px-4 small fw-bold">SYSTEM</li>
             <li><a href="/users" class="{{ 'active' if active_page == 'users' else '' }}"><i class="fa-solid fa-users-gear"></i> User Mgmt</a></li>
-            <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup/Restore</a></li>
+            <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
             {% endif %}
-            <li><a href="/logout" class="mt-3"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
+            <li><a href="/profile" class="{{ 'active' if active_page == 'profile' else '' }}"><i class="fa-solid fa-user-shield"></i> Profile</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
         </ul>
     </div>
+
     <div class="main-content">
-        <button class="btn btn-light d-md-none mb-3 shadow-sm" onclick="document.getElementById('sidebar').classList.toggle('active')"><i class="fa-solid fa-bars"></i></button>
+        <button class="btn btn-light shadow-sm d-md-none mb-3 border" onclick="document.getElementById('sidebar').classList.toggle('active')">
+            <i class="fa-solid fa-bars"></i> Menu
+        </button>
+
         <div class="container-fluid p-0">
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} shadow-sm border-0">{{ message }}</div>{% endfor %}{% endif %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
             {% endwith %}
             {% block content %}{% endblock %}
         </div>
     </div>
     
-    <div class="modal fade" id="chartModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content"><div class="modal-header border-0"><h5 class="modal-title fw-bold text-primary" id="modalTitle"></h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div style="height:60vh"><canvas id="modalChart"></canvas></div></div></div></div></div>
+    <div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg" style="background: rgba(255,255,255,0.95); backdrop-filter: blur(15px);">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title text-primary fw-bold" id="modalTitle"></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="chart-container" style="position: relative; height:65vh; width:100%">
+                        <canvas id="modalChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        let mChart = null;
-        function showDetailModal(title, labels, datasets) {
-            document.getElementById('modalTitle').innerText = title;
+        let modalChartInstance = null;
+        function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
+            document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' (' + date + ')';
             const ctx = document.getElementById('modalChart').getContext('2d');
-            if(mChart) mChart.destroy();
-            mChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false } } });
-            new bootstrap.Modal(document.getElementById('chartModal')).show();
+            if (modalChartInstance) modalChartInstance.destroy();
+            modalChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: { labels: allLabels, datasets: allDatasets },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false }, plugins: { legend: { display: true } } }
+            });
+            new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
         }
     </script>
 </body>
 </html>
 """
 
-LOGIN_PAGE = """<!DOCTYPE html><html><head><title>Login</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{background:#f0f2f5;display:flex;align-items:center;justify-content:center;height:100vh}.card{width:350px;border:none;box-shadow:0 10px 30px rgba(0,0,0,0.1);border-radius:15px;padding:40px}</style></head><body><div class="card"><h3 class="text-center mb-4 text-primary">Login</h3><form method="POST"><input class="form-control mb-3" name="username" placeholder="Username" required><input class="form-control mb-3" type="password" name="password" placeholder="Password" required><button class="btn btn-primary w-100">Sign In</button></form></div></body></html>"""
+LOGIN_PAGE = """
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng nhập | NetOps</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { background: linear-gradient(135deg, #f0f2f5 0%, #d9e2ec 100%); height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', sans-serif; }
+        .login-card { width: 100%; max-width: 400px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid rgba(255,255,255,0.5); }
+        .btn-primary { background-color: #0078d4; border: none; padding: 10px; font-weight: 600; border-radius: 8px; transition: all 0.3s; }
+        .btn-primary:hover { background-color: #0063b1; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3); }
+        .form-control { border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; }
+        .form-control:focus { box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15); border-color: #0078d4; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h3 class="text-center mb-4 text-primary fw-bold">Welcome Back</h3>
+        <p class="text-center text-muted mb-4">Sign in to access KPI Monitor</p>
+        <form method="POST">
+            <div class="mb-3"><label class="form-label fw-bold text-secondary small">USERNAME</label><input type="text" name="username" class="form-control" placeholder="Enter username" required></div>
+            <div class="mb-4"><label class="form-label fw-bold text-secondary small">PASSWORD</label><input type="password" name="password" class="form-control" placeholder="Enter password" required></div>
+            <button type="submit" class="btn btn-primary w-100">Sign In</button>
+        </form>
+    </div>
+</body>
+</html>
+"""
 
 CONTENT_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
 <div class="card">
-    <div class="card-header d-flex justify-content-between"><span>{{ title }}</span><span class="badge bg-primary">{{ current_user.role }}</span></div>
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>{{ title }}</span>
+        <span class="badge bg-primary rounded-pill">{{ current_user.role | upper }}</span>
+    </div>
     <div class="card-body">
         {% if active_page == 'dashboard' %}
-            <div class="row g-4 text-center">
-                <div class="col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><h3 class="text-primary">98%</h3><p class="text-muted">KPI Score</p></div></div>
-                <div class="col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><h3 class="text-danger">12</h3><p class="text-muted">Worst Cells</p></div></div>
-                <div class="col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><h3 class="text-warning">5</h3><p class="text-muted">Congestion</p></div></div>
-                <div class="col-md-3"><div class="p-3 border rounded bg-white shadow-sm"><h3 class="text-success">OK</h3><p class="text-muted">System</p></div></div>
+            <div class="row g-4 text-center mb-5">
+                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-primary fw-bold mb-1">98.5%</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">KPI Tuần</p></div></div>
+                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-danger fw-bold mb-1">12</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Worst Cells</p></div></div>
+                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-warning fw-bold mb-1">5</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Congestion</p></div></div>
+                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-success fw-bold mb-1">OK</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">System Status</p></div></div>
             </div>
-            <hr class="my-4">
-            <div class="row"><div class="col-md-6"><h5>Data Records</h5><ul><li>RF 3G: {{ count_rf3g }}</li><li>RF 4G: {{ count_rf4g }}</li></ul></div></div>
+            <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-database me-2"></i>Data Overview</h5>
+            <div class="row g-4">
+                <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-primary fw-bold mb-3 small">RF Database</h6><div class="d-flex justify-content-between mb-2"><span>RF 3G</span><span class="badge bg-white text-dark border">{{ count_rf3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>RF 4G</span><span class="badge bg-white text-dark border">{{ count_rf4g }}</span></div><div class="d-flex justify-content-between"><span>RF 5G</span><span class="badge bg-white text-dark border">{{ count_rf5g }}</span></div></div></div>
+                <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-success fw-bold mb-3 small">KPI Records</h6><div class="d-flex justify-content-between mb-2"><span>KPI 3G</span><span class="badge bg-white text-dark border">{{ count_kpi3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>KPI 4G</span><span class="badge bg-white text-dark border">{{ count_kpi4g }}</span></div><div class="d-flex justify-content-between"><span>KPI 5G</span><span class="badge bg-white text-dark border">{{ count_kpi5g }}</span></div></div></div>
+            </div>
 
         {% elif active_page == 'kpi' %}
-            <form method="GET" class="row g-3 mb-4">
-                <div class="col-auto"><select name="tech" class="form-select"><option value="3g" {% if selected_tech=='3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech=='4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech=='5g' %}selected{% endif %}>5G</option></select></div>
-                <div class="col-md-4"><input type="text" name="poi_name" list="poi_list" class="form-control" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
-                <div class="col-md-3"><input type="text" name="cell_name" class="form-control" placeholder="Hoặc nhập Cell/Site..." value="{{ cell_name_input }}"></div>
-                <div class="col-auto"><button class="btn btn-primary">Xem Biểu Đồ</button></div>
-            </form>
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/kpi" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-2"><label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option></select></div>
+                        <div class="col-md-4"><label class="form-label fw-bold small text-muted">TÌM THEO POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
+                        <div class="col-md-3"><label class="form-label fw-bold small text-muted">NHẬP CELL/SITE</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="Site code, Cell list..." value="{{ cell_name_input }}"></div>
+                        <div class="col-md-2 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Visualize</button></div>
+                    </form>
+                </div>
+            </div>
             {% if charts %}
-                {% for id, cfg in charts.items() %}
-                <div class="card mb-4"><div class="card-body"><div style="height:40vh"><canvas id="{{ id }}"></canvas></div></div></div>
-                <script>
-                    {% for id, data in charts.items() %}
-                    (function(){
-                        const ctx = document.getElementById('{{ id }}').getContext('2d');
-                        const data = {{ data | tojson }};
-                        new Chart(ctx, {
-                            type: 'line', data: data,
-                            options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false },
-                                onClick: (e, els) => { if(els.length > 0) showDetailModal(data.datasets[els[0].datasetIndex].label, data.labels[els[0].index], 0, '{{ data.title }}', data.datasets, data.labels); }
-                            }
-                        });
-                    })();
-                    {% endfor %}
-                </script>
+                {% for chart_id, chart_config in charts.items() %}
+                <div class="card mb-4 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_config.title }}</h6><div class="chart-container" style="position: relative; height:45vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div>
+                {% endfor %}
+                <script>{% for chart_id, chart_data in charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',cd.datasets,cd.labels);}},plugins:{legend:{position:'bottom'},tooltip:{mode:'index',intersect:false}}}});})();{% endfor %}</script>
             {% endif %}
 
         {% elif active_page == 'worst_cell' %}
-            <form method="GET" class="row g-3 mb-4">
-                <div class="col-auto"><select name="duration" class="form-select"><option value="1" {% if duration==1 %}selected{% endif %}>1 ngày</option><option value="3" {% if duration==3 %}selected{% endif %}>3 ngày</option><option value="7" {% if duration==7 %}selected{% endif %}>7 ngày</option></select></div>
-                <div class="col-auto"><button class="btn btn-danger">Lọc Worst Cell</button></div>
-            </form>
-            <div class="table-responsive"><table class="table table-hover"><thead><tr><th>Cell</th><th>Thput</th><th>PRB</th><th>CQI</th><th>Drop</th><th>Action</th></tr></thead>
-            <tbody>{% for r in worst_cells %}<tr><td>{{ r.cell_name }}</td><td class="{{ 'text-danger' if r.avg_thput < 7000 }}">{{ r.avg_thput|round(2) }}</td><td class="{{ 'text-danger' if r.avg_res_blk > 20 }}">{{ r.avg_res_blk|round(2) }}</td><td class="{{ 'text-danger' if r.avg_cqi < 93 }}">{{ r.avg_cqi|round(2) }}</td><td class="{{ 'text-danger' if r.avg_drop > 0.3 }}">{{ r.avg_drop|round(2) }}</td><td><a href="/kpi?tech=4g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div>
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div></form></div></div>
+            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
+                <table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="border-bottom">Cell Name</th><th class="text-center border-bottom">Avg User Thput</th><th class="text-center border-bottom">Avg PRB</th><th class="text-center border-bottom">Avg CQI</th><th class="text-center border-bottom">Avg Drop Rate</th><th class="text-center border-bottom">Hành động</th></tr></thead><tbody>{% for row in worst_cells %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 }}">{{ row.avg_thput | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 }}">{{ row.avg_res_blk | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 }}">{{ row.avg_cqi | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 }}">{{ row.avg_drop | round(2) }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Không có dữ liệu</td></tr>{% endfor %}</tbody></table>
+            </div>
 
         {% elif active_page == 'traffic_down' %}
-            <form class="row g-3 mb-4">
-                <div class="col-auto"><select name="tech" class="form-select"><option value="3g" {% if tech=='3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech=='4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech=='5g' %}selected{% endif %}>5G</option></select></div>
-                <div class="col-auto"><button name="action" value="execute" class="btn btn-primary"><i class="fa-solid fa-play me-2"></i>Thực hiện</button></div>
-                <div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày: {{ analysis_date }}</span></div>
-            </form>
-            <div class="row">
-                <div class="col-md-6"><div class="card border-danger"><div class="card-header bg-danger text-white">Cell Không Lưu Lượng (<0.1)</div><div class="card-body p-0"><table class="table table-striped mb-0"><thead><tr><th>Cell</th><th>Today</th><th>Avg7</th><th>View</th></tr></thead><tbody>{% for r in zero_traffic %}<tr><td>{{ r.cell_name }}</td><td>{{ r.traffic_today }}</td><td>{{ r.avg_last_7 }}</td><td><a href="/kpi?tech={{ tech }}&cell_name={{ r.cell_name }}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
-                <div class="col-md-6"><div class="card border-warning"><div class="card-header bg-warning text-dark">Cell Suy Giảm (>30%)</div><div class="card-body p-0"><table class="table table-striped mb-0"><thead><tr><th>Cell</th><th>Today</th><th>LastWeek</th><th>%</th><th>View</th></tr></thead><tbody>{% for r in degraded %}<tr><td>{{ r.cell_name }}</td><td>{{ r.traffic_today }}</td><td>{{ r.traffic_last_week }}</td><td>-{{ r.degrade_percent }}%</td><td><a href="/kpi?tech={{ tech }}&cell_name={{ r.cell_name }}" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
+            <div class="row g-4">
+                <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Cell Không Lưu Lượng (< 0.1 GB)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg (7 Days)</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in zero_traffic %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+                <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Cell Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in degraded %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ row.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
             </div>
 
         {% elif active_page == 'conges_3g' %}
-             <form class="mb-4"><button name="action" value="execute" class="btn btn-primary"><i class="fa-solid fa-play me-2"></i>Thực hiện Lọc Nghẽn</button></form>
-             <div class="alert alert-info">Xét duyệt 3 ngày liên tiếp: {% for d in dates %}{{ d }} {% endfor %}</div>
-             <table class="table table-bordered"><thead><tr><th>Cell</th><th>CS Traf</th><th>CS Cong</th><th>PS Traf</th><th>PS Cong</th><th>Action</th></tr></thead>
-             <tbody>{% for r in conges_data %}<tr><td>{{ r.cell_name }}</td><td>{{ r.avg_cs_traffic }}</td><td class="{{ 'text-danger' if r.avg_cs_conges > 2 }}">{{ r.avg_cs_conges }}</td><td>{{ r.avg_ps_traffic }}</td><td class="{{ 'text-danger' if r.avg_ps_conges > 2 }}">{{ r.avg_ps_conges }}</td><td><a href="/kpi?tech=3g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table>
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/conges-3g" class="d-flex align-items-center"><div class="alert alert-info border-0 shadow-sm bg-soft-primary text-primary mb-0 flex-grow-1"><strong>Điều kiện:</strong> (CS_CONG > 2% & CS_ATT > 100) OR (PS_CONG > 2% & PS_ATT > 500) (3 ngày liên tiếp)</div><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm ms-3">Thực hiện</button></form></div></div>
+            <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for row in conges_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 }}">{{ row.avg_cs_conges }}</td><td>{{ row.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 }}">{{ row.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Không có dữ liệu</td></tr>{% endfor %}</tbody></table></div>
 
         {% elif active_page == 'rf' %}
-             <div class="d-flex justify-content-between mb-3"><div class="btn-group"><a href="/rf?tech=3g" class="btn btn-outline-primary">3G</a><a href="/rf?tech=4g" class="btn btn-outline-primary">4G</a></div><a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary">Add New</a></div>
-             <div class="table-responsive" style="max-height:70vh"><table class="table table-hover"><thead><tr><th>Action</th>{% for c in rf_columns %}<th>{{ c }}</th>{% endfor %}</tr></thead><tbody>{% for r in rf_data %}<tr><td><a href="/rf/edit/{{ current_tech }}/{{ r.id }}">Edit</a></td>{% for c in rf_columns %}<td>{{ r[c] }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+             <div class="d-flex justify-content-between mb-4"><div class="btn-group shadow-sm"><a href="/rf?tech=3g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '3g' }}">3G</a><a href="/rf?tech=4g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '4g' }}">4G</a><a href="/rf?tech=5g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '5g' }}">5G</a></div><div><a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary shadow-sm me-2">New</a><a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success shadow-sm text-white">Export</a></div></div>
+             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="text-center bg-light border-bottom" style="width: 120px; position: sticky; left: 0; z-index: 20;">Action</th>{% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}</tr></thead><tbody>{% for row in rf_data %}<tr><td class="text-center bg-white border-end" style="position: sticky; left: 0; z-index: 5;"><a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-primary border-0"><i class="fa-solid fa-eye"></i></a><a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-warning border-0"><i class="fa-solid fa-pen"></i></a><a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-danger border-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a></td>{% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
 
         {% elif active_page == 'import' %}
-             <div class="row">
-                 <div class="col-md-8">
-                     <ul class="nav nav-tabs"><li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#rf3g">RF 3G</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#rf4g">RF 4G</a></li><li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#rf5g">RF 5G</a></li><li class="nav-item"><a class="nav-link text-warning" data-bs-toggle="tab" href="#poi4g">POI 4G</a></li><li class="nav-item"><a class="nav-link text-warning" data-bs-toggle="tab" href="#poi5g">POI 5G</a></li><li class="nav-item"><a class="nav-link text-success" data-bs-toggle="tab" href="#kpi3g">KPI 3G</a></li><li class="nav-item"><a class="nav-link text-success" data-bs-toggle="tab" href="#kpi4g">KPI 4G</a></li><li class="nav-item"><a class="nav-link text-success" data-bs-toggle="tab" href="#kpi5g">KPI 5G</a></li></ul>
-                     <div class="tab-content p-3 border">
-                        <div class="tab-pane active" id="rf3g"><form action="/import?type=3g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required><button class="btn btn-primary">Upload RF 3G</button></form></div>
-                        <div class="tab-pane" id="rf4g"><form action="/import?type=4g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required><button class="btn btn-primary">Upload RF 4G</button></form></div>
-                        <div class="tab-pane" id="rf5g"><form action="/import?type=5g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required><button class="btn btn-primary">Upload RF 5G</button></form></div>
-                        <div class="tab-pane" id="poi4g"><form action="/import?type=poi4g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required><button class="btn btn-warning">Upload POI 4G</button></form></div>
-                        <div class="tab-pane" id="poi5g"><form action="/import?type=poi5g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required><button class="btn btn-warning">Upload POI 5G</button></form></div>
-                        <div class="tab-pane" id="kpi3g"><form action="/import?type=kpi3g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required multiple><button class="btn btn-success">Upload KPI 3G</button></form></div>
-                        <div class="tab-pane" id="kpi4g"><form action="/import?type=kpi4g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required multiple><button class="btn btn-success">Upload KPI 4G</button></form></div>
-                        <div class="tab-pane" id="kpi5g"><form action="/import?type=kpi5g" method="POST" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-2" required multiple><button class="btn btn-success">Upload KPI 5G</button></form></div>
-                     </div>
-                 </div>
-                 <div class="col-md-4"><div class="card"><div class="card-header">Data Available</div><ul class="list-group list-group-flush">{% for d3,d4,d5 in kpi_rows %}<li class="list-group-item">{{ d3 or '-' }} | {{ d4 or '-' }} | {{ d5 or '-' }}</li>{% endfor %}</ul></div></div>
-             </div>
+             <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary">Import Data</h5><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label">Chọn Loại Dữ Liệu</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option><option value="kpi3g">KPI 3G</option><option value="kpi4g">KPI 4G</option><option value="kpi5g">KPI 5G</option></select></div><div class="mb-3"><label class="form-label">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100">Upload</button></form></div></div><div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div></div></div>
         {% endif %}
     </div>
 </div>
 {% endblock %}
 """
-USER_MANAGEMENT_TEMPLATE = """{% extends "base" %}{% block content %}<h3>User Management</h3>{% endblock %}"""
-PROFILE_TEMPLATE = """{% extends "base" %}{% block content %}<h3>Profile</h3>{% endblock %}"""
-BACKUP_RESTORE_TEMPLATE = """{% extends "base" %}{% block content %}<h3>Backup Restore</h3>{% endblock %}"""
-RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<h3>RF Form</h3>{% endblock %}"""
-RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<h3>RF Detail</h3>{% endblock %}"""
 
-# --- JINJA LOADER (MUST BE AFTER TEMPLATES) ---
+USER_MANAGEMENT_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-4"><div class="card"><div class="card-header">Add User</div><div class="card-body"><form method="POST" action="/users/add"><input name="username" class="form-control mb-2" placeholder="User" required><input name="password" type="password" class="form-control mb-2" placeholder="Pass" required><select name="role" class="form-select mb-3"><option value="user">User</option><option value="admin">Admin</option></select><button class="btn btn-success w-100">Create</button></form></div></div></div><div class="col-md-8"><div class="card"><div class="card-header">Users</div><table class="table"><thead><tr><th>ID</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>{% for u in users %}<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.role }}</td><td>{% if u.username!='admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-danger">Del</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div></div>{% endblock %}"""
+PROFILE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row justify-content-center"><div class="col-md-6"><div class="card"><div class="card-header">Change Password</div><div class="card-body"><form method="POST" action="/change-password"><input type="password" name="current_password" class="form-control mb-3" placeholder="Current Pass" required><input type="password" name="new_password" class="form-control mb-3" placeholder="New Pass" required><button class="btn btn-primary w-100">Save</button></form></div></div></div></div>{% endblock %}"""
+BACKUP_RESTORE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-6"><div class="card"><div class="card-header">Backup</div><div class="card-body text-center"><form method="POST" action="/backup"><button class="btn btn-primary btn-lg">Download Backup</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header">Restore</div><div class="card-body"><form method="POST" action="/restore" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-3" required><button class="btn btn-warning w-100">Restore</button></form></div></div></div></div>{% endblock %}"""
+RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small fw-bold text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}"></div>{% endfor %}</div><button class="btn btn-primary">Save</button></form></div></div>{% endblock %}"""
+RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">Detail</div><div class="card-body"><table class="table table-bordered">{% for k,v in obj.items() %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
+
 app.jinja_loader = jinja2.DictLoader({
     'base': BASE_LAYOUT,
     'backup_restore': BACKUP_RESTORE_TEMPLATE
 })
-
 def render_page(tpl, **kwargs):
     if tpl == BACKUP_RESTORE_TEMPLATE: return render_template_string(tpl, **kwargs)
     return render_template_string(tpl, **kwargs)
@@ -515,7 +662,6 @@ def logout(): logout_user(); return redirect(url_for('login'))
 def index():
     try:
         cnt = {'rf3g': db.session.query(func.count(RF3G.id)).scalar(), 'kpi4g': db.session.query(func.count(KPI4G.id)).scalar()} 
-        # Add others as needed
     except: cnt = {}
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
@@ -561,7 +707,6 @@ def kpi():
                         ds.append({'label': c_name, 'data': [row_map.get(d) for d in dates], 'borderColor': colors[i%20], 'fill': False})
                     charts[key] = {'title': label, 'labels': dates, 'datasets': ds}
     
-    # POI List
     poi_list = []
     try: poi_list = sorted(list(set([r[0] for r in db.session.query(POI4G.poi_name).distinct()] + [r[0] for r in db.session.query(POI5G.poi_name).distinct()])))
     except: pass
@@ -572,22 +717,18 @@ def kpi():
 @login_required
 def worst_cell():
     duration = int(request.args.get('duration', 1))
-    
-    # 1. Dates
     all_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
     date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
     target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:duration]]
     
     if not target_dates: return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=[], dates=[])
     
-    # 2. Query
     records = KPI4G.query.filter(
         KPI4G.thoi_gian.in_(target_dates),
         ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
         ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
     ).all()
     
-    # 3. Process
     groups = defaultdict(list)
     for r in records: groups[r.ten_cell].append(r)
     
@@ -602,46 +743,6 @@ def worst_cell():
                 'avg_drop': sum(r.service_drop_all or 0 for r in rows)/duration
             })
     return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=results, dates=target_dates, duration=duration)
-
-@app.route('/traffic-down')
-@login_required
-def traffic_down():
-    tech = request.args.get('tech', '4g')
-    action = request.args.get('action')
-    zero_traffic, degraded, analysis_date = [], [], "N/A"
-    
-    if action == 'execute':
-        Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
-        if Model:
-            dates_raw = [d[0] for d in db.session.query(Model.thoi_gian).distinct().all()]
-            dates_obj = sorted([datetime.strptime(d, '%d/%m/%Y') for d in dates_raw if d], reverse=True)
-            if dates_obj:
-                latest = dates_obj[0]
-                analysis_date = latest.strftime('%d/%m/%Y')
-                # Need data for T0 and T-7, plus T-1..T-7 for avg
-                needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
-                needed_str = [d.strftime('%d/%m/%Y') for d in needed]
-                
-                records = Model.query.filter(Model.thoi_gian.in_(needed_str)).all()
-                data_map = defaultdict(dict)
-                for r in records:
-                    if r.ten_cell.startswith('MBF_TH') or r.ten_cell.startswith('VNP-4G'): continue
-                    try: data_map[r.ten_cell][datetime.strptime(r.thoi_gian, '%d/%m/%Y')] = r.traffic or 0
-                    except: pass
-                
-                last_week = latest - timedelta(days=7)
-                for cell, d_map in data_map.items():
-                    t0 = d_map.get(latest, 0)
-                    t_last = d_map.get(last_week, 0)
-                    # Zero
-                    if t0 < 0.1:
-                        avg7 = sum(d_map.get(latest - timedelta(days=i), 0) for i in range(1,8)) / 7
-                        if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
-                    # Degraded
-                    if t_last > 1 and t0 < 0.7 * t_last:
-                        degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
-
-    return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
 
 @app.route('/conges-3g')
 @login_required
@@ -669,41 +770,44 @@ def conges_3g():
                     })
     return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
-@app.route('/import', methods=['GET', 'POST'])
+@app.route('/traffic-down')
 @login_required
-def import_data():
-    if request.method == 'POST':
-        files = request.files.getlist('file')
-        itype = request.args.get('type')
-        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
-        Model = cfg.get(itype)
-        
+def traffic_down():
+    tech = request.args.get('tech', '4g')
+    action = request.args.get('action')
+    zero_traffic, degraded, analysis_date = [], [], "N/A"
+    
+    if action == 'execute':
+        Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
         if Model:
-            valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-            for file in files:
-                try:
-                    if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
-                    else: chunks = [pd.read_excel(file)]
-                    
-                    for df in chunks:
-                        df.columns = [clean_header(c) for c in df.columns]
-                        records = []
-                        for row in df.to_dict('records'):
-                            clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
-                            # Specific fix for KPI4G traffic column mismatch
-                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
-                                clean_row['traffic'] = clean_row['traffic_vol_dl']
-                            records.append(clean_row)
-                        if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
-                    flash(f'Imported {file.filename}', 'success')
-                except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
-        return redirect(url_for('import_data'))
+            dates_raw = [d[0] for d in db.session.query(Model.thoi_gian).distinct().all()]
+            dates_obj = sorted([datetime.strptime(d, '%d/%m/%Y') for d in dates_raw if d], reverse=True)
+            if dates_obj:
+                latest = dates_obj[0]
+                analysis_date = latest.strftime('%d/%m/%Y')
+                needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
+                needed_str = [d.strftime('%d/%m/%Y') for d in needed]
+                
+                records = Model.query.filter(Model.thoi_gian.in_(needed_str)).all()
+                data_map = defaultdict(dict)
+                for r in records:
+                    if r.ten_cell.startswith('MBF_TH') or r.ten_cell.startswith('VNP-4G'): continue
+                    try: data_map[r.ten_cell][datetime.strptime(r.thoi_gian, '%d/%m/%Y')] = r.traffic or 0
+                    except: pass
+                
+                last_week = latest - timedelta(days=7)
+                for cell, d_map in data_map.items():
+                    t0 = d_map.get(latest, 0)
+                    t_last = d_map.get(last_week, 0)
+                    # Zero
+                    if t0 < 0.1:
+                        avg7 = sum(d_map.get(latest - timedelta(days=i), 0) for i in range(1,8)) / 7
+                        if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
+                    # Degraded
+                    if t_last > 1 and t0 < 0.7 * t_last:
+                        degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
 
-    # History
-    d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
-    d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
-    d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
+    return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
 
 @app.route('/rf')
 @login_required
@@ -731,7 +835,42 @@ def rf():
     data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in rows]
     return render_page(CONTENT_TEMPLATE, title="RF", active_page='rf', rf_data=data, rf_columns=cols, current_tech=tech)
 
-# Placeholder routes for script/users/profile
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if request.method == 'POST':
+        files = request.files.getlist('file')
+        itype = request.form.get('type') or request.args.get('type') # Handle both query and form
+        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+        Model = cfg.get(itype)
+        
+        if Model:
+            valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+            for file in files:
+                try:
+                    if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
+                    else: chunks = [pd.read_excel(file)]
+                    
+                    for df in chunks:
+                        df.columns = [clean_header(c) for c in df.columns]
+                        records = []
+                        for row in df.to_dict('records'):
+                            clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
+                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
+                                clean_row['traffic'] = clean_row['traffic_vol_dl']
+                            records.append(clean_row)
+                        if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
+                    flash(f'Imported {file.filename}', 'success')
+                except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
+        return redirect(url_for('import_data'))
+
+    # History
+    d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
+    d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
+    d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
+    return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
+
+# Placeholder routes
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
