@@ -101,8 +101,14 @@ def clean_header(col_name):
     return common_map.get(clean, clean)
 
 def generate_colors(n):
-    base_colors = ['#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d']
-    if n <= len(base_colors): return base_colors[:n]
+    """Generate n distinct colors."""
+    base_colors = [
+        '#007bff', '#28a745', '#dc3545', '#ffc107', '#17a2b8', 
+        '#6610f2', '#e83e8c', '#fd7e14', '#20c997', '#6c757d',
+        '#343a40', '#007bff', '#6f42c1', '#e83e8c'
+    ]
+    if n <= len(base_colors):
+        return base_colors[:n]
     return base_colors + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base_colors))]
 
 # ==============================================================================
@@ -513,7 +519,7 @@ BASE_LAYOUT = """
             <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
             {% endif %}
             <li><a href="/profile" class="{{ 'active' if active_page == 'profile' else '' }}"><i class="fa-solid fa-user-shield"></i> Profile</a></li>
-            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
         </ul>
     </div>
 
