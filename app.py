@@ -121,19 +121,21 @@ class RF3G(db.Model):
     csht_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
+    antena = db.Column(db.String(100))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
+    
+    # Optional fields
     psc = db.Column(db.String(50))
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
     ci = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
-    azimuth = db.Column(db.Integer)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
-    total_tilt = db.Column(db.Float)
     hang_sx = db.Column(db.String(50))
-    antena = db.Column(db.String(100))
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
@@ -147,21 +149,22 @@ class RF4G(db.Model):
     csht_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
+    antena = db.Column(db.String(100))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
+    
     dl_uarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
     enodeb_id = db.Column(db.String(50))
     lcrid = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
-    azimuth = db.Column(db.Integer)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
-    total_tilt = db.Column(db.Float)
     mimo = db.Column(db.String(50))
     hang_sx = db.Column(db.String(50))
-    antena = db.Column(db.String(100))
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
@@ -175,21 +178,22 @@ class RF5G(db.Model):
     csht_code = db.Column(db.String(50))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
+    antena = db.Column(db.String(100))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
+    
     nrarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
     gnodeb_id = db.Column(db.String(50))
     lcrid = db.Column(db.String(50))
     anten_height = db.Column(db.Float)
-    azimuth = db.Column(db.Integer)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
-    total_tilt = db.Column(db.Float)
     mimo = db.Column(db.String(50))
     hang_sx = db.Column(db.String(50))
-    antena = db.Column(db.String(100))
     dong_bo = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
@@ -455,7 +459,6 @@ BASE_LAYOUT = """
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
             <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
-            <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
             <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
             
             <li class="mt-4 mb-2 text-muted px-4 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">System</li>
@@ -485,6 +488,8 @@ BASE_LAYOUT = """
                     {% endfor %}
                 {% endif %}
             {% endwith %}
+
+            <!-- Dynamic Content -->
             {% block content %}{% endblock %}
         </div>
     </div>
@@ -561,7 +566,7 @@ CONTENT_TEMPLATE = """
 <div class="card">
     <div class="card-header d-flex justify-content-between align-items-center">
         <span>{{ title }}</span>
-        <span class="badge bg-primary rounded-pill">{{ current_user.role | upper }}</span>
+        <span class="badge bg-soft-primary text-primary px-3 py-2 rounded-pill">{{ current_user.role | upper }}</span>
     </div>
     <div class="card-body">
         {% if active_page == 'dashboard' %}
@@ -571,12 +576,13 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-warning fw-bold mb-1">5</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Congestion</p></div></div>
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-success fw-bold mb-1">OK</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">System Status</p></div></div>
             </div>
+            
             <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-database me-2"></i>Data Overview</h5>
             <div class="row g-4">
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-primary fw-bold mb-3 small">RF Database</h6><div class="d-flex justify-content-between mb-2"><span>RF 3G</span><span class="badge bg-white text-dark border">{{ count_rf3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>RF 4G</span><span class="badge bg-white text-dark border">{{ count_rf4g }}</span></div><div class="d-flex justify-content-between"><span>RF 5G</span><span class="badge bg-white text-dark border">{{ count_rf5g }}</span></div></div></div>
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-success fw-bold mb-3 small">KPI Records</h6><div class="d-flex justify-content-between mb-2"><span>KPI 3G</span><span class="badge bg-white text-dark border">{{ count_kpi3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>KPI 4G</span><span class="badge bg-white text-dark border">{{ count_kpi4g }}</span></div><div class="d-flex justify-content-between"><span>KPI 5G</span><span class="badge bg-white text-dark border">{{ count_kpi5g }}</span></div></div></div>
             </div>
-
+        
         {% elif active_page == 'kpi' %}
             <div class="row mb-4">
                 <div class="col-md-12">
@@ -593,10 +599,37 @@ CONTENT_TEMPLATE = """
                 <div class="card mb-4 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_config.title }}</h6><div class="chart-container" style="position: relative; height:45vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div>
                 {% endfor %}
                 <script>{% for chart_id, chart_data in charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',cd.datasets,cd.labels);}},plugins:{legend:{position:'bottom'},tooltip:{mode:'index',intersect:false}}}});})();{% endfor %}</script>
+            {% elif cell_name_input or selected_poi %}
+                <div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu phù hợp.</div>
+            {% else %}
+                <div class="text-center text-muted py-5 opacity-50"><i class="fa-solid fa-chart-line fa-4x mb-3"></i><p class="fs-5">Vui lòng chọn tiêu chí để xem báo cáo.</p></div>
+            {% endif %}
+            
+        {% elif active_page == 'poi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/poi" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-8"><label class="form-label fw-bold small text-muted">CHỌN POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
+                        <div class="col-md-4 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Xem Báo Cáo</button></div>
+                    </form>
+                </div>
+            </div>
+            {% if poi_charts %}
+                <div class="row">
+                    {% for chart_id, chart_data in poi_charts.items() %}
+                    <div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_data.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>
+                    {% endfor %}
+                </div>
+                <script>{% for chart_id, chart_data in poi_charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); new Chart(ctx,{type:'line',data:{{ chart_data | tojson }},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},plugins:{legend:{position:'bottom'}}}});})();{% endfor %}</script>
+            {% elif selected_poi %}
+                <div class="alert alert-warning border-0 shadow-sm">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>
+            {% else %}
+                <div class="text-center text-muted py-5"><i class="fa-solid fa-map-location-dot fa-3x mb-3"></i><p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p></div>
             {% endif %}
 
         {% elif active_page == 'worst_cell' %}
             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div></form></div></div>
+            {% if dates %}<div class="alert alert-info border-0 shadow-sm mb-4 bg-soft-info text-info"><i class="fa-solid fa-calendar-days me-2"></i><strong>Dữ liệu xét duyệt:</strong> {% for d in dates %}<span class="badge bg-white text-info border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
                 <table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="border-bottom">Cell Name</th><th class="text-center border-bottom">Avg User Thput</th><th class="text-center border-bottom">Avg PRB</th><th class="text-center border-bottom">Avg CQI</th><th class="text-center border-bottom">Avg Drop Rate</th><th class="text-center border-bottom">Hành động</th></tr></thead><tbody>{% for row in worst_cells %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 }}">{{ row.avg_thput | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 }}">{{ row.avg_res_blk | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 }}">{{ row.avg_cqi | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 }}">{{ row.avg_drop | round(2) }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Không có dữ liệu</td></tr>{% endfor %}</tbody></table>
             </div>
@@ -610,7 +643,8 @@ CONTENT_TEMPLATE = """
 
         {% elif active_page == 'conges_3g' %}
             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/conges-3g" class="d-flex align-items-center"><div class="alert alert-info border-0 shadow-sm bg-soft-primary text-primary mb-0 flex-grow-1"><strong>Điều kiện:</strong> (CS_CONG > 2% & CS_ATT > 100) OR (PS_CONG > 2% & PS_ATT > 500) (3 ngày liên tiếp)</div><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm ms-3">Thực hiện</button></form></div></div>
-            <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for row in conges_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 }}">{{ row.avg_cs_conges }}</td><td>{{ row.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 }}">{{ row.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Không có dữ liệu</td></tr>{% endfor %}</tbody></table></div>
+            {% if dates %}<div class="mb-3 text-muted small"><i class="fa-solid fa-calendar me-2"></i>Xét duyệt: {% for d in dates %}<span class="badge bg-light text-dark border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
+            <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for row in conges_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 }}">{{ row.avg_cs_conges }}</td><td>{{ row.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 }}">{{ row.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Nhấn nút "Thực hiện" để xem kết quả</td></tr>{% endfor %}</tbody></table></div>
 
         {% elif active_page == 'rf' %}
              <div class="d-flex justify-content-between mb-4"><div class="btn-group shadow-sm"><a href="/rf?tech=3g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '3g' }}">3G</a><a href="/rf?tech=4g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '4g' }}">4G</a><a href="/rf?tech=5g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '5g' }}">5G</a></div><div><a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary shadow-sm me-2">New</a><a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success shadow-sm text-white">Export</a></div></div>
@@ -661,8 +695,15 @@ def logout(): logout_user(); return redirect(url_for('login'))
 @login_required
 def index():
     try:
-        cnt = {'rf3g': db.session.query(func.count(RF3G.id)).scalar(), 'kpi4g': db.session.query(func.count(KPI4G.id)).scalar()} 
-    except: cnt = {}
+        cnt = {
+            'rf3g': db.session.query(func.count(RF3G.id)).scalar(),
+            'rf4g': db.session.query(func.count(RF4G.id)).scalar(),
+            'rf5g': db.session.query(func.count(RF5G.id)).scalar(),
+            'kpi3g': db.session.query(func.count(KPI3G.id)).scalar(),
+            'kpi4g': db.session.query(func.count(KPI4G.id)).scalar(),
+            'kpi5g': db.session.query(func.count(KPI5G.id)).scalar(),
+        }
+    except: cnt = defaultdict(int)
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
 @app.route('/kpi')
@@ -713,6 +754,73 @@ def kpi():
     
     return render_page(CONTENT_TEMPLATE, title="KPI", active_page='kpi', selected_tech=tech, cell_name_input=cell, selected_poi=poi_in, poi_list=poi_list, charts=charts)
 
+@app.route('/poi')
+@login_required
+def poi():
+    pname = request.args.get('poi_name', '').strip()
+    charts = {}
+    pois = []
+    try:
+        p4 = [r[0] for r in db.session.query(POI4G.poi_name).distinct()]
+        p5 = [r[0] for r in db.session.query(POI5G.poi_name).distinct()]
+        pois = sorted(list(set(p4 + p5)))
+    except: pass
+    
+    if pname:
+        c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
+        if c4:
+            k4 = KPI4G.query.filter(KPI4G.ten_cell.in_(c4)).all()
+            agg = defaultdict(lambda: {'traf':0, 'thp':0, 'cnt':0})
+            for r in k4:
+                agg[r.thoi_gian]['traf'] += (r.traffic or 0)
+                agg[r.thoi_gian]['thp'] += (r.user_dl_avg_thput or 0)
+                agg[r.thoi_gian]['cnt'] += 1
+            dates = sorted(agg.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+            charts['4g_traf'] = {'title': 'Total 4G Traffic', 'labels': dates, 'datasets': [{'label': 'GB', 'data': [agg[d]['traf'] for d in dates], 'borderColor': 'blue'}]}
+            charts['4g_thp'] = {'title': 'Avg 4G Throughput', 'labels': dates, 'datasets': [{'label': 'Mbps', 'data': [(agg[d]['thp']/agg[d]['cnt']) if agg[d]['cnt'] else 0 for d in dates], 'borderColor': 'green'}]}
+
+        c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
+        if c5:
+            k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
+            agg = defaultdict(lambda: {'traf':0, 'thp':0, 'cnt':0})
+            for r in k5:
+                agg[r.thoi_gian]['traf'] += (r.traffic or 0)
+                agg[r.thoi_gian]['thp'] += (r.user_dl_avg_throughput or 0)
+                agg[r.thoi_gian]['cnt'] += 1
+            dates = sorted(agg.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+            charts['5g_traf'] = {'title': 'Total 5G Traffic', 'labels': dates, 'datasets': [{'label': 'GB', 'data': [agg[d]['traf'] for d in dates], 'borderColor': 'orange'}]}
+            charts['5g_thp'] = {'title': 'Avg 5G Throughput', 'labels': dates, 'datasets': [{'label': 'Mbps', 'data': [(agg[d]['thp']/agg[d]['cnt']) if agg[d]['cnt'] else 0 for d in dates], 'borderColor': 'purple'}]}
+
+    return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
+
+@app.route('/conges-3g')
+@login_required
+def conges_3g():
+    conges_data, target_dates = [], []
+    if request.args.get('action') == 'execute':
+        try:
+            all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
+            date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
+            if len(date_objs) >= 3:
+                target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
+                records = KPI3G.query.filter(
+                    KPI3G.thoi_gian.in_(target_dates),
+                    ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+                ).all()
+                groups = defaultdict(list)
+                for r in records: groups[r.ten_cell].append(r)
+                for cell, rows in groups.items():
+                    if len(rows) == 3:
+                        conges_data.append({
+                            'cell_name': cell,
+                            'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2),
+                            'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2),
+                            'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
+                            'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
+                        })
+        except: pass
+    return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
+
 @app.route('/worst-cell')
 @login_required
 def worst_cell():
@@ -737,38 +845,12 @@ def worst_cell():
         if len(rows) == duration:
             results.append({
                 'cell_name': cell,
-                'avg_thput': sum(r.user_dl_avg_thput or 0 for r in rows)/duration,
-                'avg_res_blk': sum(r.res_blk_dl or 0 for r in rows)/duration,
-                'avg_cqi': sum(r.cqi_4g or 0 for r in rows)/duration,
-                'avg_drop': sum(r.service_drop_all or 0 for r in rows)/duration
+                'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2),
+                'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2),
+                'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
+                'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
             })
     return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=results, dates=target_dates, duration=duration)
-
-@app.route('/conges-3g')
-@login_required
-def conges_3g():
-    conges_data, target_dates = [], []
-    if request.args.get('action') == 'execute':
-        all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
-        date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
-        if len(date_objs) >= 3:
-            target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
-            records = KPI3G.query.filter(
-                KPI3G.thoi_gian.in_(target_dates),
-                ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
-            ).all()
-            groups = defaultdict(list)
-            for r in records: groups[r.ten_cell].append(r)
-            for cell, rows in groups.items():
-                if len(rows) == 3:
-                    conges_data.append({
-                        'cell_name': cell,
-                        'avg_cs_traffic': sum(r.traffic or 0 for r in rows)/3,
-                        'avg_cs_conges': sum(r.csconges or 0 for r in rows)/3,
-                        'avg_ps_traffic': sum(r.pstraffic or 0 for r in rows)/3,
-                        'avg_ps_conges': sum(r.psconges or 0 for r in rows)/3
-                    })
-    return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
 @app.route('/traffic-down')
 @login_required
@@ -785,6 +867,7 @@ def traffic_down():
             if dates_obj:
                 latest = dates_obj[0]
                 analysis_date = latest.strftime('%d/%m/%Y')
+                # Need data for T0 and T-7, plus T-1..T-7 for avg
                 needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
                 needed_str = [d.strftime('%d/%m/%Y') for d in needed]
                 
@@ -840,7 +923,7 @@ def rf():
 def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
-        itype = request.form.get('type') or request.args.get('type') # Handle both query and form
+        itype = request.form.get('type') or request.args.get('type')
         cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
         Model = cfg.get(itype)
         
@@ -870,7 +953,6 @@ def import_data():
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
     return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
 
-# Placeholder routes
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
@@ -896,7 +978,6 @@ def profile(): return render_page(PROFILE_TEMPLATE, active_page='profile')
 def change_password(): 
     if current_user.check_password(request.form['current_password']): current_user.set_password(request.form['new_password']); db.session.commit(); flash('Done', 'success')
     return redirect(url_for('profile'))
-
 @app.route('/rf/add', methods=['GET', 'POST'])
 @login_required
 def rf_add():
@@ -908,7 +989,6 @@ def rf_add():
         return redirect(url_for('rf', tech=tech))
     cols = [c.key for c in Model.__table__.columns if c.key != 'id']
     return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=cols, tech=tech, obj={})
-
 @app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
 @login_required
 def rf_edit(tech, id):
@@ -919,14 +999,12 @@ def rf_edit(tech, id):
         db.session.commit(); flash('Updated', 'success'); return redirect(url_for('rf', tech=tech))
     cols = [c.key for c in Model.__table__.columns if c.key != 'id']
     return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=cols, tech=tech, obj=obj.__dict__)
-
 @app.route('/rf/delete/<tech>/<int:id>')
 @login_required
 def rf_delete(tech, id):
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     db.session.delete(db.session.get(Model, id)); db.session.commit(); flash('Deleted', 'success')
     return redirect(url_for('rf', tech=tech))
-
 @app.route('/rf/detail/<tech>/<int:id>')
 @login_required
 def rf_detail(tech, id):
