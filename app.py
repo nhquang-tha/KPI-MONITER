@@ -297,7 +297,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (DEFINED BEFORE USAGE)
+# 4. TEMPLATES
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -454,7 +454,7 @@ BASE_LAYOUT = """
             <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-location-dot"></i> POI Report</a></li>
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
-            <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Drop</a></li>
+            <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
             <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
             {% if current_user.role == 'admin' %}
             <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
@@ -628,10 +628,10 @@ CONTENT_TEMPLATE = """
                                 interaction:{mode:'nearest',intersect:false,axis:'x'},
                                 onClick:(e,el)=>{
                                     if(el.length>0){
+                                        // For POI report, we only show the zoomed aggregate chart, not details
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
-                                        // Pass detail datasets for popup (Zoom In)
-                                        showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', cd.datasets, cd.labels);
+                                        showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
                                     }
                                 },
                                 plugins:{legend:{position:'bottom'}}
@@ -694,7 +694,7 @@ def render_page(tpl, **kwargs):
     return render_template_string(tpl, **kwargs)
 
 # ==============================================================================
-# 5. ROUTES (CONTROLLERS)
+# 5. ROUTES
 # ==============================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -840,7 +840,7 @@ def poi():
         c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
         c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
         
-        # 4G Chart
+        # 4G Chart (Aggregate)
         if c4:
             k4 = KPI4G.query.filter(KPI4G.ten_cell.in_(c4)).all()
             if k4:
@@ -848,54 +848,40 @@ def poi():
                 except: pass
                 dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
                 
-                # Detail datasets for Zoom In
-                ds_traf = []
-                ds_thput = []
-                grouped = defaultdict(list)
-                for r in k4: grouped[r.ten_cell].append(r)
+                # Aggregate for POI Summary
+                agg_traf = defaultdict(float)
+                agg_thput = defaultdict(list)
                 
-                colors = generate_colors(len(grouped))
-                for i, (cell, rows) in enumerate(grouped.items()):
-                    rmap = {r.thoi_gian: r for r in rows}
-                    d_traf = []
-                    d_thp = []
-                    for d in dates4:
-                        val = rmap.get(d)
-                        tr = val.traffic if val else 0
-                        th = val.user_dl_avg_thput if val else 0
-                        d_traf.append(tr)
-                        d_thp.append(th)
-                    
-                    ds_traf.append({'label': cell, 'data': d_traf, 'borderColor': colors[i], 'fill': False})
-                    ds_thput.append({'label': cell, 'data': d_thp, 'borderColor': colors[i], 'fill': False})
+                for r in k4:
+                    if r.thoi_gian in dates4:
+                        agg_traf[r.thoi_gian] += (r.traffic or 0)
+                        if r.user_dl_avg_thput: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
 
-                # Create Charts
+                ds_traf = [{'label': 'Total Traffic 4G', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False}]
+                ds_thput = [{'label': 'Avg User Thput 4G', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False}]
+
                 charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf}
                 charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput}
         
-        # 5G Chart (Similar logic)
+        # 5G Chart (Aggregate)
         if c5:
              k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
              if k5:
                 try: k5.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
                 except: pass
                 dates5 = sorted(list(set(x.thoi_gian for x in k5)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-                ds_traf5 = []
-                ds_thput5 = []
-                grouped5 = defaultdict(list)
-                for r in k5: grouped5[r.ten_cell].append(r)
-                colors = generate_colors(len(grouped5))
-                for i, (cell, rows) in enumerate(grouped5.items()):
-                    rmap = {r.thoi_gian: r for r in rows}
-                    d_traf = []
-                    d_thp = []
-                    for d in dates5:
-                        val = rmap.get(d)
-                        d_traf.append(val.traffic if val else 0)
-                        d_thp.append(val.user_dl_avg_throughput if val else 0)
-                    ds_traf5.append({'label': cell, 'data': d_traf, 'borderColor': colors[i], 'fill': False})
-                    ds_thput5.append({'label': cell, 'data': d_thp, 'borderColor': colors[i], 'fill': False})
                 
+                agg_traf5 = defaultdict(float)
+                agg_thput5 = defaultdict(list)
+
+                for r in k5:
+                    if r.thoi_gian in dates5:
+                        agg_traf5[r.thoi_gian] += (r.traffic or 0)
+                        if r.user_dl_avg_throughput: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
+                
+                ds_traf5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False}]
+                ds_thput5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False}]
+
                 charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf5}
                 charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput5}
 
@@ -1028,7 +1014,11 @@ def rf():
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_data():
-    if current_user.role != 'admin': return redirect(url_for('index'))
+    # SECURITY: Only admin can access
+    if current_user.role != 'admin':
+        flash('Bạn không có quyền truy cập trang này!', 'danger')
+        return redirect(url_for('index'))
+
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type') or request.args.get('type')
