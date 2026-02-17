@@ -519,7 +519,7 @@ BASE_LAYOUT = """
             <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
             {% endif %}
             <li><a href="/profile" class="{{ 'active' if active_page == 'profile' else '' }}"><i class="fa-solid fa-user-shield"></i> Profile</a></li>
-            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</a></li>
         </ul>
     </div>
 
@@ -1389,15 +1389,16 @@ def conges_3g():
         flash(f'Lỗi xử lý dữ liệu: {str(e)}', 'danger')
         return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=[], dates=[])
 
+
 @app.route('/backup-restore')
 @login_required
 def backup_restore(): return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup", active_page='backup_restore')
 @app.route('/backup', methods=['POST'])
 @login_required
-def backup_db(): return redirect(url_for('index'))
+def backup_db(): return redirect(url_for('index')) # Placeholder
 @app.route('/restore', methods=['POST'])
 @login_required
-def restore_db(): return redirect(url_for('index'))
+def restore_db(): return redirect(url_for('index')) # Placeholder
 
 @app.route('/worst-cell')
 @login_required
