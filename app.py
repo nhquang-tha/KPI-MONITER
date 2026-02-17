@@ -631,7 +631,7 @@ CONTENT_TEMPLATE = """
                                         // For POI report, we only show the zoomed aggregate chart, not details
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
-                                        showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
+                                        showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', cd.datasets, cd.labels);
                                     }
                                 },
                                 plugins:{legend:{position:'bottom'}}
@@ -647,21 +647,21 @@ CONTENT_TEMPLATE = """
             {% endif %}
 
         {% elif active_page == 'worst_cell' %}
-            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div></form></div></div>
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div><div class="col-auto"><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export Excel</button></div></form></div></div>
             {% if dates %}<div class="alert alert-info border-0 shadow-sm mb-4 bg-soft-info text-info"><i class="fa-solid fa-calendar-days me-2"></i><strong>Dữ liệu xét duyệt:</strong> {% for d in dates %}<span class="badge bg-white text-info border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
-                <table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="border-bottom">Cell Name</th><th class="text-center border-bottom">Avg User Thput</th><th class="text-center border-bottom">Avg PRB</th><th class="text-center border-bottom">Avg CQI</th><th class="text-center border-bottom">Avg Drop Rate</th><th class="text-center border-bottom">Hành động</th></tr></thead><tbody>{% for row in worst_cells %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 }}">{{ row.avg_thput | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 }}">{{ row.avg_res_blk | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 }}">{{ row.avg_cqi | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 }}">{{ row.avg_drop | round(2) }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Không có dữ liệu</td></tr>{% endfor %}</tbody></table>
+                <table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="border-bottom">Cell Name</th><th class="text-center border-bottom">Avg User Thput</th><th class="text-center border-bottom">Avg PRB</th><th class="text-center border-bottom">Avg CQI</th><th class="text-center border-bottom">Avg Drop Rate</th><th class="text-center border-bottom">Hành động</th></tr></thead><tbody>{% for row in worst_cells %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 }}">{{ row.avg_thput | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 }}">{{ row.avg_res_blk | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 }}">{{ row.avg_cqi | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 }}">{{ row.avg_drop | round(2) }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Nhấn "Lọc Worst Cell" để xem dữ liệu</td></tr>{% endfor %}</tbody></table>
             </div>
 
         {% elif active_page == 'traffic_down' %}
-             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
+             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
             <div class="row g-4">
                 <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Cell Không Lưu Lượng (< 0.1 GB)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg (7 Days)</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in zero_traffic %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
                 <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Cell Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in degraded %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ row.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
             </div>
 
         {% elif active_page == 'conges_3g' %}
-            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/conges-3g" class="d-flex align-items-center"><div class="alert alert-info border-0 shadow-sm bg-soft-primary text-primary mb-0 flex-grow-1"><strong>Điều kiện:</strong> (CS_CONG > 2% & CS_ATT > 100) OR (PS_CONG > 2% & PS_ATT > 500) (3 ngày liên tiếp)</div><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm ms-3">Thực hiện</button></form></div></div>
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/conges-3g" class="d-flex align-items-center"><div class="alert alert-info border-0 shadow-sm bg-soft-primary text-primary mb-0 flex-grow-1"><strong>Điều kiện:</strong> (CS_CONG > 2% & CS_ATT > 100) OR (PS_CONG > 2% & PS_ATT > 500) (3 ngày liên tiếp)</div><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm ms-3">Thực hiện</button><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export</button></form></div></div>
             {% if dates %}<div class="mb-3 text-muted small"><i class="fa-solid fa-calendar me-2"></i>Xét duyệt: {% for d in dates %}<span class="badge bg-light text-dark border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
             <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for row in conges_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 }}">{{ row.avg_cs_conges }}</td><td>{{ row.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 }}">{{ row.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Nhấn nút "Thực hiện" để xem kết quả</td></tr>{% endfor %}</tbody></table></div>
 
@@ -848,20 +848,40 @@ def poi():
                 except: pass
                 dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
                 
-                # Aggregate for POI Summary
                 agg_traf = defaultdict(float)
                 agg_thput = defaultdict(list)
                 
-                for r in k4:
-                    if r.thoi_gian in dates4:
-                        agg_traf[r.thoi_gian] += (r.traffic or 0)
-                        if r.user_dl_avg_thput: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
+                # Datasets for Zoom In (Detail per cell)
+                ds_traf_detail = []
+                ds_thput_detail = []
+                grouped = defaultdict(list)
+                for r in k4: grouped[r.ten_cell].append(r)
+                colors = generate_colors(len(grouped))
+                
+                for i, (cell, rows) in enumerate(grouped.items()):
+                    row_map = {r.thoi_gian: r for r in rows}
+                    d_tr, d_th = [], []
+                    for d in dates4:
+                        v = row_map.get(d)
+                        tr = v.traffic if v else 0
+                        th = v.user_dl_avg_thput if v else 0
+                        d_tr.append(tr); d_th.append(th)
+                        agg_traf[d] += tr
+                        if th > 0: agg_thput[d].append(th)
+                    ds_traf_detail.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True}) # Hidden by default in main view? No, we use aggregate for main view
+                    ds_thput_detail.append({'label': cell, 'data': d_th, 'borderColor': colors[i], 'fill': False, 'hidden': True})
 
-                ds_traf = [{'label': 'Total Traffic 4G', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False}]
-                ds_thput = [{'label': 'Avg User Thput 4G', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False}]
+                # Main Charts (Aggregate)
+                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False}]
+                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False}]
 
-                charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf}
-                charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput}
+                # Pass both Aggregate (for display) and Detail (for popup)
+                # But Chart.js can't hold hidden extra data easily in template var structure without custom logic
+                # Workaround: Pass detail datasets but set hidden: true, or just use detail for popup logic in JS
+                # Here we pass ALL datasets to template.
+                
+                charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg + ds_traf_detail}
+                charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg + ds_thput_detail}
         
         # 5G Chart (Aggregate)
         if c5:
@@ -873,17 +893,30 @@ def poi():
                 
                 agg_traf5 = defaultdict(float)
                 agg_thput5 = defaultdict(list)
+                ds_traf_detail5 = []
+                ds_thput_detail5 = []
+                grouped5 = defaultdict(list)
+                for r in k5: grouped5[r.ten_cell].append(r)
+                colors = generate_colors(len(grouped5))
 
-                for r in k5:
-                    if r.thoi_gian in dates5:
-                        agg_traf5[r.thoi_gian] += (r.traffic or 0)
-                        if r.user_dl_avg_throughput: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
-                
-                ds_traf5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False}]
-                ds_thput5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False}]
+                for i, (cell, rows) in enumerate(grouped5.items()):
+                    row_map = {r.thoi_gian: r for r in rows}
+                    d_tr, d_th = [], []
+                    for d in dates5:
+                        v = row_map.get(d)
+                        tr = v.traffic if v else 0
+                        th = v.user_dl_avg_throughput if v else 0
+                        d_tr.append(tr); d_th.append(th)
+                        agg_traf5[d] += tr
+                        if th > 0: agg_thput5[d].append(th)
+                    ds_traf_detail5.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True})
+                    ds_thput_detail5.append({'label': cell, 'data': d_th, 'borderColor': colors[i], 'fill': False, 'hidden': True})
 
-                charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf5}
-                charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput5}
+                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False}]
+                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False}]
+
+                charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5 + ds_traf_detail5}
+                charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5 + ds_thput_detail5}
 
     return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
 
@@ -891,7 +924,9 @@ def poi():
 @login_required
 def conges_3g():
     conges_data, target_dates = [], []
-    if request.args.get('action') == 'execute':
+    action = request.args.get('action')
+    
+    if action in ['execute', 'export']:
         try:
             all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
             date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
@@ -912,24 +947,36 @@ def conges_3g():
                             'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
                             'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
                         })
+                        
         except: pass
+        
+    if action == 'export':
+        df = pd.DataFrame(conges_data)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+             df.to_excel(writer, index=False, sheet_name='Congestion 3G')
+        output.seek(0)
+        return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
+
     return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
 @app.route('/worst-cell')
 @login_required
 def worst_cell():
     duration = int(request.args.get('duration', 1))
+    action = request.args.get('action')
+    
     all_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
     date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
     target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:duration]]
     
-    if not target_dates: return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=[], dates=[])
-    
-    records = KPI4G.query.filter(
-        KPI4G.thoi_gian.in_(target_dates),
-        ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
-        ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
-    ).all()
+    records = []
+    if target_dates:
+        records = KPI4G.query.filter(
+            KPI4G.thoi_gian.in_(target_dates),
+            ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
+            ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
+        ).all()
     
     groups = defaultdict(list)
     for r in records: groups[r.ten_cell].append(r)
@@ -944,6 +991,15 @@ def worst_cell():
                 'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
                 'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
             })
+            
+    if action == 'export':
+        df = pd.DataFrame(results)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+             df.to_excel(writer, index=False, sheet_name='Worst Cells')
+        output.seek(0)
+        return send_file(output, download_name=f'WorstCell_{duration}days.xlsx', as_attachment=True)
+
     return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=results, dates=target_dates, duration=duration)
 
 @app.route('/traffic-down')
@@ -953,7 +1009,7 @@ def traffic_down():
     action = request.args.get('action')
     zero_traffic, degraded, analysis_date = [], [], "N/A"
     
-    if action == 'execute':
+    if action in ['execute', 'export_zero', 'export_degraded']:
         Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
         if Model:
             dates_raw = [d[0] for d in db.session.query(Model.thoi_gian).distinct().all()]
@@ -975,13 +1031,24 @@ def traffic_down():
                 for cell, d_map in data_map.items():
                     t0 = d_map.get(latest, 0)
                     t_last = d_map.get(last_week, 0)
-                    # Zero
                     if t0 < 0.1:
                         avg7 = sum(d_map.get(latest - timedelta(days=i), 0) for i in range(1,8)) / 7
                         if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
-                    # Degraded
                     if t_last > 1 and t0 < 0.7 * t_last:
                         degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+
+        if action == 'export_zero':
+            df = pd.DataFrame(zero_traffic)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
+        elif action == 'export_degraded':
+            df = pd.DataFrame(degraded)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
 
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
 
@@ -1014,7 +1081,6 @@ def rf():
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_data():
-    # SECURITY: Only admin can access
     if current_user.role != 'admin':
         flash('Bạn không có quyền truy cập trang này!', 'danger')
         return redirect(url_for('index'))
