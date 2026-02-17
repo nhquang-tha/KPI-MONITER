@@ -18,7 +18,7 @@ from itertools import zip_longest
 from collections import defaultdict
 
 # ==============================================================================
-# 1. APP CONFIGURATION
+# 1. APP CONFIGURATION & DATABASE SETUP
 # ==============================================================================
 
 app = Flask(__name__)
