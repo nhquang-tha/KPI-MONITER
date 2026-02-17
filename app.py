@@ -18,7 +18,7 @@ from itertools import zip_longest
 from collections import defaultdict
 
 # ==============================================================================
-# 1. APP CONFIGURATION
+# 1. APP CONFIGURATION & DATABASE SETUP
 # ==============================================================================
 
 app = Flask(__name__)
@@ -126,8 +126,6 @@ class RF3G(db.Model):
     total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
-    
-    # Optional fields
     psc = db.Column(db.String(50))
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
@@ -154,7 +152,6 @@ class RF4G(db.Model):
     total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
-    
     dl_uarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
@@ -183,7 +180,6 @@ class RF5G(db.Model):
     total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
-    
     nrarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
@@ -458,7 +454,7 @@ BASE_LAYOUT = """
             <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-location-dot"></i> POI Report</a></li>
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
-            <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
+            <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Drop</a></li>
             <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
             {% if current_user.role == 'admin' %}
             <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
@@ -512,56 +508,14 @@ BASE_LAYOUT = """
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let modalChartInstance = null;
-
         function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
             document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' (' + date + ')';
-            
             const ctx = document.getElementById('modalChart').getContext('2d');
-            if (modalChartInstance) {
-                modalChartInstance.destroy();
-            }
-
+            if (modalChartInstance) modalChartInstance.destroy();
             modalChartInstance = new Chart(ctx, {
                 type: 'line',
-                data: {
-                    labels: allLabels,
-                    datasets: allDatasets 
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: true, labels: { font: { size: 14 } } },
-                        tooltip: {
-                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                            titleColor: '#333',
-                            bodyColor: '#666',
-                            borderColor: '#ddd',
-                            borderWidth: 1,
-                            titleFont: { size: 14, weight: 'bold' },
-                            bodyFont: { size: 14 },
-                            padding: 12,
-                            displayColors: true,
-                            callbacks: {
-                                label: function(context) {
-                                    return context.dataset.label + ': ' + context.parsed.y;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: 'rgba(0,0,0,0.05)' },
-                            title: { display: true, text: metricLabel, font: { size: 14, weight: '600' }, color: '#555' },
-                            ticks: { font: { size: 12 }, color: '#777' }
-                        },
-                        x: {
-                            grid: { display: false },
-                            ticks: { font: { size: 12 }, color: '#777' }
-                        }
-                    }
-                }
+                data: { labels: allLabels, datasets: allDatasets },
+                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false }, plugins: { legend: { display: true } } }
             });
             new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
         }
@@ -676,6 +630,7 @@ CONTENT_TEMPLATE = """
                                     if(el.length>0){
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
+                                        // Pass detail datasets for popup (Zoom In)
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', cd.datasets, cd.labels);
                                     }
                                 },
@@ -739,7 +694,7 @@ def render_page(tpl, **kwargs):
     return render_template_string(tpl, **kwargs)
 
 # ==============================================================================
-# 5. ROUTES
+# 5. ROUTES (CONTROLLERS)
 # ==============================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -775,50 +730,99 @@ def index():
 @app.route('/kpi')
 @login_required
 def kpi():
-    tech = request.args.get('tech', '3g')
-    cell = request.args.get('cell_name', '').strip()
-    poi_in = request.args.get('poi_name', '').strip()
-    charts = {}
+    selected_tech = request.args.get('tech', '3g')
+    cell_name_input = request.args.get('cell_name', '').strip()
+    poi_input = request.args.get('poi_name', '').strip()
+    charts = {} 
+
+    colors = generate_colors(20)
     
     target_cells = []
-    if poi_in:
-        p4 = db.session.query(POI4G.cell_code).filter_by(poi_name=poi_in).all()
-        p5 = db.session.query(POI5G.cell_code).filter_by(poi_name=poi_in).all()
-        target_cells = [c[0] for c in p4 + p5]
-    elif cell:
-        target_cells = [c.strip() for c in re.split(r'[,\s]+', cell) if c.strip()]
-    
-    if target_cells:
-        Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
-        if Model:
-            data = Model.query.filter(Model.ten_cell.in_(target_cells)).all()
-            try: data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-            except: pass
+    KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
+    RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
+
+    if poi_input:
+        POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
+        if POI_Model:
+            target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
+    elif cell_name_input and RF_Model:
+        site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
+        if site_cells:
+            target_cells = [c.cell_code for c in site_cells]
+        else:
+            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+
+    if target_cells and KPI_Model:
+        data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
+        try:
+            data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+        except ValueError: pass 
+
+        if data:
+            all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
+            data_by_cell = defaultdict(list)
+            for x in data:
+                data_by_cell[x.ten_cell].append(x)
+
+            metrics_config = {
+                '3g': [
+                    {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
+                    {'key': 'traffic', 'label': 'TRAFFIC (Erl)'},
+                    {'key': 'psconges', 'label': 'PS CONGESTION (%)'},
+                    {'key': 'csconges', 'label': 'CS CONGESTION (%)'}
+                ],
+                '4g': [
+                    {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
+                    {'key': 'user_dl_avg_thput', 'label': 'USER DL AVG THPUT (Mbps)'},
+                    {'key': 'res_blk_dl', 'label': 'RES BLOCK DL (%)'},
+                    {'key': 'cqi_4g', 'label': 'CQI 4G'}
+                ],
+                '5g': [
+                    {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
+                    {'key': 'user_dl_avg_throughput', 'label': 'USER DL AVG THPUT (Mbps)'},
+                    {'key': 'cqi_5g', 'label': 'CQI 5G'}
+                ]
+            }
             
-            if data:
-                dates = sorted(list(set(d.thoi_gian for d in data)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-                grouped = defaultdict(list)
-                for d in data: grouped[d.ten_cell].append(d)
+            current_metrics = metrics_config.get(selected_tech, [])
+
+            for metric in current_metrics:
+                metric_key = metric['key']
+                metric_label = metric['label']
+                datasets = []
+                for i, cell_code in enumerate(target_cells):
+                    cell_data = data_by_cell.get(cell_code, [])
+                    data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
+                    aligned_data = [data_map.get(label, None) for label in all_labels]
+                    color = colors[i % len(colors)]
+                    datasets.append({
+                        'label': cell_code,
+                        'data': aligned_data,
+                        'borderColor': color,
+                        'backgroundColor': color,
+                        'tension': 0.1,
+                        'fill': False,
+                        'spanGaps': True
+                    })
                 
-                cfgs = {
-                    '3g': [('traffic', 'Traffic'), ('cssr', 'CSSR')],
-                    '4g': [('traffic', 'Traffic'), ('user_dl_avg_thput', 'Thput')],
-                    '5g': [('traffic', 'Traffic'), ('cqi_5g', 'CQI')]
-                }.get(tech, [])
-                
-                colors = generate_colors(20)
-                for key, label in cfgs:
-                    ds = []
-                    for i, (c_name, rows) in enumerate(grouped.items()):
-                        row_map = {r.thoi_gian: getattr(r, key) for r in rows}
-                        ds.append({'label': c_name, 'data': [row_map.get(d) for d in dates], 'borderColor': colors[i%20], 'fill': False})
-                    charts[key] = {'title': label, 'labels': dates, 'datasets': ds}
-    
+                chart_id = f"chart_{metric_key}"
+                charts[chart_id] = {
+                    'title': metric_label,
+                    'labels': all_labels,
+                    'datasets': datasets
+                }
+
     poi_list = []
-    try: poi_list = sorted(list(set([r[0] for r in db.session.query(POI4G.poi_name).distinct()] + [r[0] for r in db.session.query(POI5G.poi_name).distinct()])))
-    except: pass
-    
-    return render_page(CONTENT_TEMPLATE, title="KPI", active_page='kpi', selected_tech=tech, cell_name_input=cell, selected_poi=poi_in, poi_list=poi_list, charts=charts)
+    with app.app_context():
+        try:
+            p4 = [r[0] for r in db.session.query(POI4G.poi_name).distinct()]
+            p5 = [r[0] for r in db.session.query(POI5G.poi_name).distinct()]
+            poi_list = sorted(list(set(p4 + p5)))
+        except: pass
+
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
+                       selected_tech=selected_tech, cell_name_input=cell_name_input, 
+                       selected_poi=poi_input, poi_list=poi_list, charts=charts)
 
 @app.route('/poi')
 @login_required
@@ -844,10 +848,6 @@ def poi():
                 except: pass
                 dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
                 
-                # Aggregate for POI Summary Chart
-                agg_traf = defaultdict(float)
-                agg_thput = defaultdict(list)
-                
                 # Detail datasets for Zoom In
                 ds_traf = []
                 ds_thput = []
@@ -865,8 +865,6 @@ def poi():
                         th = val.user_dl_avg_thput if val else 0
                         d_traf.append(tr)
                         d_thp.append(th)
-                        agg_traf[d] += tr
-                        if th > 0: agg_thput[d].append(th)
                     
                     ds_traf.append({'label': cell, 'data': d_traf, 'borderColor': colors[i], 'fill': False})
                     ds_thput.append({'label': cell, 'data': d_thp, 'borderColor': colors[i], 'fill': False})
@@ -874,6 +872,32 @@ def poi():
                 # Create Charts
                 charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf}
                 charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput}
+        
+        # 5G Chart (Similar logic)
+        if c5:
+             k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
+             if k5:
+                try: k5.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+                except: pass
+                dates5 = sorted(list(set(x.thoi_gian for x in k5)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+                ds_traf5 = []
+                ds_thput5 = []
+                grouped5 = defaultdict(list)
+                for r in k5: grouped5[r.ten_cell].append(r)
+                colors = generate_colors(len(grouped5))
+                for i, (cell, rows) in enumerate(grouped5.items()):
+                    rmap = {r.thoi_gian: r for r in rows}
+                    d_traf = []
+                    d_thp = []
+                    for d in dates5:
+                        val = rmap.get(d)
+                        d_traf.append(val.traffic if val else 0)
+                        d_thp.append(val.user_dl_avg_throughput if val else 0)
+                    ds_traf5.append({'label': cell, 'data': d_traf, 'borderColor': colors[i], 'fill': False})
+                    ds_thput5.append({'label': cell, 'data': d_thp, 'borderColor': colors[i], 'fill': False})
+                
+                charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf5}
+                charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput5}
 
     return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
 
@@ -951,7 +975,6 @@ def traffic_down():
             if dates_obj:
                 latest = dates_obj[0]
                 analysis_date = latest.strftime('%d/%m/%Y')
-                # Need data for T0 and T-7, plus T-1..T-7 for avg
                 needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
                 needed_str = [d.strftime('%d/%m/%Y') for d in needed]
                 
@@ -1005,6 +1028,7 @@ def rf():
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_data():
+    if current_user.role != 'admin': return redirect(url_for('index'))
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type') or request.args.get('type')
@@ -1037,6 +1061,7 @@ def import_data():
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
     return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
 
+# Placeholder routes for script/users/profile
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
