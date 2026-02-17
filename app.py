@@ -18,7 +18,7 @@ from itertools import zip_longest
 from collections import defaultdict
 
 # ==============================================================================
-# 1. APP CONFIGURATION & DATABASE SETUP
+# 1. APP CONFIGURATION
 # ==============================================================================
 
 app = Flask(__name__)
@@ -459,11 +459,10 @@ BASE_LAYOUT = """
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
             <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
-            <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
-            
-            <li class="mt-4 mb-2 text-muted px-4 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">System</li>
-            
+            <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
             {% if current_user.role == 'admin' %}
+            <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
+            <li class="mt-4 mb-2 text-muted px-4 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">System</li>
             <li><a href="/users" class="{{ 'active' if active_page == 'users' else '' }}"><i class="fa-solid fa-users-gear"></i> User Mgmt</a></li>
             <li><a href="/backup-restore" class="{{ 'active' if active_page == 'backup_restore' else '' }}"><i class="fa-solid fa-database"></i> Backup / Restore</a></li>
             {% endif %}
@@ -513,14 +512,56 @@ BASE_LAYOUT = """
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let modalChartInstance = null;
+
         function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
             document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' (' + date + ')';
+            
             const ctx = document.getElementById('modalChart').getContext('2d');
-            if (modalChartInstance) modalChartInstance.destroy();
+            if (modalChartInstance) {
+                modalChartInstance.destroy();
+            }
+
             modalChartInstance = new Chart(ctx, {
                 type: 'line',
-                data: { labels: allLabels, datasets: allDatasets },
-                options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false }, plugins: { legend: { display: true } } }
+                data: {
+                    labels: allLabels,
+                    datasets: allDatasets 
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: true, labels: { font: { size: 14 } } },
+                        tooltip: {
+                            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                            titleColor: '#333',
+                            bodyColor: '#666',
+                            borderColor: '#ddd',
+                            borderWidth: 1,
+                            titleFont: { size: 14, weight: 'bold' },
+                            bodyFont: { size: 14 },
+                            padding: 12,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            title: { display: true, text: metricLabel, font: { size: 14, weight: '600' }, color: '#555' },
+                            ticks: { font: { size: 12 }, color: '#777' }
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { font: { size: 12 }, color: '#777' }
+                        }
+                    }
+                }
             });
             new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
         }
@@ -576,7 +617,6 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-warning fw-bold mb-1">5</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Congestion</p></div></div>
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-success fw-bold mb-1">OK</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">System Status</p></div></div>
             </div>
-            
             <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-database me-2"></i>Data Overview</h5>
             <div class="row g-4">
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-primary fw-bold mb-3 small">RF Database</h6><div class="d-flex justify-content-between mb-2"><span>RF 3G</span><span class="badge bg-white text-dark border">{{ count_rf3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>RF 4G</span><span class="badge bg-white text-dark border">{{ count_rf4g }}</span></div><div class="d-flex justify-content-between"><span>RF 5G</span><span class="badge bg-white text-dark border">{{ count_rf5g }}</span></div></div></div>
@@ -620,7 +660,31 @@ CONTENT_TEMPLATE = """
                     <div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_data.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>
                     {% endfor %}
                 </div>
-                <script>{% for chart_id, chart_data in poi_charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); new Chart(ctx,{type:'line',data:{{ chart_data | tojson }},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},plugins:{legend:{position:'bottom'}}}});})();{% endfor %}</script>
+                <script>
+                    {% for chart_id, chart_data in poi_charts.items() %}
+                    (function(){
+                        const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); 
+                        const cd={{ chart_data | tojson }};
+                        new Chart(ctx,{
+                            type:'line',
+                            data: cd,
+                            options:{
+                                responsive:true,
+                                maintainAspectRatio:false,
+                                interaction:{mode:'nearest',intersect:false,axis:'x'},
+                                onClick:(e,el)=>{
+                                    if(el.length>0){
+                                        const i=el[0].index;
+                                        const di=el[0].datasetIndex;
+                                        showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', cd.datasets, cd.labels);
+                                    }
+                                },
+                                plugins:{legend:{position:'bottom'}}
+                            }
+                        });
+                    })();
+                    {% endfor %}
+                </script>
             {% elif selected_poi %}
                 <div class="alert alert-warning border-0 shadow-sm">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>
             {% else %}
@@ -664,10 +728,12 @@ BACKUP_RESTORE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="
 RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small fw-bold text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}"></div>{% endfor %}</div><button class="btn btn-primary">Save</button></form></div></div>{% endblock %}"""
 RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">Detail</div><div class="card-body"><table class="table table-bordered">{% for k,v in obj.items() %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
 
+# --- JINJA LOADER (MUST BE AFTER TEMPLATES) ---
 app.jinja_loader = jinja2.DictLoader({
     'base': BASE_LAYOUT,
     'backup_restore': BACKUP_RESTORE_TEMPLATE
 })
+
 def render_page(tpl, **kwargs):
     if tpl == BACKUP_RESTORE_TEMPLATE: return render_template_string(tpl, **kwargs)
     return render_template_string(tpl, **kwargs)
@@ -768,28 +834,46 @@ def poi():
     
     if pname:
         c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
+        c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
+        
+        # 4G Chart
         if c4:
             k4 = KPI4G.query.filter(KPI4G.ten_cell.in_(c4)).all()
-            agg = defaultdict(lambda: {'traf':0, 'thp':0, 'cnt':0})
-            for r in k4:
-                agg[r.thoi_gian]['traf'] += (r.traffic or 0)
-                agg[r.thoi_gian]['thp'] += (r.user_dl_avg_thput or 0)
-                agg[r.thoi_gian]['cnt'] += 1
-            dates = sorted(agg.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-            charts['4g_traf'] = {'title': 'Total 4G Traffic', 'labels': dates, 'datasets': [{'label': 'GB', 'data': [agg[d]['traf'] for d in dates], 'borderColor': 'blue'}]}
-            charts['4g_thp'] = {'title': 'Avg 4G Throughput', 'labels': dates, 'datasets': [{'label': 'Mbps', 'data': [(agg[d]['thp']/agg[d]['cnt']) if agg[d]['cnt'] else 0 for d in dates], 'borderColor': 'green'}]}
+            if k4:
+                try: k4.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+                except: pass
+                dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+                
+                # Aggregate for POI Summary Chart
+                agg_traf = defaultdict(float)
+                agg_thput = defaultdict(list)
+                
+                # Detail datasets for Zoom In
+                ds_traf = []
+                ds_thput = []
+                grouped = defaultdict(list)
+                for r in k4: grouped[r.ten_cell].append(r)
+                
+                colors = generate_colors(len(grouped))
+                for i, (cell, rows) in enumerate(grouped.items()):
+                    rmap = {r.thoi_gian: r for r in rows}
+                    d_traf = []
+                    d_thp = []
+                    for d in dates4:
+                        val = rmap.get(d)
+                        tr = val.traffic if val else 0
+                        th = val.user_dl_avg_thput if val else 0
+                        d_traf.append(tr)
+                        d_thp.append(th)
+                        agg_traf[d] += tr
+                        if th > 0: agg_thput[d].append(th)
+                    
+                    ds_traf.append({'label': cell, 'data': d_traf, 'borderColor': colors[i], 'fill': False})
+                    ds_thput.append({'label': cell, 'data': d_thp, 'borderColor': colors[i], 'fill': False})
 
-        c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
-        if c5:
-            k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
-            agg = defaultdict(lambda: {'traf':0, 'thp':0, 'cnt':0})
-            for r in k5:
-                agg[r.thoi_gian]['traf'] += (r.traffic or 0)
-                agg[r.thoi_gian]['thp'] += (r.user_dl_avg_throughput or 0)
-                agg[r.thoi_gian]['cnt'] += 1
-            dates = sorted(agg.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-            charts['5g_traf'] = {'title': 'Total 5G Traffic', 'labels': dates, 'datasets': [{'label': 'GB', 'data': [agg[d]['traf'] for d in dates], 'borderColor': 'orange'}]}
-            charts['5g_thp'] = {'title': 'Avg 5G Throughput', 'labels': dates, 'datasets': [{'label': 'Mbps', 'data': [(agg[d]['thp']/agg[d]['cnt']) if agg[d]['cnt'] else 0 for d in dates], 'borderColor': 'purple'}]}
+                # Create Charts
+                charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf}
+                charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput}
 
     return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
 
