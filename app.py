@@ -72,6 +72,7 @@ def clean_header(col_name):
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
+    
     col_upper = col_name.upper()
     for key, val in special_map.items():
         if key.upper() == col_upper: return val
@@ -312,17 +313,17 @@ BASE_LAYOUT = """
     <style>
         :root { --acrylic-bg: rgba(255, 255, 255, 0.6); --acrylic-blur: blur(20px); --sidebar-bg: rgba(240, 240, 245, 0.85); --primary-color: #0078d4; --text-color: #212529; --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05); --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1); --border-radius: 12px; }
         body { background: linear-gradient(135deg, #f3f4f6 0%, #eef2f3 100%); font-family: 'Segoe UI', sans-serif; color: var(--text-color); overflow-x: hidden; }
-        .sidebar { height: 100vh; width: 260px; position: fixed; top: 0; left: 0; background: var(--sidebar-bg); backdrop-filter: var(--acrylic-blur); border-right: 1px solid rgba(255,255,255,0.5); z-index: 1000; transition: all 0.3s; padding-top: 1rem; overflow-y: auto; }
-        .sidebar-header { padding: 1.5rem; color: var(--primary-color); font-weight: 600; font-size: 1.5rem; text-align: center; }
+        .sidebar { height: 100vh; width: 260px; position: fixed; top: 0; left: 0; background: var(--sidebar-bg); backdrop-filter: var(--acrylic-blur); border-right: 1px solid rgba(255,255,255,0.5); z-index: 1000; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-top: 1rem; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; color: var(--primary-color); font-weight: 600; font-size: 1.5rem; text-align: center; letter-spacing: 0.5px; }
         .sidebar-menu { padding: 0; list-style: none; margin: 1rem 0; }
         .sidebar-menu a { display: flex; align-items: center; padding: 14px 25px; color: #555; text-decoration: none; font-weight: 500; border-left: 4px solid transparent; transition: all 0.2s ease; margin: 4px 12px; border-radius: 8px; }
         .sidebar-menu a:hover, .sidebar-menu a.active { background-color: rgba(255, 255, 255, 0.8); color: var(--primary-color); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
         .sidebar-menu a.active { border-left-color: var(--primary-color); background-color: rgba(255, 255, 255, 0.95); }
         .sidebar-menu i { margin-right: 15px; width: 24px; text-align: center; font-size: 1.1rem; }
         .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; transition: all 0.3s ease; }
-        .card { border: none; border-radius: var(--border-radius); background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); box-shadow: var(--shadow-soft); transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 1.5rem; }
+        .card { border: none; border-radius: var(--border-radius); background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); box-shadow: var(--shadow-soft); transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 1.5rem; overflow: hidden; }
         .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-        .card-header { background-color: rgba(255, 255, 255, 0.9); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 1.25rem 1.5rem; font-weight: 600; color: #333; }
+        .card-header { background-color: rgba(255, 255, 255, 0.9); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 1.25rem 1.5rem; font-weight: 600; color: #333; font-size: 1.1rem; }
         .card-body { padding: 1.5rem; }
         .btn-primary { background-color: var(--primary-color); border: none; box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3); border-radius: 6px; padding: 0.5rem 1.25rem; font-weight: 500; transition: all 0.2s; }
         .btn-primary:hover { background-color: #0063b1; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4); transform: translateY(-1px); }
@@ -405,6 +406,7 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-warning fw-bold mb-1">5</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Congestion</p></div></div>
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-success fw-bold mb-1">OK</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">System Status</p></div></div>
             </div>
+            <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-database me-2"></i>Data Overview</h5>
             <div class="row g-4">
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-primary fw-bold mb-3 small">RF Database</h6><div class="d-flex justify-content-between mb-2"><span>RF 3G</span><span class="badge bg-white text-dark border">{{ count_rf3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>RF 4G</span><span class="badge bg-white text-dark border">{{ count_rf4g }}</span></div><div class="d-flex justify-content-between"><span>RF 5G</span><span class="badge bg-white text-dark border">{{ count_rf5g }}</span></div></div></div>
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-success fw-bold mb-3 small">KPI Records</h6><div class="d-flex justify-content-between mb-2"><span>KPI 3G</span><span class="badge bg-white text-dark border">{{ count_kpi3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>KPI 4G</span><span class="badge bg-white text-dark border">{{ count_kpi4g }}</span></div><div class="d-flex justify-content-between"><span>KPI 5G</span><span class="badge bg-white text-dark border">{{ count_kpi5g }}</span></div></div></div>
@@ -419,7 +421,7 @@ CONTENT_TEMPLATE = """
             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/poi" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-md-8"><label class="form-label fw-bold small text-muted">CHỌN POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-4 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Xem Báo Cáo</button></div></form></div></div>
             {% if poi_charts %}
                 <div class="row">{% for chart_id, chart_data in poi_charts.items() %}<div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_data.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>{% endfor %}</div>
-                <script>{% for chart_id, chart_data in poi_charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',cd.datasets,cd.labels);}},plugins:{legend:{position:'bottom'}}}});})();{% endfor %}</script>
+                <script>{% for chart_id, chart_data in poi_charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',[cd.datasets[di]],cd.labels);}},plugins:{legend:{position:'bottom'}}}});})();{% endfor %}</script>
             {% elif selected_poi %}<div class="alert alert-warning border-0 shadow-sm">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>{% else %}<div class="text-center text-muted py-5"><i class="fa-solid fa-map-location-dot fa-3x mb-3"></i><p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p></div>{% endif %}
         {% elif active_page == 'worst_cell' %}
             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div><div class="col-auto"><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export Excel</button></div></form></div></div>
@@ -516,8 +518,9 @@ def kpi():
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
-        try: data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-        except: pass 
+        try:
+            data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+        except ValueError: pass 
 
         if data:
             all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
@@ -548,7 +551,9 @@ def kpi():
             poi_list = sorted(list(set(p4 + p5)))
         except: pass
 
-    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', selected_tech=selected_tech, cell_name_input=cell_name_input, selected_poi=poi_input, poi_list=poi_list, charts=charts)
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
+                       selected_tech=selected_tech, cell_name_input=cell_name_input, 
+                       selected_poi=poi_input, poi_list=poi_list, charts=charts)
 
 @app.route('/poi')
 @login_required
@@ -572,22 +577,8 @@ def poi():
             ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3}]
             ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3}]
             
-            # Detail Datasets (for popup only, hidden in main chart?? actually for zoom we pass same data structure. 
-            # The JS handles "Zoom In" by redrawing whatever datasets we passed.
-            # So if we want detailed lines in popup, we must include them here OR make a separate API call.
-            # Current structure passes everything. Let's include detailed lines but HIDDEN in main chart.
-            ds_traf_detail = []
-            ds_thput_detail = []
-            grouped = defaultdict(list)
-            for r in k4: grouped[r.ten_cell].append(r)
-            colors = generate_colors(len(grouped))
-            for i, (cell, rows) in enumerate(grouped.items()):
-                row_map = {r.thoi_gian: r for r in rows}
-                ds_traf_detail.append({'label': cell, 'data': [row_map.get(d).traffic if row_map.get(d) else 0 for d in dates4], 'borderColor': colors[i], 'fill': False, 'hidden': True})
-                ds_thput_detail.append({'label': cell, 'data': [row_map.get(d).user_dl_avg_thput if row_map.get(d) else 0 for d in dates4], 'borderColor': colors[i], 'fill': False, 'hidden': True})
-
-            charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg + ds_traf_detail}
-            charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg + ds_thput_detail}
+            charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg}
+            charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg}
     
     # 5G Chart (Aggregate)
     c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()] if pname else []
@@ -606,18 +597,8 @@ def poi():
             ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3}]
             ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3}]
             
-            ds_traf_detail5 = []
-            ds_thput_detail5 = []
-            grouped5 = defaultdict(list)
-            for r in k5: grouped5[r.ten_cell].append(r)
-            colors = generate_colors(len(grouped5))
-            for i, (cell, rows) in enumerate(grouped5.items()):
-                row_map = {r.thoi_gian: r for r in rows}
-                ds_traf_detail5.append({'label': cell, 'data': [row_map.get(d).traffic if row_map.get(d) else 0 for d in dates5], 'borderColor': colors[i], 'fill': False, 'hidden': True})
-                ds_thput_detail5.append({'label': cell, 'data': [row_map.get(d).user_dl_avg_throughput if row_map.get(d) else 0 for d in dates5], 'borderColor': colors[i], 'fill': False, 'hidden': True})
-
-            charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5 + ds_traf_detail5}
-            charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5 + ds_thput_detail5}
+            charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5}
+            charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5}
 
     pois = []
     try: pois = sorted(list(set([r[0] for r in db.session.query(POI4G.poi_name).distinct()] + [r[0] for r in db.session.query(POI5G.poi_name).distinct()])))
@@ -630,24 +611,39 @@ def poi():
 def conges_3g():
     conges_data, target_dates = [], []
     action = request.args.get('action')
+    
     if action in ['execute', 'export']:
         try:
             all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
             date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
             if len(date_objs) >= 3:
                 target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
-                records = KPI3G.query.filter(KPI3G.thoi_gian.in_(target_dates), ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))).all()
+                records = KPI3G.query.filter(
+                    KPI3G.thoi_gian.in_(target_dates),
+                    ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+                ).all()
                 groups = defaultdict(list)
                 for r in records: groups[r.ten_cell].append(r)
                 for cell, rows in groups.items():
                     if len(rows) == 3:
-                        conges_data.append({'cell_name': cell, 'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2), 'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2), 'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2), 'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)})
+                        conges_data.append({
+                            'cell_name': cell,
+                            'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2),
+                            'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2),
+                            'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
+                            'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
+                        })
+                        
         except: pass
+        
     if action == 'export':
         df = pd.DataFrame(conges_data)
-        output = BytesIO(); 
-        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Congestion 3G')
-        output.seek(0); return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+             df.to_excel(writer, index=False, sheet_name='Congestion 3G')
+        output.seek(0)
+        return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
+
     return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
 @app.route('/worst-cell')
@@ -655,23 +651,41 @@ def conges_3g():
 def worst_cell():
     duration = int(request.args.get('duration', 1))
     action = request.args.get('action')
+    
     all_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
     date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
     target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:duration]]
+    
     records = []
     if target_dates:
-        records = KPI4G.query.filter(KPI4G.thoi_gian.in_(target_dates), ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'), ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))).all()
+        records = KPI4G.query.filter(
+            KPI4G.thoi_gian.in_(target_dates),
+            ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
+            ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
+        ).all()
+    
     groups = defaultdict(list)
     for r in records: groups[r.ten_cell].append(r)
+    
     results = []
     for cell, rows in groups.items():
         if len(rows) == duration:
-            results.append({'cell_name': cell, 'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2), 'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2), 'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2), 'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)})
+            results.append({
+                'cell_name': cell,
+                'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2),
+                'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2),
+                'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
+                'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
+            })
+            
     if action == 'export':
         df = pd.DataFrame(results)
-        output = BytesIO(); 
-        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Worst Cells')
-        output.seek(0); return send_file(output, download_name=f'WorstCell_{duration}days.xlsx', as_attachment=True)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+             df.to_excel(writer, index=False, sheet_name='Worst Cells')
+        output.seek(0)
+        return send_file(output, download_name=f'WorstCell_{duration}days.xlsx', as_attachment=True)
+
     return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=results, dates=target_dates, duration=duration)
 
 @app.route('/traffic-down')
@@ -691,12 +705,14 @@ def traffic_down():
                 analysis_date = latest.strftime('%d/%m/%Y')
                 needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
                 needed_str = [d.strftime('%d/%m/%Y') for d in needed]
+                
                 records = Model.query.filter(Model.thoi_gian.in_(needed_str)).all()
                 data_map = defaultdict(dict)
                 for r in records:
                     if r.ten_cell.startswith('MBF_TH') or r.ten_cell.startswith('VNP-4G'): continue
                     try: data_map[r.ten_cell][datetime.strptime(r.thoi_gian, '%d/%m/%Y')] = r.traffic or 0
                     except: pass
+                
                 last_week = latest - timedelta(days=7)
                 for cell, d_map in data_map.items():
                     t0 = d_map.get(latest, 0)
@@ -706,16 +722,20 @@ def traffic_down():
                         if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
                     if t_last > 1 and t0 < 0.7 * t_last:
                         degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+
         if action == 'export_zero':
             df = pd.DataFrame(zero_traffic)
-            output = BytesIO(); 
+            output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0); return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
+            output.seek(0)
+            return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_degraded':
             df = pd.DataFrame(degraded)
-            output = BytesIO(); 
+            output = BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0); return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
+            output.seek(0)
+            return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
+
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
 
 @app.route('/rf')
@@ -725,6 +745,7 @@ def rf():
     action = request.args.get('action')
     search = request.args.get('cell_search', '').strip()
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
     if action == 'export':
          def generate():
             yield '\ufeff'.encode('utf-8')
@@ -732,8 +753,10 @@ def rf():
             yield (','.join(cols) + '\n').encode('utf-8')
             q = db.select(Model)
             if search: q = q.filter(Model.cell_code.like(f"%{search}%"))
-            for row in db.session.execute(q).scalars(): yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+            for row in db.session.execute(q).scalars():
+                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
          return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
+
     query = Model.query
     if search: query = query.filter(Model.cell_code.like(f"%{search}%"))
     rows = query.limit(500).all()
@@ -747,108 +770,98 @@ def import_data():
     if current_user.role != 'admin':
         flash('Bạn không có quyền truy cập trang này!', 'danger')
         return redirect(url_for('index'))
+
     if request.method == 'POST':
         files = request.files.getlist('file')
-        itype = request.form.get('type')
+        itype = request.form.get('type') or request.args.get('type')
         cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
         Model = cfg.get(itype)
+        
         if Model:
             valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
             for file in files:
                 try:
                     if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
                     else: chunks = [pd.read_excel(file)]
+                    
                     for df in chunks:
                         df.columns = [clean_header(c) for c in df.columns]
                         records = []
                         for row in df.to_dict('records'):
                             clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
-                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
+                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
+                                clean_row['traffic'] = clean_row['traffic_vol_dl']
                             records.append(clean_row)
                         if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
                     flash(f'Imported {file.filename}', 'success')
                 except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
         return redirect(url_for('import_data'))
+
+    # History
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
     return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
 
-@app.route('/backup', methods=['POST'])
+# Placeholder routes for script/users/profile
+@app.route('/script')
 @login_required
-def backup_db():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    stream = BytesIO()
-    with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
-        models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
-        for fname, Model in models.items():
-            cols = [c.key for c in Model.__table__.columns]
-            data = db.session.query(Model).all()
-            if not data: df = pd.DataFrame(columns=cols)
-            else: df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data])
-            zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
-    stream.seek(0)
-    return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
-
-@app.route('/restore', methods=['POST'])
-@login_required
-def restore_db():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    file = request.files['file']
-    if file:
-        try:
-            with zipfile.ZipFile(file) as zf:
-                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
-                for fname in zf.namelist():
-                    if fname in models:
-                        Model = models[fname]
-                        with zf.open(fname) as f: df = pd.read_csv(f, encoding='utf-8-sig')
-                        db.session.query(Model).delete()
-                        records = df.to_dict('records')
-                        clean_records = [{k: (v if not pd.isna(v) else None) for k, v in r.items() if k in [c.key for c in Model.__table__.columns]} for r in records]
-                        if clean_records: db.session.bulk_insert_mappings(Model, clean_records)
-                db.session.commit()
-                flash('Restore Success', 'success')
-        except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
-    return redirect(url_for('backup_restore'))
-
-# Placeholder routes
-@app.route('/script') @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
-@app.route('/users') @login_required
+@app.route('/users')
+@login_required
 def manage_users(): return render_page(USER_MANAGEMENT_TEMPLATE, users=User.query.all(), active_page='users')
-@app.route('/users/add', methods=['POST']) @login_required
-def add_user(): u = User(username=request.form['username'], role=request.form['role']); u.set_password(request.form['password']); db.session.add(u); db.session.commit(); return redirect(url_for('manage_users'))
-@app.route('/users/delete/<int:id>') @login_required
+@app.route('/users/add', methods=['POST'])
+@login_required
+def add_user(): 
+    u = User(username=request.form['username'], role=request.form['role']); u.set_password(request.form['password'])
+    db.session.add(u); db.session.commit(); return redirect(url_for('manage_users'))
+@app.route('/users/delete/<int:id>')
+@login_required
 def delete_user(id): db.session.delete(db.session.get(User, id)); db.session.commit(); return redirect(url_for('manage_users'))
-@app.route('/users/reset-pass/<int:id>') @login_required
+@app.route('/users/reset-pass/<int:id>')
+@login_required
 def reset_pass(id): u=db.session.get(User, id); u.set_password(request.args.get('new_pass')); db.session.commit(); return redirect(url_for('manage_users'))
-@app.route('/profile') @login_required
+@app.route('/profile')
+@login_required
 def profile(): return render_page(PROFILE_TEMPLATE, active_page='profile')
-@app.route('/change-password', methods=['POST']) @login_required
+@app.route('/change-password', methods=['POST'])
+@login_required
 def change_password(): 
     if current_user.check_password(request.form['current_password']): current_user.set_password(request.form['new_password']); db.session.commit(); flash('Done', 'success')
     return redirect(url_for('profile'))
-@app.route('/rf/add', methods=['GET', 'POST']) @login_required
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
 def rf_add():
-    tech = request.args.get('tech', '3g'); Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if request.method == 'POST': db.session.add(Model(**{k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()})); db.session.commit(); return redirect(url_for('rf', tech=tech))
-    return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=[c.key for c in Model.__table__.columns if c.key != 'id'], tech=tech, obj={})
-@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST']) @login_required
+    tech = request.args.get('tech', '3g')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
+        db.session.add(Model(**data)); db.session.commit(); flash('Added', 'success')
+        return redirect(url_for('rf', tech=tech))
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=cols, tech=tech, obj={})
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
 def rf_edit(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech); obj = db.session.get(Model, id)
-    if request.method == 'POST': 
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if request.method == 'POST':
         for k,v in request.form.items(): setattr(obj, k, v)
-        db.session.commit(); return redirect(url_for('rf', tech=tech))
-    return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=[c.key for c in Model.__table__.columns if c.key != 'id'], tech=tech, obj=obj.__dict__)
-@app.route('/rf/delete/<tech>/<int:id>') @login_required
-def rf_delete(tech, id): db.session.delete(db.session.get({'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech), id)); db.session.commit(); return redirect(url_for('rf', tech=tech))
-@app.route('/rf/detail/<tech>/<int:id>') @login_required
-def rf_detail(tech, id): return render_page(RF_DETAIL_TEMPLATE, obj=db.session.get({'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech), id).__dict__, tech=tech)
-@app.route('/rf/reset') @login_required
-def rf_reset(): 
-    if current_user.role == 'admin': db.session.query({'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(request.args.get('type'))).delete(); db.session.commit()
-    return redirect(url_for('import_data'))
+        db.session.commit(); flash('Updated', 'success'); return redirect(url_for('rf', tech=tech))
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=cols, tech=tech, obj=obj.__dict__)
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    db.session.delete(db.session.get(Model, id)); db.session.commit(); flash('Deleted', 'success')
+    return redirect(url_for('rf', tech=tech))
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
 
 if __name__ == '__main__':
     app.run(debug=True)
