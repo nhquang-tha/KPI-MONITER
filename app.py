@@ -126,6 +126,8 @@ class RF3G(db.Model):
     total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
+    
+    # Optional fields
     psc = db.Column(db.String(50))
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
@@ -152,6 +154,7 @@ class RF4G(db.Model):
     total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
+    
     dl_uarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
@@ -180,6 +183,7 @@ class RF5G(db.Model):
     total_tilt = db.Column(db.Float)
     equipment = db.Column(db.String(50))
     frequency = db.Column(db.String(50))
+    
     nrarfcn = db.Column(db.String(50))
     pci = db.Column(db.String(50))
     tac = db.Column(db.String(50))
@@ -311,27 +315,138 @@ BASE_LAYOUT = """
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --acrylic-bg: rgba(255, 255, 255, 0.6); --acrylic-blur: blur(20px); --sidebar-bg: rgba(240, 240, 245, 0.85); --primary-color: #0078d4; --text-color: #212529; --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05); --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1); --border-radius: 12px; }
-        body { background: linear-gradient(135deg, #f3f4f6 0%, #eef2f3 100%); font-family: 'Segoe UI', sans-serif; color: var(--text-color); overflow-x: hidden; }
-        .sidebar { height: 100vh; width: 260px; position: fixed; top: 0; left: 0; background: var(--sidebar-bg); backdrop-filter: var(--acrylic-blur); border-right: 1px solid rgba(255,255,255,0.5); z-index: 1000; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); padding-top: 1rem; overflow-y: auto; }
-        .sidebar-header { padding: 1.5rem; color: var(--primary-color); font-weight: 600; font-size: 1.5rem; text-align: center; letter-spacing: 0.5px; }
+        :root {
+            --acrylic-bg: rgba(255, 255, 255, 0.6);
+            --acrylic-blur: blur(20px);
+            --sidebar-bg: rgba(240, 240, 245, 0.85);
+            --primary-color: #0078d4;
+            --text-color: #212529;
+            --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05);
+            --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
+            --border-radius: 12px;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f3f4f6 0%, #eef2f3 100%);
+            font-family: 'Segoe UI', sans-serif;
+            color: var(--text-color);
+            overflow-x: hidden;
+        }
+
+        .sidebar {
+            height: 100vh;
+            width: 260px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            background: var(--sidebar-bg);
+            backdrop-filter: var(--acrylic-blur);
+            -webkit-backdrop-filter: var(--acrylic-blur);
+            border-right: 1px solid rgba(255,255,255,0.5);
+            z-index: 1000;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            padding-top: 1rem;
+            overflow-y: auto;
+            padding-bottom: 60px; /* Fix menu cut off */
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            color: var(--primary-color);
+            font-weight: 600;
+            font-size: 1.5rem;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
         .sidebar-menu { padding: 0; list-style: none; margin: 1rem 0; }
-        .sidebar-menu a { display: flex; align-items: center; padding: 14px 25px; color: #555; text-decoration: none; font-weight: 500; border-left: 4px solid transparent; transition: all 0.2s ease; margin: 4px 12px; border-radius: 8px; }
-        .sidebar-menu a:hover, .sidebar-menu a.active { background-color: rgba(255, 255, 255, 0.8); color: var(--primary-color); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
-        .sidebar-menu a.active { border-left-color: var(--primary-color); background-color: rgba(255, 255, 255, 0.95); }
+
+        .sidebar-menu a {
+            display: flex;
+            align-items: center;
+            padding: 14px 25px;
+            color: #555;
+            text-decoration: none;
+            font-weight: 500;
+            border-left: 4px solid transparent;
+            transition: all 0.2s ease;
+            margin: 4px 12px;
+            border-radius: 8px;
+        }
+
+        .sidebar-menu a:hover, .sidebar-menu a.active {
+            background-color: rgba(255, 255, 255, 0.8);
+            color: var(--primary-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .sidebar-menu a.active {
+            border-left-color: var(--primary-color);
+            background-color: rgba(255, 255, 255, 0.95);
+        }
+
         .sidebar-menu i { margin-right: 15px; width: 24px; text-align: center; font-size: 1.1rem; }
+
         .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; transition: all 0.3s ease; }
-        .card { border: none; border-radius: var(--border-radius); background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); box-shadow: var(--shadow-soft); transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 1.5rem; overflow: hidden; }
+
+        .card {
+            border: none;
+            border-radius: var(--border-radius);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            box-shadow: var(--shadow-soft);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            margin-bottom: 1.5rem;
+            overflow: hidden;
+        }
+
         .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-        .card-header { background-color: rgba(255, 255, 255, 0.9); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 1.25rem 1.5rem; font-weight: 600; color: #333; font-size: 1.1rem; }
+
+        .card-header {
+            background-color: rgba(255, 255, 255, 0.9);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding: 1.25rem 1.5rem;
+            font-weight: 600;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
         .card-body { padding: 1.5rem; }
-        .btn-primary { background-color: var(--primary-color); border: none; box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3); border-radius: 6px; padding: 0.5rem 1.25rem; font-weight: 500; transition: all 0.2s; }
-        .btn-primary:hover { background-color: #0063b1; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4); transform: translateY(-1px); }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            border: none;
+            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3);
+            border-radius: 6px;
+            padding: 0.5rem 1.25rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background-color: #0063b1;
+            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4);
+            transform: translateY(-1px);
+        }
+
         .table { background: transparent; }
-        .table thead th { background-color: rgba(248, 249, 250, 0.8); border-bottom: 2px solid #e9ecef; color: #555; font-weight: 600; font-size: 0.9rem; text-transform: uppercase; }
+        .table thead th {
+            background-color: rgba(248, 249, 250, 0.8);
+            border-bottom: 2px solid #e9ecef;
+            color: #555;
+            font-weight: 600;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
         .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
         .chart-container canvas { cursor: zoom-in; }
-        @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
+
+        @media (max-width: 768px) {
+            .sidebar { margin-left: -260px; }
+            .sidebar.active { margin-left: 0; }
+            .main-content { margin-left: 0; padding: 15px; }
+        }
     </style>
 </head>
 <body>
