@@ -420,22 +420,17 @@ BASE_LAYOUT = """
         function addRow() {
             var table = document.getElementById("rruTable").getElementsByTagName('tbody')[0];
             var newRow = table.insertRow(table.rows.length);
-            var cell1 = newRow.insertCell(0);
-            var cell2 = newRow.insertCell(1);
-            var cell3 = newRow.insertCell(2);
-            var cell4 = newRow.insertCell(3);
-            var cell5 = newRow.insertCell(4);
-            var cell6 = newRow.insertCell(5);
-            var cell7 = newRow.insertCell(6);
             var idx = table.rows.length;
-            
-            cell1.innerHTML = '<input type="text" name="rru_name[]" class="form-control" placeholder="RRU'+idx+'" value="RRU'+idx+'">';
-            cell2.innerHTML = '<input type="number" name="srn[]" class="form-control" value="'+(60+idx-1)+'">';
-            cell3.innerHTML = '<input type="number" name="slot[]" class="form-control" value="0">';
-            cell4.innerHTML = '<input type="number" name="port[]" class="form-control" value="'+(idx-1)+'">';
-            cell5.innerHTML = '<input type="number" name="rcn[]" class="form-control" value="'+(idx-1)+'">';
-            cell6.innerHTML = '<input type="number" name="sectorid[]" class="form-control" value="'+(idx-1)+'">';
-            cell7.innerHTML = '<button type="button" class="btn btn-danger btn-sm" onclick="this.closest(\'tr\').remove()">X</button>';
+            newRow.innerHTML = `
+                <td><input type="text" name="rn[]" class="form-control" value="RRU${idx}"></td>
+                <td><input type="number" name="srn[]" class="form-control" value="${60+idx-1}"></td>
+                <td><input type="number" name="hsn[]" class="form-control" value="0"></td>
+                <td><input type="number" name="hpn[]" class="form-control" value="${idx-1}"></td>
+                <td><input type="number" name="rcn[]" class="form-control" value="${idx-1}"></td>
+                <td><input type="number" name="sectorid[]" class="form-control" value="${idx-1}"></td>
+                <td><input type="number" name="rxnum[]" class="form-control" value="2"></td>
+                <td><input type="number" name="txnum[]" class="form-control" value="1"></td>
+                <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>`;
         }
     </script>
 </body>
@@ -606,15 +601,17 @@ CONTENT_TEMPLATE = """
                                 <div class="col-md-4"><label class="form-label">Site Name/Code</label><input type="text" name="site_name" class="form-control" placeholder="e.g. SR_TTH_001"></div>
                             </div>
                             <table class="table table-bordered" id="rruTable">
-                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>Action</th></tr></thead>
+                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead>
                                 <tbody>
                                     <tr>
-                                        <td><input type="text" name="rru_name[]" class="form-control" value="RRU1"></td>
+                                        <td><input type="text" name="rn[]" class="form-control" value="RRU1"></td>
                                         <td><input type="number" name="srn[]" class="form-control" value="60"></td>
-                                        <td><input type="number" name="slot[]" class="form-control" value="3"></td>
-                                        <td><input type="number" name="port[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="hsn[]" class="form-control" value="2"></td>
+                                        <td><input type="number" name="hpn[]" class="form-control" value="0"></td>
                                         <td><input type="number" name="rcn[]" class="form-control" value="0"></td>
                                         <td><input type="number" name="sectorid[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="rxnum[]" class="form-control" value="2"></td>
+                                        <td><input type="number" name="txnum[]" class="form-control" value="1"></td>
                                         <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
                                     </tr>
                                 </tbody>
@@ -768,12 +765,8 @@ def kpi():
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
-    elif cell_name_input and RF_Model:
-        site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
-        if site_cells:
-            target_cells = [c.cell_code for c in site_cells]
-        else:
-            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+    elif cell_name_input:
+        target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
@@ -1014,29 +1007,41 @@ def script():
     script_result = ""
     if request.method == 'POST':
         tech = request.form.get('tech')
-        site = request.form.get('site_name', 'SITE_XXX')
-        rrus = request.form.getlist('rru_name[]')
+        rns = request.form.getlist('rn[]')
         srns = request.form.getlist('srn[]')
-        slots = request.form.getlist('slot[]')
-        ports = request.form.getlist('port[]')
-        
+        hsns = request.form.getlist('hsn[]')
+        hpns = request.form.getlist('hpn[]')
         rcns = request.form.getlist('rcn[]')
-        sec_ids = request.form.getlist('sectorid[]')
+        secids = request.form.getlist('sectorid[]')
+        rxnums = request.form.getlist('rxnum[]')
+        txnums = request.form.getlist('txnum[]')
 
         lines = []
-        
-        if tech == '3g900':
-             for i in range(len(rrus)):
-                 lines.append(f'ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;')
-                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS=GU, RN={rrus[i]}, RXNUM=2, TXNUM=1, MNTMODE=NORMAL...')
-                 lines.append(f'ADD SECTOR: SECTORID={sec_ids[i]}, ANTNUM=2, ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A...')
-        elif tech == '4g':
-             for i in range(len(rrus)):
-                 lines.append(f'ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}...')
-                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS=LO, RN={rrus[i]}, RXNUM=4, TXNUM=4...')
-        
+        for i in range(len(rns)):
+            # Generate RRUCHAIN
+            lines.append(f"ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={hsns[i]}, HPN={hpns[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;")
+            
+            # Generate RRU
+            rs_mode = "GU" if "900" in tech else "UO" if "2100" in tech else "LO"
+            if tech == '4g': rs_mode = "LO"
+            lines.append(f"ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS={rs_mode}, RN={rns[i]}, RXNUM={rxnums[i]}, TXNUM={txnums[i]}, MNTMODE=NORMAL, RFDCPWROFFALMDETECTSW=OFF, RFTXSIGNDETECTSW=OFF;")
+            
+            # Generate SECTOR
+            ant_num = rxnums[i]
+            ant_str = f"ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A"
+            if int(ant_num) >= 2: ant_str += f", ANT2CN=0, ANT2SRN={srns[i]}, ANT2SN=0, ANT2N=R0B"
+            if int(ant_num) >= 4: ant_str += f", ANT3CN=0, ANT3SRN={srns[i]}, ANT3SN=0, ANT3N=R0C, ANT4CN=0, ANT4SRN={srns[i]}, ANT4SN=0, ANT4N=R0D"
+            lines.append(f"ADD SECTOR: SECTORID={secids[i]}, ANTNUM={ant_num}, {ant_str}, CREATESECTOREQM=FALSE;")
+            
+            # Generate SECTOREQM
+            ant_type_str = "ANTTYPE1=RXTX_MODE"
+            if int(ant_num) >= 2: ant_type_str += ", ANTTYPE2=RXTX_MODE"
+            if int(ant_num) >= 4: ant_type_str += ", ANTTYPE3=RXTX_MODE, ANTTYPE4=RXTX_MODE"
+            lines.append(f"ADD SECTOREQM: SECTOREQMID={secids[i]}, SECTORID={secids[i]}, ANTCFGMODE=ANTENNAPORT, ANTNUM={ant_num}, {ant_str.replace(f'ANT1SRN={srns[i]}', 'ANT1SRN=0').replace(f'ANT2SRN={srns[i]}', 'ANT2SRN=0').replace(f'ANT3SRN={srns[i]}', 'ANT3SRN=0').replace(f'ANT4SRN={srns[i]}', 'ANT4SRN=0')}, {ant_type_str};")
+            lines.append("") 
+
         script_result = "\n".join(lines)
-        
+
     return render_page(CONTENT_TEMPLATE, title="Script", active_page='script', script_result=script_result)
 
 @app.route('/rf')
