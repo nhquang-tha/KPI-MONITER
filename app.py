@@ -297,7 +297,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (DEFINED BEFORE USAGE)
+# 4. TEMPLATES
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -415,6 +415,24 @@ BASE_LAYOUT = """
             for(var i=0, n=checkboxes.length;i<n;i++) {
                 checkboxes[i].checked = source.checked;
             }
+        }
+        
+        // Dynamic row script for script page
+        function addRow() {
+            var table = document.getElementById("rruTable").getElementsByTagName('tbody')[0];
+            var newRow = table.insertRow(table.rows.length);
+            var cell1 = newRow.insertCell(0);
+            var cell2 = newRow.insertCell(1);
+            var cell3 = newRow.insertCell(2);
+            var cell4 = newRow.insertCell(3);
+            var cell5 = newRow.insertCell(4);
+            var idx = table.rows.length;
+            
+            cell1.innerHTML = '<input type="text" name="rru_name[]" class="form-control" placeholder="RRU'+idx+'" value="RRU'+idx+'">';
+            cell2.innerHTML = '<input type="number" name="srn[]" class="form-control" value="'+(60+idx-1)+'">';
+            cell3.innerHTML = '<input type="number" name="slot[]" class="form-control" value="3">';
+            cell4.innerHTML = '<input type="number" name="port[]" class="form-control" value="'+(idx-1)+'">';
+            cell5.innerHTML = '<button type="button" class="btn btn-danger btn-sm" onclick="this.closest(\'tr\').remove()">X</button>';
         }
     </script>
 </body>
@@ -569,7 +587,64 @@ CONTENT_TEMPLATE = """
 
         {% elif active_page == 'import' %}
              <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary">Import Data</h5><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label">Chọn Loại Dữ Liệu</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option><option value="kpi3g">KPI 3G</option><option value="kpi4g">KPI 4G</option><option value="kpi5g">KPI 5G</option></select></div><div class="mb-3"><label class="form-label">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100">Upload</button></form></div></div><div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+        
+        {% elif active_page == 'script' %}
+             <div class="card"><div class="card-header">Generate Script</div><div class="card-body">
+                <ul class="nav nav-tabs mb-3" id="scriptTabs" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab3g900" type="button">3G 900</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab4g" type="button">4G</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab3g2100" type="button">3G 2100</button></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="tab3g900">
+                        <form method="POST" action="/script">
+                            <input type="hidden" name="tech" value="3g900">
+                            <div class="row mb-3">
+                                <div class="col-md-4"><label class="form-label">Site Name/Code</label><input type="text" name="site_name" class="form-control" placeholder="e.g. SR_TTH_001"></div>
+                            </div>
+                            <table class="table table-bordered" id="rruTable">
+                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <tr>
+                                        <td><input type="text" name="rru_name[]" class="form-control" value="RRU1"></td>
+                                        <td><input type="number" name="srn[]" class="form-control" value="60"></td>
+                                        <td><input type="number" name="slot[]" class="form-control" value="3"></td>
+                                        <td><input type="number" name="port[]" class="form-control" value="0"></td>
+                                        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button type="button" class="btn btn-success mb-3" onclick="addRow()">+ Add RRU</button>
+                            <br>
+                            <button class="btn btn-primary">Generate Script</button>
+                        </form>
+                    </div>
+                     <!-- Placeholder for other tabs (logic is similar, just changing hidden input value) -->
+                     <div class="tab-pane fade" id="tab4g"><div class="alert alert-info">Select '3G 900' tab for demo. The logic is the same.</div></div>
+                     <div class="tab-pane fade" id="tab3g2100"><div class="alert alert-info">Select '3G 900' tab for demo.</div></div>
+                </div>
+                {% if script_result %}
+                <div class="mt-4">
+                    <h5>Result:</h5>
+                    <textarea class="form-control" rows="10">{{ script_result }}</textarea>
+                </div>
+                {% endif %}
+             </div></div>
+
         {% endif %}
+    </div>
+</div>
+{% endblock %}
+"""
+
+SCRIPT_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">Script Generator</div>
+    <div class="card-body">
+        <!-- Content moved to CONTENT_TEMPLATE under 'script' condition for simplicity in this single-file setup -->
+        <!-- But logic remains the same -->
     </div>
 </div>
 {% endblock %}
@@ -682,7 +757,8 @@ def kpi():
     
     target_cells = []
     KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
-    
+    RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
+
     if poi_input:
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
@@ -923,6 +999,37 @@ def traffic_down():
 
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
 
+@app.route('/script', methods=['GET', 'POST'])
+@login_required
+def script():
+    script_result = ""
+    if request.method == 'POST':
+        tech = request.form.get('tech')
+        site = request.form.get('site_name', 'SITE_XXX')
+        rrus = request.form.getlist('rru_name[]')
+        srns = request.form.getlist('srn[]')
+        slots = request.form.getlist('slot[]')
+        ports = request.form.getlist('port[]')
+        
+        lines = []
+        
+        # Determine script pattern based on Tech (Simplified for demo)
+        # In reality, you'd match the exact syntax from your CSV files
+        if tech == '3g900':
+             for i in range(len(rrus)):
+                 # Example pattern from 3G_900.csv
+                 lines.append(f'ADD RRUCHAIN: RCN={i}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;')
+                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={i}, PS=0, RT=MRRU, RS=GU, RN={rrus[i]}, RXNUM=2, TXNUM=1, MNTMODE=NORMAL...')
+                 lines.append(f'ADD SECTOR: SECTORID={i}, ANTNUM=2, ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A...')
+        elif tech == '4g':
+             for i in range(len(rrus)):
+                 lines.append(f'ADD RRUCHAIN: RCN={i}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}...')
+                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={i}, PS=0, RT=MRRU, RS=LO, RN={rrus[i]}, RXNUM=4, TXNUM=4...')
+        
+        script_result = "\n".join(lines)
+        
+    return render_page(CONTENT_TEMPLATE, title="Script", active_page='script', script_result=script_result)
+
 @app.route('/rf')
 @login_required
 def rf():
@@ -994,7 +1101,7 @@ def backup_db():
     if current_user.role != 'admin': return redirect(url_for('index'))
     selected_tables = request.form.getlist('tables')
     if not selected_tables:
-        flash('No tables selected for backup', 'warning')
+        flash('No tables selected', 'warning')
         return redirect(url_for('backup_restore'))
         
     stream = BytesIO()
@@ -1044,9 +1151,6 @@ def backup_restore():
         return redirect(url_for('index'))
     return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup / Restore", active_page='backup_restore')
 
-@app.route('/script')
-@login_required
-def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
 @app.route('/users')
 @login_required
 def manage_users(): return render_page(USER_MANAGEMENT_TEMPLATE, users=User.query.all(), active_page='users')
