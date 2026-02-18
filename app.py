@@ -72,16 +72,13 @@ def clean_header(col_name):
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
-    
     col_upper = col_name.upper()
     for key, val in special_map.items():
         if key.upper() == col_upper: return val
-
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
     clean = re.sub(r'_+', '_', clean)
-    
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
@@ -297,7 +294,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -627,12 +624,8 @@ def kpi():
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
-    elif cell_name_input and RF_Model:
-        site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
-        if site_cells:
-            target_cells = [c.cell_code for c in site_cells]
-        else:
-            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+    elif cell_name_input:
+        target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
@@ -971,7 +964,6 @@ def restore_db():
         except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
     return redirect(url_for('backup_restore'))
 
-# Placeholder routes for script/users/profile
 @app.route('/script')
 @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
@@ -1030,6 +1022,30 @@ def rf_detail(tech, id):
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     obj = db.session.get(Model, id)
     return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
+@app.route('/rf/reset')
+@login_required
+def rf_reset():
+    if current_user.role != 'admin': return redirect(url_for('import_data'))
+    tech = request.args.get('type')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if Model:
+        db.session.query(Model).delete()
+        db.session.commit()
+        flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
+    return redirect(url_for('import_data'))
+
+# ==============================================================================
+# 6. BACKUP/RESTORE ROUTE (Missing Fix)
+# ==============================================================================
+
+@app.route('/backup-restore')
+@login_required
+def backup_restore():
+    if current_user.role != 'admin':
+        flash('Quyền Admin cần thiết.', 'warning')
+        return redirect(url_for('index'))
+    return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup / Restore", active_page='backup_restore')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
