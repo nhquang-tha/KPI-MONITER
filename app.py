@@ -72,13 +72,16 @@ def clean_header(col_name):
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
+    
     col_upper = col_name.upper()
     for key, val in special_map.items():
         if key.upper() == col_upper: return val
+
     no_accent = remove_accents(col_name)
     lower = no_accent.lower()
     clean = re.sub(r'[^a-z0-9]', '_', lower)
     clean = re.sub(r'_+', '_', clean)
+    
     common_map = {
         'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
         'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
@@ -406,6 +409,13 @@ BASE_LAYOUT = """
             });
             new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
         }
+        
+        function toggleCheckboxes(source) {
+            checkboxes = document.getElementsByName('tables');
+            for(var i=0, n=checkboxes.length;i<n;i++) {
+                checkboxes[i].checked = source.checked;
+            }
+        }
     </script>
 </body>
 </html>
@@ -567,7 +577,54 @@ CONTENT_TEMPLATE = """
 
 USER_MANAGEMENT_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-4"><div class="card"><div class="card-header">Add User</div><div class="card-body"><form method="POST" action="/users/add"><input name="username" class="form-control mb-2" placeholder="User" required><input name="password" type="password" class="form-control mb-2" placeholder="Pass" required><select name="role" class="form-select mb-3"><option value="user">User</option><option value="admin">Admin</option></select><button class="btn btn-success w-100">Create</button></form></div></div></div><div class="col-md-8"><div class="card"><div class="card-header">Users</div><table class="table"><thead><tr><th>ID</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>{% for u in users %}<tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ u.role }}</td><td>{% if u.username!='admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-danger">Del</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div></div>{% endblock %}"""
 PROFILE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row justify-content-center"><div class="col-md-6"><div class="card"><div class="card-header">Change Password</div><div class="card-body"><form method="POST" action="/change-password"><input type="password" name="current_password" class="form-control mb-3" placeholder="Current Pass" required><input type="password" name="new_password" class="form-control mb-3" placeholder="New Pass" required><button class="btn btn-primary w-100">Save</button></form></div></div></div></div>{% endblock %}"""
-BACKUP_RESTORE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-6"><div class="card"><div class="card-header">Backup</div><div class="card-body text-center"><form method="POST" action="/backup"><button class="btn btn-primary btn-lg">Download Backup</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header">Restore</div><div class="card-body"><form method="POST" action="/restore" enctype="multipart/form-data"><input type="file" name="file" class="form-control mb-3" required><button class="btn btn-warning w-100">Restore</button></form></div></div></div></div>{% endblock %}"""
+BACKUP_RESTORE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-header bg-primary text-white"><h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Backup Database</h5></div>
+                <div class="card-body">
+                    <form action="/backup" method="POST">
+                        <div class="mb-3"><label class="form-label fw-bold">Select Tables to Backup:</label>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleCheckboxes(this)"><label class="form-check-label fw-bold" for="selectAll">Select All</label></div><hr class="my-2">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="users.csv"> Users</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf3g.csv"> RF 3G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf4g.csv"> RF 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf5g.csv"> RF 5G</div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="poi4g.csv"> POI 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="poi5g.csv"> POI 5G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G</div>
+                            </div>
+                        </div></div>
+                        <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-file-zipper me-2"></i>Download Selected</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark"><h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Restore Database</h5></div>
+                <div class="card-body">
+                    <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong>WARNING:</strong> This will OVERWRITE existing data for the tables found in the zip file.</div>
+                    <form action="/restore" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3"><label class="form-label fw-bold">Select Backup File (.zip)</label><input class="form-control" type="file" name="file" accept=".zip" required></div>
+                        <button type="submit" class="btn btn-warning w-100" onclick="return confirm('Are you sure you want to restore? This action cannot be undone.')"><i class="fa-solid fa-rotate-left me-2"></i>Restore Data</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
 RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small fw-bold text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}"></div>{% endfor %}</div><button class="btn btn-primary">Save</button></form></div></div>{% endblock %}"""
 RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">Detail</div><div class="card-body"><table class="table table-bordered">{% for k,v in obj.items() %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
 
@@ -602,8 +659,15 @@ def logout(): logout_user(); return redirect(url_for('login'))
 @login_required
 def index():
     try:
-        cnt = {'rf3g': db.session.query(func.count(RF3G.id)).scalar(), 'kpi4g': db.session.query(func.count(KPI4G.id)).scalar()} 
-    except: cnt = {}
+        cnt = {
+            'rf3g': db.session.query(func.count(RF3G.id)).scalar(),
+            'rf4g': db.session.query(func.count(RF4G.id)).scalar(),
+            'rf5g': db.session.query(func.count(RF5G.id)).scalar(),
+            'kpi3g': db.session.query(func.count(KPI3G.id)).scalar(),
+            'kpi4g': db.session.query(func.count(KPI4G.id)).scalar(),
+            'kpi5g': db.session.query(func.count(KPI5G.id)).scalar(),
+        }
+    except: cnt = defaultdict(int)
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
 @app.route('/kpi')
@@ -618,8 +682,7 @@ def kpi():
     
     target_cells = []
     KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
-    RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
-
+    
     if poi_input:
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
@@ -651,7 +714,7 @@ def kpi():
                 for i, cell_code in enumerate(target_cells):
                     cell_data = data_by_cell.get(cell_code, [])
                     data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
-                    datasets.append({'label': cell_code, 'data': [data_map.get(label, None) for label in all_labels], 'borderColor': colors[i % len(colors)], 'fill': False})
+                    datasets.append({'label': cell_code, 'data': [data_map.get(label, None) for label in all_labels], 'borderColor': colors[i % len(colors)], 'fill': False, 'spanGaps': True})
                 charts[f"chart_{metric_key}"] = {'title': metric['label'], 'labels': all_labels, 'datasets': datasets}
 
     poi_list = []
@@ -698,8 +761,8 @@ def poi():
                         agg_traf[r.thoi_gian] += (r.traffic or 0)
                         if r.user_dl_avg_thput: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
 
-                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3}]
-                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3}]
+                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
+                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
 
                 charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg}
                 charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg}
@@ -720,8 +783,8 @@ def poi():
                         agg_traf5[r.thoi_gian] += (r.traffic or 0)
                         if r.user_dl_avg_throughput: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
                 
-                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3}]
-                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3}]
+                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
+                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
                 
                 charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5}
                 charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5}
@@ -929,15 +992,24 @@ def import_data():
 @login_required
 def backup_db():
     if current_user.role != 'admin': return redirect(url_for('index'))
+    selected_tables = request.form.getlist('tables')
+    if not selected_tables:
+        flash('No tables selected for backup', 'warning')
+        return redirect(url_for('backup_restore'))
+        
     stream = BytesIO()
+    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
+    
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
-        models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
-        for fname, Model in models.items():
-            cols = [c.key for c in Model.__table__.columns]
-            data = db.session.query(Model).all()
-            if not data: df = pd.DataFrame(columns=cols)
-            else: df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data])
-            zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
+        for fname in selected_tables:
+            if fname in models_map:
+                Model = models_map[fname]
+                cols = [c.key for c in Model.__table__.columns]
+                data = db.session.query(Model).all()
+                if not data: df = pd.DataFrame(columns=cols)
+                else: df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data])
+                zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
+    
     stream.seek(0)
     return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
 
@@ -963,6 +1035,14 @@ def restore_db():
                 flash('Restore Success', 'success')
         except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
     return redirect(url_for('backup_restore'))
+
+@app.route('/backup-restore')
+@login_required
+def backup_restore():
+    if current_user.role != 'admin':
+        flash('Quyền Admin cần thiết.', 'warning')
+        return redirect(url_for('index'))
+    return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup / Restore", active_page='backup_restore')
 
 @app.route('/script')
 @login_required
@@ -1033,19 +1113,6 @@ def rf_reset():
         db.session.commit()
         flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
     return redirect(url_for('import_data'))
-
-# ==============================================================================
-# 6. BACKUP/RESTORE ROUTE (Missing Fix)
-# ==============================================================================
-
-@app.route('/backup-restore')
-@login_required
-def backup_restore():
-    if current_user.role != 'admin':
-        flash('Quyền Admin cần thiết.', 'warning')
-        return redirect(url_for('index'))
-    return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup / Restore", active_page='backup_restore')
-
 
 if __name__ == '__main__':
     app.run(debug=True)
