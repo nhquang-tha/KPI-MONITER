@@ -72,7 +72,6 @@ def clean_header(col_name):
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
     }
-    
     col_upper = col_name.upper()
     for key, val in special_map.items():
         if key.upper() == col_upper: return val
@@ -297,7 +296,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (DEFINED BEFORE USAGE)
+# 4. TEMPLATES
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -311,137 +310,27 @@ BASE_LAYOUT = """
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root {
-            --acrylic-bg: rgba(255, 255, 255, 0.6);
-            --acrylic-blur: blur(20px);
-            --sidebar-bg: rgba(240, 240, 245, 0.85);
-            --primary-color: #0078d4;
-            --text-color: #212529;
-            --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05);
-            --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1);
-            --border-radius: 12px;
-        }
-
-        body {
-            background: linear-gradient(135deg, #f3f4f6 0%, #eef2f3 100%);
-            font-family: 'Segoe UI', sans-serif;
-            color: var(--text-color);
-            overflow-x: hidden;
-        }
-
-        .sidebar {
-            height: 100vh;
-            width: 260px;
-            position: fixed;
-            top: 0;
-            left: 0;
-            background: var(--sidebar-bg);
-            backdrop-filter: var(--acrylic-blur);
-            -webkit-backdrop-filter: var(--acrylic-blur);
-            border-right: 1px solid rgba(255,255,255,0.5);
-            z-index: 1000;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            padding-top: 1rem;
-            overflow-y: auto;
-        }
-
-        .sidebar-header {
-            padding: 1.5rem;
-            color: var(--primary-color);
-            font-weight: 600;
-            font-size: 1.5rem;
-            text-align: center;
-            letter-spacing: 0.5px;
-        }
-
+        :root { --acrylic-bg: rgba(255, 255, 255, 0.6); --acrylic-blur: blur(20px); --sidebar-bg: rgba(240, 240, 245, 0.85); --primary-color: #0078d4; --text-color: #212529; --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05); --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1); --border-radius: 12px; }
+        body { background: linear-gradient(135deg, #f3f4f6 0%, #eef2f3 100%); font-family: 'Segoe UI', sans-serif; color: var(--text-color); overflow-x: hidden; }
+        .sidebar { height: 100vh; width: 260px; position: fixed; top: 0; left: 0; background: var(--sidebar-bg); backdrop-filter: var(--acrylic-blur); border-right: 1px solid rgba(255,255,255,0.5); z-index: 1000; transition: all 0.3s; padding-top: 1rem; overflow-y: auto; }
+        .sidebar-header { padding: 1.5rem; color: var(--primary-color); font-weight: 600; font-size: 1.5rem; text-align: center; }
         .sidebar-menu { padding: 0; list-style: none; margin: 1rem 0; }
-
-        .sidebar-menu a {
-            display: flex;
-            align-items: center;
-            padding: 14px 25px;
-            color: #555;
-            text-decoration: none;
-            font-weight: 500;
-            border-left: 4px solid transparent;
-            transition: all 0.2s ease;
-            margin: 4px 12px;
-            border-radius: 8px;
-        }
-
-        .sidebar-menu a:hover, .sidebar-menu a.active {
-            background-color: rgba(255, 255, 255, 0.8);
-            color: var(--primary-color);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-        }
-
-        .sidebar-menu a.active {
-            border-left-color: var(--primary-color);
-            background-color: rgba(255, 255, 255, 0.95);
-        }
-
+        .sidebar-menu a { display: flex; align-items: center; padding: 14px 25px; color: #555; text-decoration: none; font-weight: 500; border-left: 4px solid transparent; transition: all 0.2s ease; margin: 4px 12px; border-radius: 8px; }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background-color: rgba(255, 255, 255, 0.8); color: var(--primary-color); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .sidebar-menu a.active { border-left-color: var(--primary-color); background-color: rgba(255, 255, 255, 0.95); }
         .sidebar-menu i { margin-right: 15px; width: 24px; text-align: center; font-size: 1.1rem; }
-
         .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; transition: all 0.3s ease; }
-
-        .card {
-            border: none;
-            border-radius: var(--border-radius);
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            box-shadow: var(--shadow-soft);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-            margin-bottom: 1.5rem;
-            overflow: hidden;
-        }
-
+        .card { border: none; border-radius: var(--border-radius); background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); box-shadow: var(--shadow-soft); transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 1.5rem; }
         .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
-
-        .card-header {
-            background-color: rgba(255, 255, 255, 0.9);
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-            padding: 1.25rem 1.5rem;
-            font-weight: 600;
-            color: #333;
-            font-size: 1.1rem;
-        }
-
+        .card-header { background-color: rgba(255, 255, 255, 0.9); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 1.25rem 1.5rem; font-weight: 600; color: #333; }
         .card-body { padding: 1.5rem; }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            border: none;
-            box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3);
-            border-radius: 6px;
-            padding: 0.5rem 1.25rem;
-            font-weight: 500;
-            transition: all 0.2s;
-        }
-
-        .btn-primary:hover {
-            background-color: #0063b1;
-            box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4);
-            transform: translateY(-1px);
-        }
-
+        .btn-primary { background-color: var(--primary-color); border: none; box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3); border-radius: 6px; padding: 0.5rem 1.25rem; font-weight: 500; transition: all 0.2s; }
+        .btn-primary:hover { background-color: #0063b1; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4); transform: translateY(-1px); }
         .table { background: transparent; }
-        .table thead th {
-            background-color: rgba(248, 249, 250, 0.8);
-            border-bottom: 2px solid #e9ecef;
-            color: #555;
-            font-weight: 600;
-            font-size: 0.9rem;
-            text-transform: uppercase;
-        }
+        .table thead th { background-color: rgba(248, 249, 250, 0.8); border-bottom: 2px solid #e9ecef; color: #555; font-weight: 600; font-size: 0.9rem; text-transform: uppercase; }
         .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
         .chart-container canvas { cursor: zoom-in; }
-
-        @media (max-width: 768px) {
-            .sidebar { margin-left: -260px; }
-            .sidebar.active { margin-left: 0; }
-            .main-content { margin-left: 0; padding: 15px; }
-        }
+        @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
     </style>
 </head>
 <body>
@@ -466,45 +355,23 @@ BASE_LAYOUT = """
             <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
         </ul>
     </div>
-
     <div class="main-content">
-        <button class="btn btn-light shadow-sm d-md-none mb-3 border" onclick="document.getElementById('sidebar').classList.toggle('active')">
-            <i class="fa-solid fa-bars"></i> Menu
-        </button>
-
+        <button class="btn btn-light shadow-sm d-md-none mb-3 border" onclick="document.getElementById('sidebar').classList.toggle('active')"><i class="fa-solid fa-bars"></i> Menu</button>
         <div class="container-fluid p-0">
             {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm border-0 mb-4" role="alert">
-                            {{ message }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                        </div>
-                    {% endfor %}
-                {% endif %}
+                {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm border-0 mb-4">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}{% endif %}
             {% endwith %}
-
-            <!-- Dynamic Content -->
             {% block content %}{% endblock %}
         </div>
     </div>
-    
     <div class="modal fade" id="chartDetailModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog modal-xl modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg" style="background: rgba(255,255,255,0.95); backdrop-filter: blur(15px);">
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title text-primary fw-bold" id="modalTitle"></h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="chart-container" style="position: relative; height:65vh; width:100%">
-                        <canvas id="modalChart"></canvas>
-                    </div>
-                </div>
+                <div class="modal-header border-0 pb-0"><h5 class="modal-title text-primary fw-bold" id="modalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body p-4"><div class="chart-container" style="position: relative; height:65vh; width:100%"><canvas id="modalChart"></canvas></div></div>
             </div>
         </div>
     </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let modalChartInstance = null;
@@ -513,8 +380,7 @@ BASE_LAYOUT = """
             const ctx = document.getElementById('modalChart').getContext('2d');
             if (modalChartInstance) modalChartInstance.destroy();
             modalChartInstance = new Chart(ctx, {
-                type: 'line',
-                data: { labels: allLabels, datasets: allDatasets },
+                type: 'line', data: { labels: allLabels, datasets: allDatasets },
                 options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', intersect: false }, plugins: { legend: { display: true } } }
             });
             new bootstrap.Modal(document.getElementById('chartDetailModal')).show();
@@ -524,45 +390,13 @@ BASE_LAYOUT = """
 </html>
 """
 
-LOGIN_PAGE = """
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Đăng nhập | NetOps</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-        body { background: linear-gradient(135deg, #f0f2f5 0%, #d9e2ec 100%); height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', sans-serif; }
-        .login-card { width: 100%; max-width: 400px; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(20px); padding: 40px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid rgba(255,255,255,0.5); }
-        .btn-primary { background-color: #0078d4; border: none; padding: 10px; font-weight: 600; border-radius: 8px; transition: all 0.3s; }
-        .btn-primary:hover { background-color: #0063b1; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 120, 212, 0.3); }
-        .form-control { border-radius: 8px; padding: 12px; border: 1px solid #e0e0e0; }
-        .form-control:focus { box-shadow: 0 0 0 3px rgba(0, 120, 212, 0.15); border-color: #0078d4; }
-    </style>
-</head>
-<body>
-    <div class="login-card">
-        <h3 class="text-center mb-4 text-primary fw-bold">Welcome Back</h3>
-        <p class="text-center text-muted mb-4">Sign in to access KPI Monitor</p>
-        <form method="POST">
-            <div class="mb-3"><label class="form-label fw-bold text-secondary small">USERNAME</label><input type="text" name="username" class="form-control" placeholder="Enter username" required></div>
-            <div class="mb-4"><label class="form-label fw-bold text-secondary small">PASSWORD</label><input type="password" name="password" class="form-control" placeholder="Enter password" required></div>
-            <button type="submit" class="btn btn-primary w-100">Sign In</button>
-        </form>
-    </div>
-</body>
-</html>
-"""
+LOGIN_PAGE = """<!DOCTYPE html><html><head><title>Login</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{background:linear-gradient(135deg,#f0f2f5 0%,#d9e2ec 100%);height:100vh;display:flex;align-items:center;justify-content:center;font-family:'Segoe UI',sans-serif}.card{width:100%;max-width:400px;background:rgba(255,255,255,0.9);backdrop-filter:blur(20px);padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.08);border:1px solid rgba(255,255,255,0.5)}</style></head><body><div class="card"><h3 class="text-center mb-4 text-primary fw-bold">Welcome</h3><form method="POST"><div class="mb-3"><label>Username</label><input type="text" name="username" class="form-control" required></div><div class="mb-4"><label>Password</label><input type="password" name="password" class="form-control" required></div><button class="btn btn-primary w-100">Sign In</button></form></div></body></html>"""
 
 CONTENT_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
 <div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>{{ title }}</span>
-        <span class="badge bg-soft-primary text-primary px-3 py-2 rounded-pill">{{ current_user.role | upper }}</span>
-    </div>
+    <div class="card-header d-flex justify-content-between align-items-center"><span>{{ title }}</span><span class="badge bg-soft-primary text-primary px-3 py-2 rounded-pill">{{ current_user.role | upper }}</span></div>
     <div class="card-body">
         {% if active_page == 'dashboard' %}
             <div class="row g-4 text-center mb-5">
@@ -571,105 +405,39 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-warning fw-bold mb-1">5</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Congestion</p></div></div>
                 <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-success fw-bold mb-1">OK</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">System Status</p></div></div>
             </div>
-            <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-database me-2"></i>Data Overview</h5>
             <div class="row g-4">
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-primary fw-bold mb-3 small">RF Database</h6><div class="d-flex justify-content-between mb-2"><span>RF 3G</span><span class="badge bg-white text-dark border">{{ count_rf3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>RF 4G</span><span class="badge bg-white text-dark border">{{ count_rf4g }}</span></div><div class="d-flex justify-content-between"><span>RF 5G</span><span class="badge bg-white text-dark border">{{ count_rf5g }}</span></div></div></div>
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-success fw-bold mb-3 small">KPI Records</h6><div class="d-flex justify-content-between mb-2"><span>KPI 3G</span><span class="badge bg-white text-dark border">{{ count_kpi3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>KPI 4G</span><span class="badge bg-white text-dark border">{{ count_kpi4g }}</span></div><div class="d-flex justify-content-between"><span>KPI 5G</span><span class="badge bg-white text-dark border">{{ count_kpi5g }}</span></div></div></div>
             </div>
-        
         {% elif active_page == 'kpi' %}
-            <div class="row mb-4">
-                <div class="col-md-12">
-                    <form method="GET" action="/kpi" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
-                        <div class="col-md-2"><label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option></select></div>
-                        <div class="col-md-4"><label class="form-label fw-bold small text-muted">TÌM THEO POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
-                        <div class="col-md-3"><label class="form-label fw-bold small text-muted">NHẬP CELL/SITE</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="Site code, Cell list..." value="{{ cell_name_input }}"></div>
-                        <div class="col-md-2 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Visualize</button></div>
-                    </form>
-                </div>
-            </div>
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/kpi" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-md-2"><label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-md-4"><label class="form-label fw-bold small text-muted">TÌM THEO POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-3"><label class="form-label fw-bold small text-muted">NHẬP CELL/SITE</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="Site code, Cell list..." value="{{ cell_name_input }}"></div><div class="col-md-2 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Visualize</button></div></form></div></div>
             {% if charts %}
-                {% for chart_id, chart_config in charts.items() %}
-                <div class="card mb-4 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_config.title }}</h6><div class="chart-container" style="position: relative; height:45vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div>
-                {% endfor %}
+                {% for chart_id, chart_config in charts.items() %}<div class="card mb-4 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_config.title }}</h6><div class="chart-container" style="position: relative; height:45vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div>{% endfor %}
                 <script>{% for chart_id, chart_data in charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',cd.datasets,cd.labels);}},plugins:{legend:{position:'bottom'},tooltip:{mode:'index',intersect:false}}}});})();{% endfor %}</script>
-            {% elif cell_name_input or selected_poi %}
-                <div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu phù hợp.</div>
-            {% else %}
-                <div class="text-center text-muted py-5 opacity-50"><i class="fa-solid fa-chart-line fa-4x mb-3"></i><p class="fs-5">Vui lòng chọn tiêu chí để xem báo cáo.</p></div>
-            {% endif %}
-            
+            {% elif cell_name_input or selected_poi %}<div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu phù hợp.</div>{% else %}<div class="text-center text-muted py-5 opacity-50"><i class="fa-solid fa-chart-line fa-4x mb-3"></i><p class="fs-5">Vui lòng chọn tiêu chí để xem báo cáo.</p></div>{% endif %}
         {% elif active_page == 'poi' %}
-            <div class="row mb-4">
-                <div class="col-md-12">
-                    <form method="GET" action="/poi" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
-                        <div class="col-md-8"><label class="form-label fw-bold small text-muted">CHỌN POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
-                        <div class="col-md-4 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Xem Báo Cáo</button></div>
-                    </form>
-                </div>
-            </div>
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/poi" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-md-8"><label class="form-label fw-bold small text-muted">CHỌN POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-4 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Xem Báo Cáo</button></div></form></div></div>
             {% if poi_charts %}
-                <div class="row">
-                    {% for chart_id, chart_data in poi_charts.items() %}
-                    <div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_data.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>
-                    {% endfor %}
-                </div>
-                <script>
-                    {% for chart_id, chart_data in poi_charts.items() %}
-                    (function(){
-                        const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); 
-                        const cd={{ chart_data | tojson }};
-                        new Chart(ctx,{
-                            type:'line',
-                            data: cd,
-                            options:{
-                                responsive:true,
-                                maintainAspectRatio:false,
-                                interaction:{mode:'nearest',intersect:false,axis:'x'},
-                                onClick:(e,el)=>{
-                                    if(el.length>0){
-                                        const i=el[0].index;
-                                        const di=el[0].datasetIndex;
-                                        // For POI report, we show details of ALL cells in that POI
-                                        // We pass ALL datasets to the modal
-                                        showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', cd.datasets, cd.labels);
-                                    }
-                                },
-                                plugins:{legend:{position:'bottom'}}
-                            }
-                        });
-                    })();
-                    {% endfor %}
-                </script>
-            {% elif selected_poi %}
-                <div class="alert alert-warning border-0 shadow-sm">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>
-            {% else %}
-                <div class="text-center text-muted py-5"><i class="fa-solid fa-map-location-dot fa-3x mb-3"></i><p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p></div>
-            {% endif %}
-
+                <div class="row">{% for chart_id, chart_data in poi_charts.items() %}<div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_data.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>{% endfor %}</div>
+                <script>{% for chart_id, chart_data in poi_charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',cd.datasets,cd.labels);}},plugins:{legend:{position:'bottom'}}}});})();{% endfor %}</script>
+            {% elif selected_poi %}<div class="alert alert-warning border-0 shadow-sm">Không có dữ liệu KPI cho POI: <strong>{{ selected_poi }}</strong></div>{% else %}<div class="text-center text-muted py-5"><i class="fa-solid fa-map-location-dot fa-3x mb-3"></i><p>Chọn một địa điểm POI để xem báo cáo tổng hợp.</p></div>{% endif %}
         {% elif active_page == 'worst_cell' %}
             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div><div class="col-auto"><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export Excel</button></div></form></div></div>
             {% if dates %}<div class="alert alert-info border-0 shadow-sm mb-4 bg-soft-info text-info"><i class="fa-solid fa-calendar-days me-2"></i><strong>Dữ liệu xét duyệt:</strong> {% for d in dates %}<span class="badge bg-white text-info border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
-            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
-                <table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="border-bottom">Cell Name</th><th class="text-center border-bottom">Avg User Thput</th><th class="text-center border-bottom">Avg PRB</th><th class="text-center border-bottom">Avg CQI</th><th class="text-center border-bottom">Avg Drop Rate</th><th class="text-center border-bottom">Hành động</th></tr></thead><tbody>{% for row in worst_cells %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 }}">{{ row.avg_thput | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 }}">{{ row.avg_res_blk | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 }}">{{ row.avg_cqi | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 }}">{{ row.avg_drop | round(2) }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Nhấn "Lọc Worst Cell" để xem dữ liệu</td></tr>{% endfor %}</tbody></table>
-            </div>
-
+            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="border-bottom">Cell Name</th><th class="text-center border-bottom">Avg User Thput</th><th class="text-center border-bottom">Avg PRB</th><th class="text-center border-bottom">Avg CQI</th><th class="text-center border-bottom">Avg Drop Rate</th><th class="text-center border-bottom">Hành động</th></tr></thead><tbody>{% for row in worst_cells %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_thput < 7000 }}">{{ row.avg_thput | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_res_blk > 20 }}">{{ row.avg_res_blk | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_cqi < 93 }}">{{ row.avg_cqi | round(2) }}</td><td class="text-center {{ 'text-danger fw-bold' if row.avg_drop > 0.3 }}">{{ row.avg_drop | round(2) }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Nhấn "Lọc Worst Cell" để xem dữ liệu</td></tr>{% endfor %}</tbody></table></div>
         {% elif active_page == 'traffic_down' %}
              <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
             <div class="row g-4">
                 <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Cell Không Lưu Lượng (< 0.1 GB)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg (7 Days)</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in zero_traffic %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
                 <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Cell Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in degraded %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ row.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
             </div>
-
         {% elif active_page == 'conges_3g' %}
             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/conges-3g" class="d-flex align-items-center"><div class="alert alert-info border-0 shadow-sm bg-soft-primary text-primary mb-0 flex-grow-1"><strong>Điều kiện:</strong> (CS_CONG > 2% & CS_ATT > 100) OR (PS_CONG > 2% & PS_ATT > 500) (3 ngày liên tiếp)</div><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm ms-3">Thực hiện</button><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export</button></form></div></div>
             {% if dates %}<div class="mb-3 text-muted small"><i class="fa-solid fa-calendar me-2"></i>Xét duyệt: {% for d in dates %}<span class="badge bg-light text-dark border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
             <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for row in conges_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 }}">{{ row.avg_cs_conges }}</td><td>{{ row.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 }}">{{ row.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Nhấn nút "Thực hiện" để xem kết quả</td></tr>{% endfor %}</tbody></table></div>
-
         {% elif active_page == 'rf' %}
              <div class="d-flex justify-content-between mb-4"><div class="btn-group shadow-sm"><a href="/rf?tech=3g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '3g' }}">3G</a><a href="/rf?tech=4g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '4g' }}">4G</a><a href="/rf?tech=5g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '5g' }}">5G</a></div><div><a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary shadow-sm me-2">New</a><a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success shadow-sm text-white">Export</a></div></div>
              <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="text-center bg-light border-bottom" style="width: 120px; position: sticky; left: 0; z-index: 20;">Action</th>{% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}</tr></thead><tbody>{% for row in rf_data %}<tr><td class="text-center bg-white border-end" style="position: sticky; left: 0; z-index: 5;"><a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-primary border-0"><i class="fa-solid fa-eye"></i></a><a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-warning border-0"><i class="fa-solid fa-pen"></i></a><a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-danger border-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a></td>{% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
-
         {% elif active_page == 'import' %}
              <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary">Import Data</h5><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label">Chọn Loại Dữ Liệu</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option><option value="kpi3g">KPI 3G</option><option value="kpi4g">KPI 4G</option><option value="kpi5g">KPI 5G</option></select></div><div class="mb-3"><label class="form-label">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100">Upload</button></form></div></div><div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div></div></div>
         {% endif %}
@@ -684,12 +452,10 @@ BACKUP_RESTORE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="
 RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small fw-bold text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}"></div>{% endfor %}</div><button class="btn btn-primary">Save</button></form></div></div>{% endblock %}"""
 RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">Detail</div><div class="card-body"><table class="table table-bordered">{% for k,v in obj.items() %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
 
-# --- JINJA LOADER (MUST BE AFTER TEMPLATES) ---
 app.jinja_loader = jinja2.DictLoader({
     'base': BASE_LAYOUT,
     'backup_restore': BACKUP_RESTORE_TEMPLATE
 })
-
 def render_page(tpl, **kwargs):
     if tpl == BACKUP_RESTORE_TEMPLATE: return render_template_string(tpl, **kwargs)
     return render_template_string(tpl, **kwargs)
@@ -740,78 +506,39 @@ def kpi():
     
     target_cells = []
     KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
-    RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
-
+    
     if poi_input:
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
-    elif cell_name_input and RF_Model:
-        site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
-        if site_cells:
-            target_cells = [c.cell_code for c in site_cells]
-        else:
-            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+    elif cell_name_input:
+        target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
-        try:
-            data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-        except ValueError: pass 
+        try: data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+        except: pass 
 
         if data:
             all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
             data_by_cell = defaultdict(list)
-            for x in data:
-                data_by_cell[x.ten_cell].append(x)
+            for x in data: data_by_cell[x.ten_cell].append(x)
 
             metrics_config = {
-                '3g': [
-                    {'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'},
-                    {'key': 'traffic', 'label': 'TRAFFIC (Erl)'},
-                    {'key': 'psconges', 'label': 'PS CONGESTION (%)'},
-                    {'key': 'csconges', 'label': 'CS CONGESTION (%)'}
-                ],
-                '4g': [
-                    {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
-                    {'key': 'user_dl_avg_thput', 'label': 'USER DL AVG THPUT (Mbps)'},
-                    {'key': 'res_blk_dl', 'label': 'RES BLOCK DL (%)'},
-                    {'key': 'cqi_4g', 'label': 'CQI 4G'}
-                ],
-                '5g': [
-                    {'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'},
-                    {'key': 'user_dl_avg_throughput', 'label': 'USER DL AVG THPUT (Mbps)'},
-                    {'key': 'cqi_5g', 'label': 'CQI 5G'}
-                ]
+                '3g': [{'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'}, {'key': 'traffic', 'label': 'TRAFFIC (Erl)'}, {'key': 'psconges', 'label': 'PS CONGESTION (%)'}, {'key': 'csconges', 'label': 'CS CONGESTION (%)'}],
+                '4g': [{'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'}, {'key': 'user_dl_avg_thput', 'label': 'USER DL AVG THPUT (Mbps)'}, {'key': 'res_blk_dl', 'label': 'RES BLOCK DL (%)'}, {'key': 'cqi_4g', 'label': 'CQI 4G'}],
+                '5g': [{'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'}, {'key': 'user_dl_avg_throughput', 'label': 'USER DL AVG THPUT (Mbps)'}, {'key': 'cqi_5g', 'label': 'CQI 5G'}]
             }
             
             current_metrics = metrics_config.get(selected_tech, [])
-
             for metric in current_metrics:
                 metric_key = metric['key']
-                metric_label = metric['label']
                 datasets = []
                 for i, cell_code in enumerate(target_cells):
                     cell_data = data_by_cell.get(cell_code, [])
                     data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
-                    aligned_data = [data_map.get(label, None) for label in all_labels]
-                    color = colors[i % len(colors)]
-                    datasets.append({
-                        'label': cell_code,
-                        'data': aligned_data,
-                        'borderColor': color,
-                        'backgroundColor': color,
-                        'tension': 0.1,
-                        'fill': False,
-                        'spanGaps': True
-                    })
-                
-                chart_id = f"chart_{metric_key}"
-                charts[chart_id] = {
-                    'title': metric_label,
-                    'labels': all_labels,
-                    'datasets': datasets
-                }
+                    datasets.append({'label': cell_code, 'data': [data_map.get(label, None) for label in all_labels], 'borderColor': colors[i % len(colors)], 'fill': False})
+                charts[f"chart_{metric_key}"] = {'title': metric['label'], 'labels': all_labels, 'datasets': datasets}
 
     poi_list = []
     with app.app_context():
@@ -821,103 +548,80 @@ def kpi():
             poi_list = sorted(list(set(p4 + p5)))
         except: pass
 
-    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
-                       selected_tech=selected_tech, cell_name_input=cell_name_input, 
-                       selected_poi=poi_input, poi_list=poi_list, charts=charts)
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', selected_tech=selected_tech, cell_name_input=cell_name_input, selected_poi=poi_input, poi_list=poi_list, charts=charts)
 
 @app.route('/poi')
 @login_required
 def poi():
     pname = request.args.get('poi_name', '').strip()
     charts = {}
-    pois = []
-    try:
-        p4 = [r[0] for r in db.session.query(POI4G.poi_name).distinct()]
-        p5 = [r[0] for r in db.session.query(POI5G.poi_name).distinct()]
-        pois = sorted(list(set(p4 + p5)))
-    except: pass
     
-    if pname:
-        c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
-        c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
-        
-        # 4G Chart (Aggregate)
-        if c4:
-            k4 = KPI4G.query.filter(KPI4G.ten_cell.in_(c4)).all()
-            if k4:
-                try: k4.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-                except: pass
-                dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-                
-                agg_traf = defaultdict(float)
-                agg_thput = defaultdict(list)
-                
-                # Detail datasets for Zoom In
-                ds_traf = []
-                ds_thput = []
-                grouped = defaultdict(list)
-                for r in k4: grouped[r.ten_cell].append(r)
-                colors = generate_colors(len(grouped))
-                
-                for i, (cell, rows) in enumerate(grouped.items()):
-                    row_map = {r.thoi_gian: r for r in rows}
-                    d_tr = []
-                    d_th = []
-                    for d in dates4:
-                        v = row_map.get(d)
-                        tr = v.traffic if v else 0
-                        th = v.user_dl_avg_thput if v else 0
-                        d_tr.append(tr)
-                        d_th.append(th)
-                        agg_traf[d] += tr
-                        if th > 0: agg_thput[d].append(th)
-                    
-                    ds_traf.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True})
-                    ds_thput.append({'label': cell, 'data': d_th, 'borderColor': colors[i], 'fill': False, 'hidden': True})
+    # 4G Chart (Aggregate)
+    c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()] if pname else []
+    if c4:
+        k4 = KPI4G.query.filter(KPI4G.ten_cell.in_(c4)).all()
+        if k4:
+            try: k4.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+            except: pass
+            dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+            agg_traf = defaultdict(float)
+            agg_thput = defaultdict(list)
+            for r in k4:
+                agg_traf[r.thoi_gian] += (r.traffic or 0)
+                if r.user_dl_avg_thput: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
+            ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3}]
+            ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3}]
+            
+            # Detail Datasets (for popup only, hidden in main chart?? actually for zoom we pass same data structure. 
+            # The JS handles "Zoom In" by redrawing whatever datasets we passed.
+            # So if we want detailed lines in popup, we must include them here OR make a separate API call.
+            # Current structure passes everything. Let's include detailed lines but HIDDEN in main chart.
+            ds_traf_detail = []
+            ds_thput_detail = []
+            grouped = defaultdict(list)
+            for r in k4: grouped[r.ten_cell].append(r)
+            colors = generate_colors(len(grouped))
+            for i, (cell, rows) in enumerate(grouped.items()):
+                row_map = {r.thoi_gian: r for r in rows}
+                ds_traf_detail.append({'label': cell, 'data': [row_map.get(d).traffic if row_map.get(d) else 0 for d in dates4], 'borderColor': colors[i], 'fill': False, 'hidden': True})
+                ds_thput_detail.append({'label': cell, 'data': [row_map.get(d).user_dl_avg_thput if row_map.get(d) else 0 for d in dates4], 'borderColor': colors[i], 'fill': False, 'hidden': True})
 
-                # Aggregate Data for Main Chart
-                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3}]
-                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3}]
+            charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg + ds_traf_detail}
+            charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg + ds_thput_detail}
+    
+    # 5G Chart (Aggregate)
+    c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()] if pname else []
+    if c5:
+         k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
+         if k5:
+            try: k5.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+            except: pass
+            dates5 = sorted(list(set(x.thoi_gian for x in k5)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+            agg_traf5 = defaultdict(float)
+            agg_thput5 = defaultdict(list)
+            for r in k5:
+                agg_traf5[r.thoi_gian] += (r.traffic or 0)
+                if r.user_dl_avg_throughput: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
+            
+            ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3}]
+            ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3}]
+            
+            ds_traf_detail5 = []
+            ds_thput_detail5 = []
+            grouped5 = defaultdict(list)
+            for r in k5: grouped5[r.ten_cell].append(r)
+            colors = generate_colors(len(grouped5))
+            for i, (cell, rows) in enumerate(grouped5.items()):
+                row_map = {r.thoi_gian: r for r in rows}
+                ds_traf_detail5.append({'label': cell, 'data': [row_map.get(d).traffic if row_map.get(d) else 0 for d in dates5], 'borderColor': colors[i], 'fill': False, 'hidden': True})
+                ds_thput_detail5.append({'label': cell, 'data': [row_map.get(d).user_dl_avg_throughput if row_map.get(d) else 0 for d in dates5], 'borderColor': colors[i], 'fill': False, 'hidden': True})
 
-                charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg + ds_traf}
-                charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg + ds_thput}
-        
-        # 5G Chart (Aggregate)
-        if c5:
-             k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
-             if k5:
-                try: k5.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
-                except: pass
-                dates5 = sorted(list(set(x.thoi_gian for x in k5)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-                
-                agg_traf5 = defaultdict(float)
-                agg_thput5 = defaultdict(list)
-                ds_traf5 = []
-                ds_thput5 = []
-                grouped5 = defaultdict(list)
-                for r in k5: grouped5[r.ten_cell].append(r)
-                colors = generate_colors(len(grouped5))
-                
-                for i, (cell, rows) in enumerate(grouped5.items()):
-                    row_map = {r.thoi_gian: r for r in rows}
-                    d_tr = []
-                    d_th = []
-                    for d in dates5:
-                        val = rmap.get(d)
-                        tr = val.traffic if val else 0
-                        th = val.user_dl_avg_throughput if val else 0
-                        d_tr.append(tr)
-                        d_th.append(th)
-                        agg_traf5[d] += tr
-                        if th > 0: agg_thput5[d].append(th)
-                    ds_traf5.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True})
-                    ds_thput5.append({'label': cell, 'data': d_th, 'borderColor': colors[i], 'fill': False, 'hidden': True})
+            charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5 + ds_traf_detail5}
+            charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5 + ds_thput_detail5}
 
-                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3}]
-                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3}]
-
-                charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5 + ds_traf5}
-                charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5 + ds_thput5}
+    pois = []
+    try: pois = sorted(list(set([r[0] for r in db.session.query(POI4G.poi_name).distinct()] + [r[0] for r in db.session.query(POI5G.poi_name).distinct()])))
+    except: pass
 
     return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
 
@@ -926,39 +630,24 @@ def poi():
 def conges_3g():
     conges_data, target_dates = [], []
     action = request.args.get('action')
-    
     if action in ['execute', 'export']:
         try:
             all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
             date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
             if len(date_objs) >= 3:
                 target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
-                records = KPI3G.query.filter(
-                    KPI3G.thoi_gian.in_(target_dates),
-                    ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
-                ).all()
+                records = KPI3G.query.filter(KPI3G.thoi_gian.in_(target_dates), ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))).all()
                 groups = defaultdict(list)
                 for r in records: groups[r.ten_cell].append(r)
                 for cell, rows in groups.items():
                     if len(rows) == 3:
-                        conges_data.append({
-                            'cell_name': cell,
-                            'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2),
-                            'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2),
-                            'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
-                            'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
-                        })
-                        
+                        conges_data.append({'cell_name': cell, 'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2), 'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2), 'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2), 'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)})
         except: pass
-        
     if action == 'export':
         df = pd.DataFrame(conges_data)
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-             df.to_excel(writer, index=False, sheet_name='Congestion 3G')
-        output.seek(0)
-        return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
-
+        output = BytesIO(); 
+        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Congestion 3G')
+        output.seek(0); return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
     return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
 @app.route('/worst-cell')
@@ -966,41 +655,23 @@ def conges_3g():
 def worst_cell():
     duration = int(request.args.get('duration', 1))
     action = request.args.get('action')
-    
     all_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
     date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
     target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:duration]]
-    
     records = []
     if target_dates:
-        records = KPI4G.query.filter(
-            KPI4G.thoi_gian.in_(target_dates),
-            ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
-            ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
-        ).all()
-    
+        records = KPI4G.query.filter(KPI4G.thoi_gian.in_(target_dates), ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'), ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))).all()
     groups = defaultdict(list)
     for r in records: groups[r.ten_cell].append(r)
-    
     results = []
     for cell, rows in groups.items():
         if len(rows) == duration:
-            results.append({
-                'cell_name': cell,
-                'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2),
-                'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2),
-                'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
-                'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
-            })
-            
+            results.append({'cell_name': cell, 'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2), 'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2), 'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2), 'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)})
     if action == 'export':
         df = pd.DataFrame(results)
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-             df.to_excel(writer, index=False, sheet_name='Worst Cells')
-        output.seek(0)
-        return send_file(output, download_name=f'WorstCell_{duration}days.xlsx', as_attachment=True)
-
+        output = BytesIO(); 
+        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Worst Cells')
+        output.seek(0); return send_file(output, download_name=f'WorstCell_{duration}days.xlsx', as_attachment=True)
     return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=results, dates=target_dates, duration=duration)
 
 @app.route('/traffic-down')
@@ -1020,14 +691,12 @@ def traffic_down():
                 analysis_date = latest.strftime('%d/%m/%Y')
                 needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
                 needed_str = [d.strftime('%d/%m/%Y') for d in needed]
-                
                 records = Model.query.filter(Model.thoi_gian.in_(needed_str)).all()
                 data_map = defaultdict(dict)
                 for r in records:
                     if r.ten_cell.startswith('MBF_TH') or r.ten_cell.startswith('VNP-4G'): continue
                     try: data_map[r.ten_cell][datetime.strptime(r.thoi_gian, '%d/%m/%Y')] = r.traffic or 0
                     except: pass
-                
                 last_week = latest - timedelta(days=7)
                 for cell, d_map in data_map.items():
                     t0 = d_map.get(latest, 0)
@@ -1037,20 +706,16 @@ def traffic_down():
                         if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
                     if t_last > 1 and t0 < 0.7 * t_last:
                         degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
-
         if action == 'export_zero':
             df = pd.DataFrame(zero_traffic)
-            output = BytesIO()
+            output = BytesIO(); 
             with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
-            return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
+            output.seek(0); return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_degraded':
             df = pd.DataFrame(degraded)
-            output = BytesIO()
+            output = BytesIO(); 
             with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
-            return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
-
+            output.seek(0); return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
 
 @app.route('/rf')
@@ -1060,7 +725,6 @@ def rf():
     action = request.args.get('action')
     search = request.args.get('cell_search', '').strip()
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    
     if action == 'export':
          def generate():
             yield '\ufeff'.encode('utf-8')
@@ -1068,10 +732,8 @@ def rf():
             yield (','.join(cols) + '\n').encode('utf-8')
             q = db.select(Model)
             if search: q = q.filter(Model.cell_code.like(f"%{search}%"))
-            for row in db.session.execute(q).scalars():
-                yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+            for row in db.session.execute(q).scalars(): yield (','.join([str(getattr(row, c, '') or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
          return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
-
     query = Model.query
     if search: query = query.filter(Model.cell_code.like(f"%{search}%"))
     rows = query.limit(500).all()
@@ -1082,102 +744,111 @@ def rf():
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_data():
-    # SECURITY CHECK
     if current_user.role != 'admin':
         flash('Bạn không có quyền truy cập trang này!', 'danger')
         return redirect(url_for('index'))
-
     if request.method == 'POST':
         files = request.files.getlist('file')
-        itype = request.form.get('type') or request.args.get('type')
+        itype = request.form.get('type')
         cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
         Model = cfg.get(itype)
-        
         if Model:
             valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
             for file in files:
                 try:
                     if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
                     else: chunks = [pd.read_excel(file)]
-                    
                     for df in chunks:
                         df.columns = [clean_header(c) for c in df.columns]
                         records = []
                         for row in df.to_dict('records'):
                             clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
-                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
-                                clean_row['traffic'] = clean_row['traffic_vol_dl']
+                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row: clean_row['traffic'] = clean_row['traffic_vol_dl']
                             records.append(clean_row)
                         if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
                     flash(f'Imported {file.filename}', 'success')
                 except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
         return redirect(url_for('import_data'))
-
-    # History
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
     return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
 
-# Placeholder routes for script/users/profile
-@app.route('/script')
+@app.route('/backup', methods=['POST'])
 @login_required
+def backup_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    stream = BytesIO()
+    with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
+        models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
+        for fname, Model in models.items():
+            cols = [c.key for c in Model.__table__.columns]
+            data = db.session.query(Model).all()
+            if not data: df = pd.DataFrame(columns=cols)
+            else: df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data])
+            zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
+    stream.seek(0)
+    return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
+
+@app.route('/restore', methods=['POST'])
+@login_required
+def restore_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    file = request.files['file']
+    if file:
+        try:
+            with zipfile.ZipFile(file) as zf:
+                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
+                for fname in zf.namelist():
+                    if fname in models:
+                        Model = models[fname]
+                        with zf.open(fname) as f: df = pd.read_csv(f, encoding='utf-8-sig')
+                        db.session.query(Model).delete()
+                        records = df.to_dict('records')
+                        clean_records = [{k: (v if not pd.isna(v) else None) for k, v in r.items() if k in [c.key for c in Model.__table__.columns]} for r in records]
+                        if clean_records: db.session.bulk_insert_mappings(Model, clean_records)
+                db.session.commit()
+                flash('Restore Success', 'success')
+        except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
+    return redirect(url_for('backup_restore'))
+
+# Placeholder routes
+@app.route('/script') @login_required
 def script(): return render_page(CONTENT_TEMPLATE, title="Script", active_page='script')
-@app.route('/users')
-@login_required
+@app.route('/users') @login_required
 def manage_users(): return render_page(USER_MANAGEMENT_TEMPLATE, users=User.query.all(), active_page='users')
-@app.route('/users/add', methods=['POST'])
-@login_required
-def add_user(): 
-    u = User(username=request.form['username'], role=request.form['role']); u.set_password(request.form['password'])
-    db.session.add(u); db.session.commit(); return redirect(url_for('manage_users'))
-@app.route('/users/delete/<int:id>')
-@login_required
+@app.route('/users/add', methods=['POST']) @login_required
+def add_user(): u = User(username=request.form['username'], role=request.form['role']); u.set_password(request.form['password']); db.session.add(u); db.session.commit(); return redirect(url_for('manage_users'))
+@app.route('/users/delete/<int:id>') @login_required
 def delete_user(id): db.session.delete(db.session.get(User, id)); db.session.commit(); return redirect(url_for('manage_users'))
-@app.route('/users/reset-pass/<int:id>')
-@login_required
+@app.route('/users/reset-pass/<int:id>') @login_required
 def reset_pass(id): u=db.session.get(User, id); u.set_password(request.args.get('new_pass')); db.session.commit(); return redirect(url_for('manage_users'))
-@app.route('/profile')
-@login_required
+@app.route('/profile') @login_required
 def profile(): return render_page(PROFILE_TEMPLATE, active_page='profile')
-@app.route('/change-password', methods=['POST'])
-@login_required
+@app.route('/change-password', methods=['POST']) @login_required
 def change_password(): 
     if current_user.check_password(request.form['current_password']): current_user.set_password(request.form['new_password']); db.session.commit(); flash('Done', 'success')
     return redirect(url_for('profile'))
-@app.route('/rf/add', methods=['GET', 'POST'])
-@login_required
+@app.route('/rf/add', methods=['GET', 'POST']) @login_required
 def rf_add():
-    tech = request.args.get('tech', '3g')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    if request.method == 'POST':
-        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
-        db.session.add(Model(**data)); db.session.commit(); flash('Added', 'success')
-        return redirect(url_for('rf', tech=tech))
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=cols, tech=tech, obj={})
-@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
-@login_required
+    tech = request.args.get('tech', '3g'); Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if request.method == 'POST': db.session.add(Model(**{k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()})); db.session.commit(); return redirect(url_for('rf', tech=tech))
+    return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=[c.key for c in Model.__table__.columns if c.key != 'id'], tech=tech, obj={})
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST']) @login_required
 def rf_edit(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if request.method == 'POST':
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech); obj = db.session.get(Model, id)
+    if request.method == 'POST': 
         for k,v in request.form.items(): setattr(obj, k, v)
-        db.session.commit(); flash('Updated', 'success'); return redirect(url_for('rf', tech=tech))
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=cols, tech=tech, obj=obj.__dict__)
-@app.route('/rf/delete/<tech>/<int:id>')
-@login_required
-def rf_delete(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    db.session.delete(db.session.get(Model, id)); db.session.commit(); flash('Deleted', 'success')
-    return redirect(url_for('rf', tech=tech))
-@app.route('/rf/detail/<tech>/<int:id>')
-@login_required
-def rf_detail(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
+        db.session.commit(); return redirect(url_for('rf', tech=tech))
+    return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=[c.key for c in Model.__table__.columns if c.key != 'id'], tech=tech, obj=obj.__dict__)
+@app.route('/rf/delete/<tech>/<int:id>') @login_required
+def rf_delete(tech, id): db.session.delete(db.session.get({'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech), id)); db.session.commit(); return redirect(url_for('rf', tech=tech))
+@app.route('/rf/detail/<tech>/<int:id>') @login_required
+def rf_detail(tech, id): return render_page(RF_DETAIL_TEMPLATE, obj=db.session.get({'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech), id).__dict__, tech=tech)
+@app.route('/rf/reset') @login_required
+def rf_reset(): 
+    if current_user.role == 'admin': db.session.query({'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(request.args.get('type'))).delete(); db.session.commit()
+    return redirect(url_for('import_data'))
 
 if __name__ == '__main__':
     app.run(debug=True)
