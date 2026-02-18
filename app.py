@@ -417,20 +417,25 @@ BASE_LAYOUT = """
             }
         }
         
-        function addRow() {
-            var table = document.getElementById("rruTable").getElementsByTagName('tbody')[0];
+        function addRow(tech) {
+            var table = document.getElementById("rruTable_" + tech).getElementsByTagName('tbody')[0];
             var newRow = table.insertRow(table.rows.length);
             var idx = table.rows.length;
-            newRow.innerHTML = `
-                <td><input type="text" name="rn[]" class="form-control" value="RRU${idx}"></td>
-                <td><input type="number" name="srn[]" class="form-control" value="${60+idx-1}"></td>
-                <td><input type="number" name="hsn[]" class="form-control" value="0"></td>
-                <td><input type="number" name="hpn[]" class="form-control" value="${idx-1}"></td>
-                <td><input type="number" name="rcn[]" class="form-control" value="${idx-1}"></td>
-                <td><input type="number" name="sectorid[]" class="form-control" value="${idx-1}"></td>
-                <td><input type="number" name="rxnum[]" class="form-control" value="2"></td>
-                <td><input type="number" name="txnum[]" class="form-control" value="1"></td>
-                <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>`;
+            var defaultSRN, defaultSlot;
+            
+            if (tech == '3g900') { defaultSRN = 70 + idx - 1; defaultSlot = 2; }
+            else if (tech == '3g2100') { defaultSRN = 80 + idx - 1; defaultSlot = 3; }
+            else { defaultSRN = 60 + idx - 1; defaultSlot = 3; } // 4G
+
+            var cell1 = newRow.insertCell(0); cell1.innerHTML = `<input type="text" name="rn[]" class="form-control" value="RRU${idx}">`;
+            var cell2 = newRow.insertCell(1); cell2.innerHTML = `<input type="number" name="srn[]" class="form-control" value="${defaultSRN}">`;
+            var cell3 = newRow.insertCell(2); cell3.innerHTML = `<input type="number" name="hsn[]" class="form-control" value="${defaultSlot}">`;
+            var cell4 = newRow.insertCell(3); cell4.innerHTML = `<input type="number" name="hpn[]" class="form-control" value="${idx-1}">`;
+            var cell5 = newRow.insertCell(4); cell5.innerHTML = `<input type="number" name="rcn[]" class="form-control" value="${idx-1}">`;
+            var cell6 = newRow.insertCell(5); cell6.innerHTML = `<input type="number" name="sectorid[]" class="form-control" value="${idx-1}">`;
+            var cell7 = newRow.insertCell(6); cell7.innerHTML = `<input type="number" name="rxnum[]" class="form-control" value="${tech=='4g'?4:2}">`;
+            var cell8 = newRow.insertCell(7); cell8.innerHTML = `<input type="number" name="txnum[]" class="form-control" value="${tech=='4g'?4:1}">`;
+            var cell9 = newRow.insertCell(8); cell9.innerHTML = `<button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button>`;
         }
     </script>
 </body>
@@ -544,7 +549,6 @@ CONTENT_TEMPLATE = """
                                     if(el.length>0){
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
-                                        // For POI, show only aggregate data in zoom
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
                                     }
                                 },
@@ -597,15 +601,12 @@ CONTENT_TEMPLATE = """
                     <div class="tab-pane fade show active" id="tab3g900">
                         <form method="POST" action="/script">
                             <input type="hidden" name="tech" value="3g900">
-                            <div class="row mb-3">
-                                <div class="col-md-4"><label class="form-label">Site Name/Code</label><input type="text" name="site_name" class="form-control" placeholder="e.g. SR_TTH_001"></div>
-                            </div>
-                            <table class="table table-bordered" id="rruTable">
+                            <table class="table table-bordered" id="rruTable_3g900">
                                 <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead>
                                 <tbody>
                                     <tr>
                                         <td><input type="text" name="rn[]" class="form-control" value="RRU1"></td>
-                                        <td><input type="number" name="srn[]" class="form-control" value="60"></td>
+                                        <td><input type="number" name="srn[]" class="form-control" value="70"></td>
                                         <td><input type="number" name="hsn[]" class="form-control" value="2"></td>
                                         <td><input type="number" name="hpn[]" class="form-control" value="0"></td>
                                         <td><input type="number" name="rcn[]" class="form-control" value="0"></td>
@@ -616,14 +617,59 @@ CONTENT_TEMPLATE = """
                                     </tr>
                                 </tbody>
                             </table>
-                            <button type="button" class="btn btn-success mb-3" onclick="addRow()">+ Add RRU</button>
+                            <button type="button" class="btn btn-success mb-3" onclick="addRow('3g900')">+ Add RRU</button>
                             <br>
                             <button class="btn btn-primary">Generate Script</button>
                         </form>
                     </div>
-                     <!-- Placeholder for other tabs (logic is similar, just changing hidden input value) -->
-                     <div class="tab-pane fade" id="tab4g"><div class="alert alert-info">Select '3G 900' tab for demo. The logic is the same.</div></div>
-                     <div class="tab-pane fade" id="tab3g2100"><div class="alert alert-info">Select '3G 900' tab for demo.</div></div>
+                     <div class="tab-pane fade" id="tab4g">
+                        <form method="POST" action="/script">
+                            <input type="hidden" name="tech" value="4g">
+                            <table class="table table-bordered" id="rruTable_4g">
+                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <tr>
+                                        <td><input type="text" name="rn[]" class="form-control" value="RRU1"></td>
+                                        <td><input type="number" name="srn[]" class="form-control" value="60"></td>
+                                        <td><input type="number" name="hsn[]" class="form-control" value="3"></td>
+                                        <td><input type="number" name="hpn[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="rcn[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="sectorid[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="rxnum[]" class="form-control" value="4"></td>
+                                        <td><input type="number" name="txnum[]" class="form-control" value="4"></td>
+                                        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button type="button" class="btn btn-success mb-3" onclick="addRow('4g')">+ Add RRU</button>
+                            <br>
+                            <button class="btn btn-primary">Generate Script</button>
+                        </form>
+                     </div>
+                     <div class="tab-pane fade" id="tab3g2100">
+                        <form method="POST" action="/script">
+                            <input type="hidden" name="tech" value="3g2100">
+                            <table class="table table-bordered" id="rruTable_3g2100">
+                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    <tr>
+                                        <td><input type="text" name="rn[]" class="form-control" value="RRU1"></td>
+                                        <td><input type="number" name="srn[]" class="form-control" value="80"></td>
+                                        <td><input type="number" name="hsn[]" class="form-control" value="3"></td>
+                                        <td><input type="number" name="hpn[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="rcn[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="sectorid[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="rxnum[]" class="form-control" value="2"></td>
+                                        <td><input type="number" name="txnum[]" class="form-control" value="1"></td>
+                                        <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <button type="button" class="btn btn-success mb-3" onclick="addRow('3g2100')">+ Add RRU</button>
+                            <br>
+                            <button class="btn btn-primary">Generate Script</button>
+                        </form>
+                     </div>
                 </div>
                 {% if script_result %}
                 <div class="mt-4">
