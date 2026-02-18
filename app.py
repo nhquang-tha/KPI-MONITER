@@ -297,7 +297,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -417,7 +417,6 @@ BASE_LAYOUT = """
             }
         }
         
-        // Dynamic row script for script page
         function addRow() {
             var table = document.getElementById("rruTable").getElementsByTagName('tbody')[0];
             var newRow = table.insertRow(table.rows.length);
@@ -426,13 +425,17 @@ BASE_LAYOUT = """
             var cell3 = newRow.insertCell(2);
             var cell4 = newRow.insertCell(3);
             var cell5 = newRow.insertCell(4);
+            var cell6 = newRow.insertCell(5);
+            var cell7 = newRow.insertCell(6);
             var idx = table.rows.length;
             
             cell1.innerHTML = '<input type="text" name="rru_name[]" class="form-control" placeholder="RRU'+idx+'" value="RRU'+idx+'">';
             cell2.innerHTML = '<input type="number" name="srn[]" class="form-control" value="'+(60+idx-1)+'">';
-            cell3.innerHTML = '<input type="number" name="slot[]" class="form-control" value="3">';
+            cell3.innerHTML = '<input type="number" name="slot[]" class="form-control" value="0">';
             cell4.innerHTML = '<input type="number" name="port[]" class="form-control" value="'+(idx-1)+'">';
-            cell5.innerHTML = '<button type="button" class="btn btn-danger btn-sm" onclick="this.closest(\'tr\').remove()">X</button>';
+            cell5.innerHTML = '<input type="number" name="rcn[]" class="form-control" value="'+(idx-1)+'">';
+            cell6.innerHTML = '<input type="number" name="sectorid[]" class="form-control" value="'+(idx-1)+'">';
+            cell7.innerHTML = '<button type="button" class="btn btn-danger btn-sm" onclick="this.closest(\'tr\').remove()">X</button>';
         }
     </script>
 </body>
@@ -603,13 +606,15 @@ CONTENT_TEMPLATE = """
                                 <div class="col-md-4"><label class="form-label">Site Name/Code</label><input type="text" name="site_name" class="form-control" placeholder="e.g. SR_TTH_001"></div>
                             </div>
                             <table class="table table-bordered" id="rruTable">
-                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>Action</th></tr></thead>
+                                <thead><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>Action</th></tr></thead>
                                 <tbody>
                                     <tr>
                                         <td><input type="text" name="rru_name[]" class="form-control" value="RRU1"></td>
                                         <td><input type="number" name="srn[]" class="form-control" value="60"></td>
                                         <td><input type="number" name="slot[]" class="form-control" value="3"></td>
                                         <td><input type="number" name="port[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="rcn[]" class="form-control" value="0"></td>
+                                        <td><input type="number" name="sectorid[]" class="form-control" value="0"></td>
                                         <td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td>
                                     </tr>
                                 </tbody>
@@ -763,8 +768,12 @@ def kpi():
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
-    elif cell_name_input:
-        target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+    elif cell_name_input and RF_Model:
+        site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
+        if site_cells:
+            target_cells = [c.cell_code for c in site_cells]
+        else:
+            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
@@ -1011,20 +1020,20 @@ def script():
         slots = request.form.getlist('slot[]')
         ports = request.form.getlist('port[]')
         
+        rcns = request.form.getlist('rcn[]')
+        sec_ids = request.form.getlist('sectorid[]')
+
         lines = []
         
-        # Determine script pattern based on Tech (Simplified for demo)
-        # In reality, you'd match the exact syntax from your CSV files
         if tech == '3g900':
              for i in range(len(rrus)):
-                 # Example pattern from 3G_900.csv
-                 lines.append(f'ADD RRUCHAIN: RCN={i}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;')
-                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={i}, PS=0, RT=MRRU, RS=GU, RN={rrus[i]}, RXNUM=2, TXNUM=1, MNTMODE=NORMAL...')
-                 lines.append(f'ADD SECTOR: SECTORID={i}, ANTNUM=2, ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A...')
+                 lines.append(f'ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;')
+                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS=GU, RN={rrus[i]}, RXNUM=2, TXNUM=1, MNTMODE=NORMAL...')
+                 lines.append(f'ADD SECTOR: SECTORID={sec_ids[i]}, ANTNUM=2, ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A...')
         elif tech == '4g':
              for i in range(len(rrus)):
-                 lines.append(f'ADD RRUCHAIN: RCN={i}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}...')
-                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={i}, PS=0, RT=MRRU, RS=LO, RN={rrus[i]}, RXNUM=4, TXNUM=4...')
+                 lines.append(f'ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={slots[i]}, HPN={ports[i]}...')
+                 lines.append(f'ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS=LO, RN={rrus[i]}, RXNUM=4, TXNUM=4...')
         
         script_result = "\n".join(lines)
         
