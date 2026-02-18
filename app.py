@@ -297,7 +297,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -628,9 +628,9 @@ CONTENT_TEMPLATE = """
                                 interaction:{mode:'nearest',intersect:false,axis:'x'},
                                 onClick:(e,el)=>{
                                     if(el.length>0){
-                                        // For POI report, we only show the zoomed aggregate chart, not details
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
+                                        // Pass detail datasets for popup (Zoom In)
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', cd.datasets, cd.labels);
                                     }
                                 },
@@ -694,7 +694,7 @@ def render_page(tpl, **kwargs):
     return render_template_string(tpl, **kwargs)
 
 # ==============================================================================
-# 5. ROUTES
+# 5. ROUTES (CONTROLLERS)
 # ==============================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -851,7 +851,19 @@ def poi():
                 agg_traf = defaultdict(float)
                 agg_thput = defaultdict(list)
                 
-                # Datasets for Zoom In (Detail per cell)
+                # Create datasets for zoom-in (hidden by default logic handled in frontend or just passed)
+                # But here we pass ALL datasets. 
+                # Let's create aggregate datasets first.
+                
+                for r in k4:
+                    if r.thoi_gian in dates4:
+                        agg_traf[r.thoi_gian] += (r.traffic or 0)
+                        if r.user_dl_avg_thput: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
+
+                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3}]
+                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3}]
+
+                # Generate detailed datasets (for popup)
                 ds_traf_detail = []
                 ds_thput_detail = []
                 grouped = defaultdict(list)
@@ -860,26 +872,12 @@ def poi():
                 
                 for i, (cell, rows) in enumerate(grouped.items()):
                     row_map = {r.thoi_gian: r for r in rows}
-                    d_tr, d_th = [], []
-                    for d in dates4:
-                        v = row_map.get(d)
-                        tr = v.traffic if v else 0
-                        th = v.user_dl_avg_thput if v else 0
-                        d_tr.append(tr); d_th.append(th)
-                        agg_traf[d] += tr
-                        if th > 0: agg_thput[d].append(th)
-                    ds_traf_detail.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True}) # Hidden by default in main view? No, we use aggregate for main view
+                    d_tr = [row_map.get(d).traffic if row_map.get(d) else 0 for d in dates4]
+                    d_th = [row_map.get(d).user_dl_avg_thput if row_map.get(d) else 0 for d in dates4]
+                    
+                    ds_traf_detail.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True})
                     ds_thput_detail.append({'label': cell, 'data': d_th, 'borderColor': colors[i], 'fill': False, 'hidden': True})
 
-                # Main Charts (Aggregate)
-                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False}]
-                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False}]
-
-                # Pass both Aggregate (for display) and Detail (for popup)
-                # But Chart.js can't hold hidden extra data easily in template var structure without custom logic
-                # Workaround: Pass detail datasets but set hidden: true, or just use detail for popup logic in JS
-                # Here we pass ALL datasets to template.
-                
                 charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg + ds_traf_detail}
                 charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg + ds_thput_detail}
         
@@ -893,6 +891,15 @@ def poi():
                 
                 agg_traf5 = defaultdict(float)
                 agg_thput5 = defaultdict(list)
+                
+                for r in k5:
+                    if r.thoi_gian in dates5:
+                        agg_traf5[r.thoi_gian] += (r.traffic or 0)
+                        if r.user_dl_avg_throughput: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
+                
+                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3}]
+                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3}]
+
                 ds_traf_detail5 = []
                 ds_thput_detail5 = []
                 grouped5 = defaultdict(list)
@@ -901,19 +908,11 @@ def poi():
 
                 for i, (cell, rows) in enumerate(grouped5.items()):
                     row_map = {r.thoi_gian: r for r in rows}
-                    d_tr, d_th = [], []
-                    for d in dates5:
-                        v = row_map.get(d)
-                        tr = v.traffic if v else 0
-                        th = v.user_dl_avg_throughput if v else 0
-                        d_tr.append(tr); d_th.append(th)
-                        agg_traf5[d] += tr
-                        if th > 0: agg_thput5[d].append(th)
+                    d_tr = [row_map.get(d).traffic if row_map.get(d) else 0 for d in dates5]
+                    d_th = [row_map.get(d).user_dl_avg_throughput if row_map.get(d) else 0 for d in dates5]
+                    
                     ds_traf_detail5.append({'label': cell, 'data': d_tr, 'borderColor': colors[i], 'fill': False, 'hidden': True})
                     ds_thput_detail5.append({'label': cell, 'data': d_th, 'borderColor': colors[i], 'fill': False, 'hidden': True})
-
-                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False}]
-                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False}]
 
                 charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5 + ds_traf_detail5}
                 charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5 + ds_thput_detail5}
