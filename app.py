@@ -573,10 +573,11 @@ CONTENT_TEMPLATE = """
             </div>
 
         {% elif active_page == 'traffic_down' %}
-             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
+             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Degraded</button><button type="submit" name="action" value="export_poi_degraded" class="btn btn-warning shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> POI Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
             <div class="row g-4">
-                <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Cell Không Lưu Lượng (< 0.1 GB)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg (7 Days)</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in zero_traffic %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
-                <div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Cell Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in degraded %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ row.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+                <div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Cell Không Lưu Lượng (< 0.1 GB)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg (7 Days)</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in zero_traffic %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+                <div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Cell Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in degraded %}<tr><td class="fw-bold">{{ row.cell_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ row.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ row.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+                 <div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">POI Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>POI Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for row in degraded_pois %}<tr><td class="fw-bold">{{ row.poi_name }}</td><td class="text-end text-danger">{{ row.traffic_today }}</td><td class="text-end">{{ row.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ row.degrade_percent }}%</td><td class="text-center"><a href="/poi?poi_name={{ row.poi_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
             </div>
 
         {% elif active_page == 'conges_3g' %}
@@ -1015,10 +1016,12 @@ def worst_cell():
 def traffic_down():
     tech = request.args.get('tech', '4g')
     action = request.args.get('action')
-    zero_traffic, degraded, analysis_date = [], [], "N/A"
+    zero_traffic, degraded, degraded_pois, analysis_date = [], [], [], "N/A"
     
-    if action in ['execute', 'export_zero', 'export_degraded']:
+    if action in ['execute', 'export_zero', 'export_degraded', 'export_poi_degraded']:
         Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
+        POI_Model = {'4g': POI4G, '5g': POI5G}.get(tech)
+        
         if Model:
             dates_raw = [d[0] for d in db.session.query(Model.thoi_gian).distinct().all()]
             dates_obj = sorted([datetime.strptime(d, '%d/%m/%Y') for d in dates_raw if d], reverse=True)
@@ -1036,6 +1039,8 @@ def traffic_down():
                     except: pass
                 
                 last_week = latest - timedelta(days=7)
+                
+                # --- Cell Analysis ---
                 for cell, d_map in data_map.items():
                     t0 = d_map.get(latest, 0)
                     t_last = d_map.get(last_week, 0)
@@ -1044,21 +1049,40 @@ def traffic_down():
                         if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
                     if t_last > 1 and t0 < 0.7 * t_last:
                         degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+                
+                # --- POI Analysis ---
+                if POI_Model:
+                    # Get mapping cell -> poi
+                    poi_map = {r.cell_code: r.poi_name for r in db.session.query(POI_Model).all()}
+                    poi_traffic = defaultdict(lambda: {'today': 0, 'last_week': 0})
+                    
+                    for cell, d_map in data_map.items():
+                        if cell in poi_map:
+                            p_name = poi_map[cell]
+                            poi_traffic[p_name]['today'] += d_map.get(latest, 0)
+                            poi_traffic[p_name]['last_week'] += d_map.get(last_week, 0)
+                    
+                    for pname, traf in poi_traffic.items():
+                        t0 = traf['today']
+                        t_last = traf['last_week']
+                        # Threshold for POI degradation: Today < 70% LastWeek AND LastWeek > 5GB (to filter tiny POIs)
+                        if t_last > 5 and t0 < 0.7 * t_last:
+                             degraded_pois.append({'poi_name': pname, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
 
         if action == 'export_zero':
             df = pd.DataFrame(zero_traffic)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
-            return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
+            output = BytesIO(); with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0); return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_degraded':
             df = pd.DataFrame(degraded)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
-            return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
+            output = BytesIO(); with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0); return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
+        elif action == 'export_poi_degraded':
+            df = pd.DataFrame(degraded_pois)
+            output = BytesIO(); with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0); return send_file(output, download_name=f'POIDegraded_{tech}.xlsx', as_attachment=True)
 
-    return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, tech=tech, analysis_date=analysis_date)
+    return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, degraded_pois=degraded_pois, tech=tech, analysis_date=analysis_date)
 
 @app.route('/script', methods=['GET', 'POST'])
 @login_required
