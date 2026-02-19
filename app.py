@@ -1071,16 +1071,25 @@ def traffic_down():
 
         if action == 'export_zero':
             df = pd.DataFrame(zero_traffic)
-            output = BytesIO(); with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0); return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_degraded':
             df = pd.DataFrame(degraded)
-            output = BytesIO(); with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0); return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_poi_degraded':
             df = pd.DataFrame(degraded_pois)
-            output = BytesIO(); with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0); return send_file(output, download_name=f'POIDegraded_{tech}.xlsx', as_attachment=True)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'POIDegraded_{tech}.xlsx', as_attachment=True)
 
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, degraded_pois=degraded_pois, tech=tech, analysis_date=analysis_date)
 
