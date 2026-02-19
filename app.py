@@ -1132,28 +1132,38 @@ def worst_cell():
     date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
     target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:duration]]
     
-    records = []
+    results = []
     if target_dates:
+        latest_date = target_dates[0]
+        
+        # Tìm danh sách cell L900 từ RF4G
+        l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
+        
+        # Lấy danh sách các cell có dữ liệu trong ngày KPI gần nhất
+        active_latest_cells = {c[0] for c in db.session.query(KPI4G.ten_cell).filter(KPI4G.thoi_gian == latest_date).all()}
+
         records = KPI4G.query.filter(
             KPI4G.thoi_gian.in_(target_dates),
             ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
             ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
         ).all()
     
-    groups = defaultdict(list)
-    for r in records: groups[r.ten_cell].append(r)
-    
-    results = []
-    for cell, rows in groups.items():
-        if len(rows) == duration:
-            results.append({
-                'cell_name': cell,
-                'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2),
-                'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2),
-                'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
-                'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
-            })
-            
+        groups = defaultdict(list)
+        for r in records: 
+            # Bỏ qua cell L900 và chỉ xét những cell hoạt động trong ngày gần nhất
+            if r.ten_cell in active_latest_cells and r.ten_cell not in l900_cells:
+                groups[r.ten_cell].append(r)
+        
+        for cell, rows in groups.items():
+            if len(rows) == duration:
+                results.append({
+                    'cell_name': cell,
+                    'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2),
+                    'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2),
+                    'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
+                    'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
+                })
+                
     if action == 'export':
         df = pd.DataFrame(results)
         output = BytesIO()
