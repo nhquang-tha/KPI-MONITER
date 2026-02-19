@@ -586,8 +586,39 @@ CONTENT_TEMPLATE = """
             <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for row in conges_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_cs_conges > 2 }}">{{ row.avg_cs_conges }}</td><td>{{ row.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if row.avg_ps_conges > 2 }}">{{ row.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Nhấn nút "Thực hiện" để xem kết quả</td></tr>{% endfor %}</tbody></table></div>
 
         {% elif active_page == 'rf' %}
-             <div class="d-flex justify-content-between mb-4"><div class="btn-group shadow-sm"><a href="/rf?tech=3g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '3g' }}">3G</a><a href="/rf?tech=4g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '4g' }}">4G</a><a href="/rf?tech=5g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '5g' }}">5G</a></div><div><a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary shadow-sm me-2">New</a><a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success shadow-sm text-white">Export</a></div></div>
-             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="text-center bg-light border-bottom" style="width: 120px; position: sticky; left: 0; z-index: 20;">Action</th>{% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}</tr></thead><tbody>{% for row in rf_data %}<tr><td class="text-center bg-white border-end" style="position: sticky; left: 0; z-index: 5;"><a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-primary border-0"><i class="fa-solid fa-eye"></i></a><a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-warning border-0"><i class="fa-solid fa-pen"></i></a><a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-danger border-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a></td>{% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div>
+             <div class="d-flex justify-content-between mb-4">
+                 <div class="btn-group shadow-sm"><a href="/rf?tech=3g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '3g' }}">3G</a><a href="/rf?tech=4g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '4g' }}">4G</a><a href="/rf?tech=5g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '5g' }}">5G</a></div>
+                 <div>
+                     {% if current_user.role == 'admin' %}
+                     <a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary shadow-sm me-2">New</a>
+                     {% endif %}
+                     <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success shadow-sm text-white">Export</a>
+                 </div>
+             </div>
+             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
+                 <table class="table table-hover mb-0" style="font-size: 0.9rem;">
+                     <thead class="bg-light position-sticky top-0" style="z-index: 10;">
+                         <tr>
+                             <th class="text-center bg-light border-bottom" style="width: 120px; position: sticky; left: 0; z-index: 20;">Action</th>
+                             {% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}
+                         </tr>
+                     </thead>
+                     <tbody>
+                         {% for row in rf_data %}
+                         <tr>
+                             <td class="text-center bg-white border-end" style="position: sticky; left: 0; z-index: 5;">
+                                 <a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-primary border-0"><i class="fa-solid fa-eye"></i></a>
+                                 {% if current_user.role == 'admin' %}
+                                 <a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-warning border-0"><i class="fa-solid fa-pen"></i></a>
+                                 <a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-danger border-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a>
+                                 {% endif %}
+                             </td>
+                             {% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}
+                         </tr>
+                         {% endfor %}
+                     </tbody>
+                 </table>
+             </div>
 
         {% elif active_page == 'import' %}
              <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary">Import Data</h5><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label">Chọn Loại Dữ Liệu</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option><option value="kpi3g">KPI 3G</option><option value="kpi4g">KPI 4G</option><option value="kpi5g">KPI 5G</option></select></div><div class="mb-3"><label class="form-label">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100">Upload</button></form></div></div><div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div></div></div>
@@ -750,8 +781,46 @@ BACKUP_RESTORE_TEMPLATE = """
 </div>
 {% endblock %}
 """
-RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small fw-bold text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}"></div>{% endfor %}</div><button class="btn btn-primary">Save</button></form></div></div>{% endblock %}"""
-RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header">Detail</div><div class="card-body"><table class="table table-bordered">{% for k,v in obj.items() %}<tr><th>{{ k }}</th><td>{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
+RF_FORM_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header">{{ title }}</div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row">
+                {% for col in columns %}
+                <div class="col-md-4 mb-3">
+                    <label class="small fw-bold text-muted">{{ col }}</label>
+                    <input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}">
+                </div>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a href="/rf?tech={{ tech }}" class="btn btn-secondary ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
+"""
+RF_DETAIL_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Detail</span>
+        <a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm">Quay lại</a>
+    </div>
+    <div class="card-body">
+        <table class="table table-bordered">
+            {% for k,v in obj.items() %}
+            <tr><th>{{ k }}</th><td>{{ v }}</td></tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}
+"""
 
 app.jinja_loader = jinja2.DictLoader({
     'base': BASE_LAYOUT,
@@ -1282,6 +1351,7 @@ def change_password():
 @app.route('/rf/add', methods=['GET', 'POST'])
 @login_required
 def rf_add():
+    if current_user.role != 'admin': return redirect(url_for('rf', tech=request.args.get('tech', '3g')))
     tech = request.args.get('tech', '3g')
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     if request.method == 'POST':
@@ -1293,6 +1363,7 @@ def rf_add():
 @app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
 @login_required
 def rf_edit(tech, id):
+    if current_user.role != 'admin': return redirect(url_for('rf', tech=tech))
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     obj = db.session.get(Model, id)
     if request.method == 'POST':
@@ -1303,6 +1374,7 @@ def rf_edit(tech, id):
 @app.route('/rf/delete/<tech>/<int:id>')
 @login_required
 def rf_delete(tech, id):
+    if current_user.role != 'admin': return redirect(url_for('rf', tech=tech))
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     db.session.delete(db.session.get(Model, id)); db.session.commit(); flash('Deleted', 'success')
     return redirect(url_for('rf', tech=tech))
