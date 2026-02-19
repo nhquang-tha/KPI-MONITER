@@ -549,6 +549,7 @@ CONTENT_TEMPLATE = """
                                     if(el.length>0){
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
+                                        // For POI, show only aggregate data in zoom
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
                                     }
                                 },
@@ -812,7 +813,15 @@ def kpi():
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
     elif cell_name_input:
-        target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+        is_site = False
+        if RF_Model:
+            site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
+            if site_cells:
+                target_cells = [r.cell_code for r in site_cells]
+                is_site = True
+        
+        if not is_site:
+             target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
