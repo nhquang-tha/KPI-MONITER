@@ -297,7 +297,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES
+# 4. TEMPLATES (DEFINED BEFORE USAGE)
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -822,6 +822,10 @@ def kpi():
         
         if not is_site:
              target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+             
+    # Ensure unique cells to prevent duplicate lines in charts
+    if target_cells:
+        target_cells = sorted(list(set(target_cells)))
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
