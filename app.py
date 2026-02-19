@@ -621,7 +621,91 @@ CONTENT_TEMPLATE = """
              </div>
 
         {% elif active_page == 'import' %}
-             <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary">Import Data</h5><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label">Chọn Loại Dữ Liệu</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option><option value="kpi3g">KPI 3G</option><option value="kpi4g">KPI 4G</option><option value="kpi5g">KPI 5G</option></select></div><div class="mb-3"><label class="form-label">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100">Upload</button></form></div></div><div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div></div></div>
+             <div class="row">
+                 <div class="col-md-8">
+                     <div class="tab-content bg-white p-4 rounded-3 shadow-sm border">
+                         <h5 class="mb-3 text-primary"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Data Import</h5>
+                         
+                         <!-- Tabs Navigation -->
+                         <ul class="nav nav-tabs mb-4" id="importTabs" role="tablist">
+                             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF" type="button">Import RF</button></li>
+                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li>
+                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li>
+                         </ul>
+                         
+                         <!-- Tabs Content -->
+                         <div class="tab-content">
+                             <!-- RF Tab -->
+                             <div class="tab-pane fade show active" id="tabRF">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label>
+                                         <select name="type" class="form-select">
+                                             <option value="3g">RF 3G</option>
+                                             <option value="4g">RF 4G</option>
+                                             <option value="5g">RF 5G</option>
+                                         </select>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label>
+                                         <input type="file" name="file" class="form-control" multiple required>
+                                     </div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload RF Data</button>
+                                 </form>
+                             </div>
+                             
+                             <!-- POI Tab -->
+                             <div class="tab-pane fade" id="tabPOI">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu POI</label>
+                                         <select name="type" class="form-select">
+                                             <option value="poi4g">POI 4G</option>
+                                             <option value="poi5g">POI 5G</option>
+                                         </select>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label>
+                                         <input type="file" name="file" class="form-control" multiple required>
+                                     </div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload POI Data</button>
+                                 </form>
+                             </div>
+
+                             <!-- KPI Tab -->
+                             <div class="tab-pane fade" id="tabKPI">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu KPI</label>
+                                         <select name="type" class="form-select">
+                                             <option value="kpi3g">KPI 3G</option>
+                                             <option value="kpi4g">KPI 4G</option>
+                                             <option value="kpi5g">KPI 5G</option>
+                                         </select>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label>
+                                         <input type="file" name="file" class="form-control" multiple required>
+                                     </div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload KPI Data</button>
+                                 </form>
+                             </div>
+                         </div>
+                         
+                     </div>
+                 </div>
+                 <div class="col-md-4">
+                     <div class="card h-100 border-0 shadow-sm">
+                         <div class="card-header bg-white fw-bold text-success border-bottom">Data History</div>
+                         <div class="card-body p-0 overflow-auto" style="max-height: 400px;">
+                             <table class="table table-sm table-striped mb-0 text-center">
+                                 <thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead>
+                                 <tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody>
+                             </table>
+                         </div>
+                     </div>
+                 </div>
+             </div>
         
         {% elif active_page == 'script' %}
              <div class="card"><div class="card-header">Generate Script</div><div class="card-body">
