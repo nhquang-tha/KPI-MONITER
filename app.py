@@ -550,11 +550,19 @@ CONTENT_TEMPLATE = """
                 </div>
             </div>
             
-            {% if show_its and its_data %}
-            <div class="d-flex justify-content-end mb-2 gap-2">
+            {% if gis_data or its_data %}
+            <div class="d-flex flex-wrap justify-content-end mb-2 gap-2">
+                {% if gis_data %}
+                <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
+                    <label class="small fw-bold text-muted mb-0 me-2"><i class="fa-solid fa-wifi text-info me-1"></i>Bán kính quạt:</label>
+                    <input type="range" class="form-range" id="sectorRadiusSlider" min="50" max="2000" step="50" value="350" style="width: 120px;">
+                    <span id="sectorRadiusVal" class="small text-muted ms-2 fw-bold" style="min-width: 45px;">350m</span>
+                </div>
+                {% endif %}
+                {% if show_its and its_data %}
                 <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
                     <label class="small fw-bold text-muted mb-0 me-2"><i class="fa-solid fa-circle text-primary me-1"></i>Kích thước điểm:</label>
-                    <input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 120px;">
+                    <input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 100px;">
                 </div>
                 <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
                     <div class="form-check form-switch mb-0">
@@ -562,6 +570,7 @@ CONTENT_TEMPLATE = """
                         <label class="form-check-label small fw-bold text-muted" for="showLinesToggle" style="cursor: pointer;"><i class="fa-solid fa-link text-success me-1"></i>Nối thẳng về Cell</label>
                     </div>
                 </div>
+                {% endif %}
             </div>
             {% endif %}
 
@@ -646,6 +655,14 @@ CONTENT_TEMPLATE = """
                         map.setView(mapCenter, mapZoom);
                     }
 
+                    var siteLayerGroup = L.layerGroup().addTo(map);
+                    var sectorLayerGroup = L.layerGroup().addTo(map);
+                    var itsLayerGroup = L.layerGroup().addTo(map);
+                    var cellLookup = {};
+                    var renderedSites = {};
+
+                    var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
+
                     // Hàm tính toán điểm nằm giữa cánh sóng (quạt) theo hướng azimuth
                     function getSectorMidPoint(lat, lon, azimuth, distanceMeters) {
                         var latFactor = 111320;
@@ -656,39 +673,6 @@ CONTENT_TEMPLATE = """
                         return [lat + dy, lon + dx];
                     }
 
-                    // Xây dựng Lookup Table để nối đường nhanh
-                    var cellLookup = {};
-                    function cVal(v) {
-                        if (v === null || v === undefined) return "";
-                        var s = String(v).trim();
-                        if (s.endsWith(".0")) s = s.slice(0, -2);
-                        return s;
-                    }
-
-                    gisData.forEach(function(cell) {
-                        var tech = cell.tech;
-                        var info = cell.info;
-                        var key = "";
-
-                        if (tech === '4g') {
-                            var en = cVal(info.enodeb_id);
-                            var lc = cVal(info.lcrid);
-                            if (en && lc) key = en + "_" + lc;
-                        } else if (tech === '3g') {
-                            var ci = cVal(info.ci);
-                            if (ci) key = ci;
-                        } else if (tech === '5g') {
-                             var gn = cVal(info.gnodeb_id);
-                             var lc5 = cVal(info.lcrid);
-                             if (gn && lc5) key = gn + "_" + lc5;
-                        }
-
-                        if (key) {
-                            // Thay vì nối về gốc trạm, nối về điểm giữa của quạt (cách gốc 250m)
-                            cellLookup[key] = getSectorMidPoint(cell.lat, cell.lon, cell.azi, 250);
-                        }
-                    });
-
                     // Function to calculate sector polygon points
                     function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
                         var center = [lat, lon];
@@ -696,65 +680,104 @@ CONTENT_TEMPLATE = """
                         var startAngle = azimuth - beamwidth / 2;
                         var endAngle = azimuth + beamwidth / 2;
                         
-                        // Roughly 1 degree lat = 111320m. Lon varies by cos(lat)
                         var latFactor = 111320;
                         var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
                         
                         for (var i = startAngle; i <= endAngle; i += 5) {
                             var radMap = i * Math.PI / 180;
-                            var dx = (radiusMeters * Math.sin(radMap)) / lonFactor; // East-West
-                            var dy = (radiusMeters * Math.cos(radMap)) / latFactor; // North-South
+                            var dx = (radiusMeters * Math.sin(radMap)) / lonFactor; 
+                            var dy = (radiusMeters * Math.cos(radMap)) / latFactor; 
                             points.push([lat + dy, lon + dx]);
                         }
                         points.push(center);
                         return points;
                     }
 
-                    var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
-                    var renderedSites = {};
-
+                    // Vẽ center của Site 1 lần
                     gisData.forEach(function(cell) {
                         if(!cell.lat || !cell.lon) return;
-
-                        // Draw Site marker only once per site_code
                         if (!renderedSites[cell.site_code]) {
                             L.circleMarker([cell.lat, cell.lon], {
                                 radius: 4, color: '#333', weight: 1, fillColor: '#ffffff', fillOpacity: 1
-                            }).bindPopup("<b>Site Code:</b> " + cell.site_code).addTo(map);
+                            }).bindPopup("<b>Site Code:</b> " + cell.site_code).addTo(siteLayerGroup);
                             renderedSites[cell.site_code] = true;
                         }
-
-                        // Draw Sector
-                        var color = techColors[cell.tech] || '#dc3545';
-                        var polyPoints = getSectorPolygon(cell.lat, cell.lon, cell.azi, 60, 350); // 60 deg, 350m radius for visual
-                        
-                        var polygon = L.polygon(polyPoints, {
-                            color: color,
-                            weight: 1,
-                            fillColor: color,
-                            fillOpacity: 0.35
-                        }).addTo(map);
-
-                        // Tạo nội dung bảng chi tiết RF cho Popup
-                        var infoHtml = "<div style='max-height: 200px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.75rem;'>";
-                        for (const [key, value] of Object.entries(cell.info)) {
-                            if (value !== null && value !== '' && value !== 'None') {
-                                infoHtml += "<tr><th class='text-muted text-uppercase' style='width: 40%;'>" + key + "</th><td>" + value + "</td></tr>";
-                            }
-                        }
-                        infoHtml += "</table></div>";
-
-                        polygon.bindPopup(
-                            "<b>Cell:</b> <span class='text-primary fs-6'>" + cell.cell_name + "</span><br>" +
-                            "<b>Site:</b> " + cell.site_code + "<br>" +
-                            "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon + "<br>" +
-                            "<hr class='my-2'>" +
-                            infoHtml,
-                            { minWidth: 280, maxWidth: 400 } // Tăng kích thước popup để chứa bảng
-                        );
                     });
-                    
-                    // Vẽ các điểm ITS Log nếu có
+
+                    function cVal(v) {
+                        if (v === null || v === undefined) return "";
+                        var s = String(v).trim();
+                        if (s.endsWith(".0")) s = s.slice(0, -2);
+                        return s;
+                    }
+
+                    function buildLookupAndDrawSectors() {
+                        sectorLayerGroup.clearLayers();
+                        cellLookup = {};
+
+                        var radiusSlider = document.getElementById('sectorRadiusSlider');
+                        var sectorRadius = radiusSlider ? parseInt(radiusSlider.value) : 350;
+                        
+                        var valDisplay = document.getElementById('sectorRadiusVal');
+                        if (valDisplay) valDisplay.innerText = sectorRadius + 'm';
+
+                        gisData.forEach(function(cell) {
+                            if(!cell.lat || !cell.lon) return;
+
+                            var tech = cell.tech;
+                            var info = cell.info;
+                            var key = "";
+
+                            if (tech === '4g') {
+                                var en = cVal(info.enodeb_id);
+                                var lc = cVal(info.lcrid);
+                                if (en && lc) key = en + "_" + lc;
+                            } else if (tech === '3g') {
+                                var ci = cVal(info.ci);
+                                if (ci) key = ci;
+                            } else if (tech === '5g') {
+                                 var gn = cVal(info.gnodeb_id);
+                                 var lc5 = cVal(info.lcrid);
+                                 if (gn && lc5) key = gn + "_" + lc5;
+                            }
+
+                            if (key) {
+                                // Nối thẳng về điểm giữa của quạt (chiếm khoảng 65% bán kính vẽ ra)
+                                cellLookup[key] = getSectorMidPoint(cell.lat, cell.lon, cell.azi, sectorRadius * 0.65);
+                            }
+
+                            var color = techColors[cell.tech] || '#dc3545';
+                            var polyPoints = getSectorPolygon(cell.lat, cell.lon, cell.azi, 60, sectorRadius);
+                            
+                            var polygon = L.polygon(polyPoints, {
+                                color: color,
+                                weight: 1,
+                                fillColor: color,
+                                fillOpacity: 0.35
+                            }).addTo(sectorLayerGroup);
+
+                            var infoHtml = "<div style='max-height: 200px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.75rem;'>";
+                            for (const [k, v] of Object.entries(cell.info)) {
+                                if (v !== null && v !== '' && v !== 'None') {
+                                    infoHtml += "<tr><th class='text-muted text-uppercase' style='width: 40%;'>" + k + "</th><td>" + v + "</td></tr>";
+                                }
+                            }
+                            infoHtml += "</table></div>";
+
+                            polygon.bindPopup(
+                                "<b>Cell:</b> <span class='text-primary fs-6'>" + cell.cell_name + "</span><br>" +
+                                "<b>Site:</b> " + cell.site_code + "<br>" +
+                                "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon + "<br>" +
+                                "<hr class='my-2'>" + infoHtml,
+                                { minWidth: 280, maxWidth: 400 }
+                            );
+                        });
+
+                        // Khi vẽ lại quạt thì cập nhật lại các đường thẳng luôn vì toạ độ bụng quạt thay đổi
+                        drawITSData();
+                    }
+
+                    // Vẽ các điểm ITS Log
                     function getSignalColor(tech, level) {
                         var t = (tech || '').toUpperCase();
                         if (t.includes('4G') || t.includes('LTE')) {
@@ -772,12 +795,10 @@ CONTENT_TEMPLATE = """
                         }
                     }
 
-                    var itsLayerGroup = L.layerGroup().addTo(map);
-
                     function drawITSData() {
                         if (!isShowIts || itsData.length === 0) return;
                         
-                        itsLayerGroup.clearLayers(); // Xóa lớp cũ để vẽ lại
+                        itsLayerGroup.clearLayers();
 
                         var pointSizeSlider = document.getElementById('pointSizeSlider');
                         var pointSize = pointSizeSlider ? parseInt(pointSizeSlider.value) : 3;
@@ -789,7 +810,6 @@ CONTENT_TEMPLATE = """
                             var ptColor = getSignalColor(pt.tech, pt.level);
                             var ptCoord = [pt.lat, pt.lon];
                             
-                            // 1. Vẽ điểm đo
                             L.circleMarker(ptCoord, {
                                 radius: pointSize,
                                 fillColor: ptColor,
@@ -799,7 +819,6 @@ CONTENT_TEMPLATE = """
                             }).bindPopup("<b>Công nghệ:</b> " + pt.tech + "<br><b>Mức thu (Level):</b> " + pt.level + " dBm<br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>Node/CellID:</b> " + (pt.node||'-') + " / " + pt.cellid)
                               .addTo(itsLayerGroup);
 
-                            // 2. Vẽ đường nối nếu được bật
                             if (showLines) {
                                 var ptTech = (pt.tech || '').toLowerCase();
                                 var key = "";
@@ -815,8 +834,8 @@ CONTENT_TEMPLATE = """
                                 if (targetCellCoord) {
                                     L.polyline([ptCoord, targetCellCoord], {
                                         color: ptColor,
-                                        weight: 1,
-                                        opacity: 0.5,
+                                        weight: 1.5,
+                                        opacity: 0.6,
                                         dashArray: '3, 4'
                                     }).addTo(itsLayerGroup);
                                 }
@@ -824,18 +843,18 @@ CONTENT_TEMPLATE = """
                         });
                     }
 
-                    // Gọi hàm vẽ lần đầu
-                    drawITSData();
+                    // Render lần đầu
+                    buildLookupAndDrawSectors();
 
-                    // Bắt sự kiện khi người dùng kéo thanh trượt kích thước hoặc gạt nút vẽ đường
+                    // Bắt sự kiện
+                    var radSliderEl = document.getElementById('sectorRadiusSlider');
+                    if (radSliderEl) radSliderEl.addEventListener('input', buildLookupAndDrawSectors);
+
                     var sliderEl = document.getElementById('pointSizeSlider');
-                    if (sliderEl) {
-                        sliderEl.addEventListener('input', drawITSData);
-                    }
+                    if (sliderEl) sliderEl.addEventListener('input', drawITSData);
+
                     var toggleEl = document.getElementById('showLinesToggle');
-                    if (toggleEl) {
-                        toggleEl.addEventListener('change', drawITSData);
-                    }
+                    if (toggleEl) toggleEl.addEventListener('change', drawITSData);
 
                     // Thêm Legend control
                     if (isShowIts && itsData.length > 0) {
