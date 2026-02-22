@@ -724,7 +724,7 @@ CONTENT_TEMPLATE = """
                                 color: "#000",
                                 weight: 0.5,
                                 fillOpacity: 0.9
-                            }).bindPopup("<b>Công nghệ:</b> " + pt.tech + "<br><b>Mức thu (Level):</b> " + pt.level + " dBm<br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>CellID:</b> " + pt.cellid)
+                            }).bindPopup("<b>Công nghệ:</b> " + pt.tech + "<br><b>Mức thu (Level):</b> " + pt.level + " dBm<br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>Node/CellID:</b> " + (pt.node||'-') + " / " + pt.cellid)
                               .addTo(itsLayerGroup);
                         });
 
@@ -1224,8 +1224,15 @@ def gis():
     
     show_its = False
     its_data = []
-    log_nodes = []
-    log_cells = []
+    log_4g_pairs = set()
+    log_3g_cells = set()
+    
+    def clean_val(v):
+        if pd.isna(v): return None
+        s = str(v).strip()
+        if s.endswith('.0'): s = s[:-2]
+        if s == '-' or s == '': return None
+        return s
     
     # Process uploaded ITS Log file (transient, no database save)
     if request.method == 'POST' and 'its_file' in request.files:
@@ -1237,14 +1244,22 @@ def gis():
                 df = pd.read_csv(file, sep='|', encoding='utf-8-sig', on_bad_lines='skip')
                 df.columns = [clean_header(c) for c in df.columns]
                 
+                has_node = 'node' in df.columns
+                has_cellid = 'cellid' in df.columns
+                
                 # Extract distinct nodes and cells for mapping if action is show_log
                 if action_type == 'show_log':
-                    if 'node' in df.columns:
-                        valid_nodes = [str(x).strip() for x in df['node'] if pd.notna(x) and str(x).strip() not in ['-', '']]
-                        log_nodes = list(set(valid_nodes))
-                    if 'cellid' in df.columns:
-                        valid_cells = [str(x).strip() for x in df['cellid'] if pd.notna(x) and str(x).strip() not in ['-', '']]
-                        log_cells = list(set(valid_cells))
+                    if tech == '4g' and has_node and has_cellid:
+                        for _, r in df.iterrows():
+                            n = clean_val(r.get('node'))
+                            c = clean_val(r.get('cellid'))
+                            if n and c:
+                                log_4g_pairs.add((n, c))
+                    elif tech == '3g' and has_cellid:
+                        for _, r in df.iterrows():
+                            c = clean_val(r.get('cellid'))
+                            if c:
+                                log_3g_cells.add(c)
 
                 # Sample data if too large to prevent browser crash (max 15000 dots)
                 if len(df) > 15000:
@@ -1262,7 +1277,8 @@ def gis():
                             'level': float(row.get('level', 0)),
                             'qual': str(row.get('qual', '')),
                             'tech': str(row.get('networktech', '')),
-                            'cellid': str(row.get('cellid', ''))
+                            'cellid': str(row.get('cellid', '')),
+                            'node': str(row.get('node', ''))
                         })
                     except:
                         continue
@@ -1279,30 +1295,27 @@ def gis():
         if action_type == 'show_log' and show_its:
             # Lọc chỉ hiển thị các trạm có cell xuất hiện trong log
             matched_sites = set()
-            filters = []
+            conditions = []
             
-            # Map log_cells vào cột CI hoặc LCRID tương ứng với chuẩn
-            if hasattr(Model, 'ci') and log_cells: filters.append(Model.ci.in_(log_cells))
-            if hasattr(Model, 'lcrid') and log_cells: filters.append(Model.lcrid.in_(log_cells))
-            
-            # Map log_nodes vào eNodeB hoặc gNodeB hoặc site_code
-            if hasattr(Model, 'enodeb_id') and log_nodes: filters.append(Model.enodeb_id.in_(log_nodes))
-            if hasattr(Model, 'gnodeb_id') and log_nodes: filters.append(Model.gnodeb_id.in_(log_nodes))
-            if hasattr(Model, 'site_code') and log_nodes: filters.append(Model.site_code.in_(log_nodes))
-            
-            if filters:
-                matching_cells = db.session.query(Model.site_code).filter(or_(*filters)).distinct().all()
+            if tech == '4g' and log_4g_pairs:
+                # Limit to max 500 conditions to prevent query too large
+                for n, c in list(log_4g_pairs)[:500]:
+                    conditions.append(and_(Model.enodeb_id == n, Model.lcrid == c))
+                if conditions:
+                    matching_cells = db.session.query(Model.site_code).filter(or_(*conditions)).distinct().all()
+                    matched_sites.update([r[0] for r in matching_cells if r[0]])
+                    
+            elif tech == '3g' and log_3g_cells:
+                matching_cells = db.session.query(Model.site_code).filter(Model.ci.in_(list(log_3g_cells)[:500])).distinct().all()
                 matched_sites.update([r[0] for r in matching_cells if r[0]])
             
             if matched_sites:
                 query = query.filter(Model.site_code.in_(list(matched_sites)))
             else:
-                # Nếu không khớp được trạm nào từ log, hiển thị mảng rỗng để tránh load toàn bộ db
                 query = query.filter(text("1=0"))
                 flash('Không tìm thấy trạm nào trong Database RF khớp với dữ liệu từ file Log.', 'warning')
         else:
             # Lọc theo tìm kiếm thông thường (nếu có site_code_input hoặc cell_name_input)
-            # Web sẽ load toàn bộ (có thể nặng nếu DB quá lớn, có thể tối ưu limit trong tương lai)
             pass
 
         records = query.all()
