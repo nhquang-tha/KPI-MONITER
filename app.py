@@ -7,6 +7,7 @@ import re
 import zipfile
 import unicodedata
 import random
+import math
 from io import BytesIO, StringIO
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
@@ -309,6 +310,9 @@ BASE_LAYOUT = """
     <title>KPI Monitor System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet GIS Map resources -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --acrylic-bg: rgba(255, 255, 255, 0.6); --acrylic-blur: blur(20px); --sidebar-bg: rgba(240, 240, 245, 0.85); --primary-color: #0078d4; --text-color: #212529; --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05); --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1); --border-radius: 12px; }
@@ -339,9 +343,10 @@ BASE_LAYOUT = """
         <div class="sidebar-header"><i class="fa-solid fa-network-wired"></i> NetOps</div>
         <ul class="sidebar-menu">
             <li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li>
+            <li><a href="/gis" class="{{ 'active' if active_page == 'gis' else '' }}"><i class="fa-solid fa-map-location-dot"></i> Bản đồ GIS</a></li>
             <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li>
             <li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF Database</a></li>
-            <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-location-dot"></i> POI Report</a></li>
+            <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-pin"></i> POI Report</a></li>
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
             <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
@@ -476,10 +481,10 @@ LOGIN_PAGE = """
 CONTENT_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>{{ title }}</span>
-        <span class="badge bg-soft-primary text-primary px-3 py-2 rounded-pill">{{ current_user.role | upper }}</span>
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+        <span class="fs-5 fw-bold text-secondary">{{ title }}</span>
+        <span class="badge bg-soft-primary text-primary px-3 py-2 rounded-pill border">{{ current_user.role | upper }}</span>
     </div>
     <div class="card-body">
         {% if active_page == 'dashboard' %}
@@ -495,6 +500,112 @@ CONTENT_TEMPLATE = """
                 <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-success fw-bold mb-3 small">KPI Records</h6><div class="d-flex justify-content-between mb-2"><span>KPI 3G</span><span class="badge bg-white text-dark border">{{ count_kpi3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>KPI 4G</span><span class="badge bg-white text-dark border">{{ count_kpi4g }}</span></div><div class="d-flex justify-content-between"><span>KPI 5G</span><span class="badge bg-white text-dark border">{{ count_kpi5g }}</span></div></div></div>
             </div>
         
+        {% elif active_page == 'gis' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/gis" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label>
+                            <select name="tech" class="form-select border-0 shadow-sm">
+                                <option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option>
+                                <option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option>
+                                <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
+                            </select>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label fw-bold small text-muted">TÌM THEO SITE CODE (TÙY CHỌN)</label>
+                            <input type="text" name="site_code" class="form-control border-0 shadow-sm" placeholder="VD: THA001" value="{{ site_code_input }}">
+                        </div>
+                        <div class="col-md-3 align-self-end">
+                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Xem Bản Đồ</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="card border border-light shadow-sm">
+                <div class="card-body p-2 position-relative">
+                    <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index: 1;"></div>
+                </div>
+            </div>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
+                    var mapContainer = document.getElementById('gisMap');
+                    if (!mapContainer) return;
+
+                    var mapCenter = [19.807, 105.776]; // Default to Thanh Hoa region approx
+                    var mapZoom = 9;
+
+                    if (gisData.length > 0 && gisData[0].lat && gisData[0].lon) {
+                        mapCenter = [gisData[0].lat, gisData[0].lon];
+                        if (gisData.length < 10) mapZoom = 14; 
+                    }
+
+                    var map = L.map('gisMap').setView(mapCenter, mapZoom);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        maxZoom: 19,
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(map);
+
+                    // Function to calculate sector polygon points
+                    function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
+                        var center = [lat, lon];
+                        var points = [center];
+                        var startAngle = azimuth - beamwidth / 2;
+                        var endAngle = azimuth + beamwidth / 2;
+                        
+                        // Roughly 1 degree lat = 111320m. Lon varies by cos(lat)
+                        var latFactor = 111320;
+                        var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
+                        
+                        for (var i = startAngle; i <= endAngle; i += 5) {
+                            // Convert standard azimuth (0=North, 90=East) to radians math logic
+                            var radMap = i * Math.PI / 180;
+                            var dx = (radiusMeters * Math.sin(radMap)) / lonFactor; // East-West
+                            var dy = (radiusMeters * Math.cos(radMap)) / latFactor; // North-South
+                            points.push([lat + dy, lon + dx]);
+                        }
+                        points.push(center);
+                        return points;
+                    }
+
+                    var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
+                    var renderedSites = {};
+
+                    gisData.forEach(function(cell) {
+                        if(!cell.lat || !cell.lon) return;
+
+                        // Draw Site marker only once per site_code
+                        if (!renderedSites[cell.site_code]) {
+                            L.circleMarker([cell.lat, cell.lon], {
+                                radius: 4, color: '#333', weight: 1, fillColor: '#ffffff', fillOpacity: 1
+                            }).bindPopup("<b>Site Code:</b> " + cell.site_code).addTo(map);
+                            renderedSites[cell.site_code] = true;
+                        }
+
+                        // Draw Sector
+                        var color = techColors[cell.tech] || '#dc3545';
+                        var polyPoints = getSectorPolygon(cell.lat, cell.lon, cell.azi, 60, 350); // 60 deg, 350m radius for visual
+                        
+                        var polygon = L.polygon(polyPoints, {
+                            color: color,
+                            weight: 1,
+                            fillColor: color,
+                            fillOpacity: 0.35
+                        }).addTo(map);
+
+                        polygon.bindPopup(
+                            "<b>Cell Name:</b> <span class='text-primary'>" + cell.cell_name + "</span><br>" +
+                            "<b>Site Code:</b> " + cell.site_code + "<br>" +
+                            "<b>Azimuth:</b> " + cell.azi + "°<br>" +
+                            "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon
+                        );
+                    });
+                });
+            </script>
+
         {% elif active_page == 'kpi' %}
             <div class="row mb-4">
                 <div class="col-md-12">
@@ -947,6 +1058,43 @@ def index():
         }
     except: cnt = defaultdict(int)
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
+
+@app.route('/gis')
+@login_required
+def gis():
+    tech = request.args.get('tech', '4g')
+    site_code_input = request.args.get('site_code', '').strip()
+    
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
+    gis_data = []
+    if Model:
+        query = db.session.query(Model)
+        if site_code_input:
+            query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
+            
+        records = query.all()
+        for r in records:
+            try:
+                lat = float(r.latitude)
+                lon = float(r.longitude)
+                azi = int(r.azimuth) if r.azimuth is not None else 0
+                
+                # Check for valid coordinate range (roughly within Vietnam or valid numbers)
+                if 8 <= lat <= 24 and 102 <= lon <= 110:
+                    gis_data.append({
+                        'cell_name': getattr(r, 'cell_name', getattr(r, 'site_name', str(r.cell_code))),
+                        'site_code': r.site_code,
+                        'lat': lat,
+                        'lon': lon,
+                        'azi': azi,
+                        'tech': tech
+                    })
+            except (ValueError, TypeError):
+                continue
+
+    return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', 
+                       selected_tech=tech, site_code_input=site_code_input, gis_data=gis_data)
 
 @app.route('/kpi')
 @login_required
