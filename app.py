@@ -41,7 +41,7 @@ login_manager.login_view = 'login'
 def remove_accents(input_str):
     if not isinstance(input_str, str): return str(input_str)
     s1 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨíŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴịỶảỸỹ'
-    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYaYy'
+    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYaYy'
     s = ''
     for c in input_str:
         if c in s1: s += s0[s1.index(c)]
@@ -1238,6 +1238,15 @@ def gis():
             return str(f)
         except ValueError:
             return s.upper()
+
+    def safe_float(val, default=0.0):
+        if pd.isna(val) or val is None: return default
+        s = str(val).strip()
+        if not s or s == '-': return default
+        try:
+            return float(s)
+        except ValueError:
+            return default
             
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     db_mapping = {}
@@ -1271,45 +1280,53 @@ def gis():
         if file and file.filename:
             show_its = True
             try:
-                # Tự động nhận diện dấu phân cách bằng cách đọc dòng đầu tiên
-                first_line = file.readline().decode('utf-8-sig', errors='ignore')
-                file.seek(0)
-                sep = '|' if '|' in first_line else (',' if ',' in first_line else '\t')
-                
-                # Đọc bằng pandas
-                df = pd.read_csv(file, sep=sep, encoding='utf-8-sig', dtype=str, on_bad_lines='skip')
-                
-                # Chuẩn hóa tên cột để tránh lỗi viết hoa/thường hay dính khoảng trắng
-                cols = [str(c).lower().strip() for c in df.columns]
-                df.columns = cols
-                
-                # Tìm cột linh hoạt
-                lat_col = next((c for c in cols if c in ['latitude', 'lat']), None)
-                lon_col = next((c for c in cols if c in ['longitude', 'lon', 'long']), None)
-                node_col = next((c for c in cols if c in ['node', 'enodebid', 'enodeb_id']), None)
-                cell_col = next((c for c in cols if c in ['cellid', 'ci', 'cell_id', 'cell id']), None)
-                level_col = next((c for c in cols if c in ['level', 'rsrp', 'rscp', 'rxlev']), None)
-                tech_col = next((c for c in cols if c in ['networktech', 'tech', 'network_tech']), None)
-                qual_col = next((c for c in cols if c in ['qual', 'ecno', 'sinr', 'snr', 'rsrq']), None)
-
-                if not lat_col or not lon_col:
-                    flash(f'Lỗi: File log không có cột Tọa độ (Latitude/Longitude). Các cột hiện có: {", ".join(cols)}', 'danger')
+                # Đọc toàn bộ byte stream một lần để tránh lỗi seek
+                file_bytes = file.read()
+                if not file_bytes:
+                    flash('Lỗi: File tải lên trống.', 'danger')
                 else:
-                    # Sample data if too large to prevent browser crash
-                    if len(df) > 15000:
-                        df = df.sample(n=15000)
-                        
-                    for _, row in df.iterrows():
-                        try:
-                            lat_val = row[lat_col]
-                            lon_val = row[lon_col]
+                    first_line = file_bytes.split(b'\n')[0].decode('utf-8-sig', errors='ignore')
+                    sep = '|' if '|' in first_line else (',' if ',' in first_line else '\t')
+                    
+                    df = pd.read_csv(BytesIO(file_bytes), sep=sep, encoding='utf-8-sig', dtype=str, on_bad_lines='skip')
+                    
+                    # Chuẩn hóa tên cột để tránh lỗi viết hoa/thường hay dính khoảng trắng
+                    cols = [str(c).lower().strip() for c in df.columns]
+                    df.columns = cols
+                    
+                    # Tìm cột linh hoạt
+                    lat_col = next((c for c in cols if c in ['latitude', 'lat']), None)
+                    lon_col = next((c for c in cols if c in ['longitude', 'lon', 'long']), None)
+                    node_col = next((c for c in cols if c in ['node', 'enodebid', 'enodeb_id']), None)
+                    cell_col = next((c for c in cols if c in ['cellid', 'ci', 'cell_id', 'cell id']), None)
+                    level_col = next((c for c in cols if c in ['level', 'rsrp', 'rscp', 'rxlev']), None)
+                    tech_col = next((c for c in cols if c in ['networktech', 'tech', 'network_tech']), None)
+                    qual_col = next((c for c in cols if c in ['qual', 'ecno', 'sinr', 'snr', 'rsrq']), None)
+
+                    if not lat_col or not lon_col:
+                        flash(f'Lỗi: File log không có cột Tọa độ (Latitude/Longitude). Các cột hiện có: {", ".join(cols)}', 'danger')
+                    else:
+                        # Sample data if too large to prevent browser crash
+                        if len(df) > 15000:
+                            df = df.sample(n=15000)
+                            
+                        for _, row in df.iterrows():
+                            lat_val = row.get(lat_col)
+                            lon_val = row.get(lon_col)
                             if pd.isna(lat_val) or pd.isna(lon_val): continue
                             
-                            lat = float(lat_val)
-                            lon = float(lon_val)
+                            lat_str = str(lat_val).strip()
+                            lon_str = str(lon_val).strip()
+                            if not lat_str or lat_str == '-' or not lon_str or lon_str == '-': continue
                             
-                            n = clean_val(row[node_col]) if node_col else None
-                            c = clean_val(row[cell_col]) if cell_col else None
+                            try:
+                                lat = float(lat_str)
+                                lon = float(lon_str)
+                            except ValueError:
+                                continue
+                                
+                            n = clean_val(row.get(node_col)) if node_col else None
+                            c = clean_val(row.get(cell_col)) if cell_col else None
                             
                             # Khớp dữ liệu log với trạm trong RF
                             if action_type == 'show_log':
@@ -1325,20 +1342,23 @@ def gis():
                                     if key in db_mapping:
                                         matched_sites.add(db_mapping[key])
                             
-                            lvl_val = row[level_col] if level_col else None
-                            lvl = float(lvl_val) if pd.notna(lvl_val) and lvl_val != '' else 0.0
+                            lvl = safe_float(row.get(level_col)) if level_col else 0.0
+                            
+                            q_val = row.get(qual_col) if qual_col else None
+                            qual_str = str(q_val).strip() if pd.notna(q_val) else ''
+                            
+                            t_val = row.get(tech_col) if tech_col else None
+                            tech_str = str(t_val).strip().upper() if pd.notna(t_val) and str(t_val).strip() else tech.upper()
                             
                             its_data.append({
                                 'lat': lat,
                                 'lon': lon,
                                 'level': lvl,
-                                'qual': str(row[qual_col]) if qual_col and pd.notna(row[qual_col]) else '',
-                                'tech': str(row[tech_col]) if tech_col and pd.notna(row[tech_col]) else tech.upper(),
+                                'qual': qual_str,
+                                'tech': tech_str,
                                 'cellid': c or '',
                                 'node': n or ''
                             })
-                        except Exception as inner_e:
-                            continue
             except Exception as e:
                 flash(f'Lỗi xử lý file log ITS: {e}', 'danger')
                 
