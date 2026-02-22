@@ -1226,9 +1226,9 @@ def gis():
     its_data = []
     matched_sites = set()
     
-    # Hàm chuẩn hóa số liệu để so sánh chính xác giữa DB và file Log (Ép kiểu thông minh loại bỏ dấu chấm và khoảng trắng)
+    # Hàm chuẩn hóa số liệu cực kỳ an toàn (loại bỏ thập phân rỗng, khoảng trắng)
     def clean_val(v):
-        if pd.isna(v) or v is None: return None
+        if v is None: return None
         s = str(v).strip()
         if s == '-' or s == '' or s.lower() in ['nan', 'null', 'none']: return None
         try:
@@ -1240,7 +1240,7 @@ def gis():
             return s.upper()
 
     def safe_float(val, default=0.0):
-        if pd.isna(val) or val is None: return default
+        if val is None: return default
         s = str(val).strip()
         if not s or s == '-': return default
         try:
@@ -1280,85 +1280,89 @@ def gis():
         if file and file.filename:
             show_its = True
             try:
-                # Đọc toàn bộ byte stream một lần để tránh lỗi seek
+                # Đọc toàn bộ byte stream một lần
                 file_bytes = file.read()
                 if not file_bytes:
                     flash('Lỗi: File tải lên trống.', 'danger')
                 else:
-                    first_line = file_bytes.split(b'\n')[0].decode('utf-8-sig', errors='ignore')
-                    sep = '|' if '|' in first_line else (',' if ',' in first_line else '\t')
+                    content = file_bytes.decode('utf-8-sig', errors='ignore')
+                    lines = content.splitlines()
                     
-                    df = pd.read_csv(BytesIO(file_bytes), sep=sep, encoding='utf-8-sig', dtype=str, on_bad_lines='skip')
-                    
-                    # Chuẩn hóa tên cột để tránh lỗi viết hoa/thường hay dính khoảng trắng
-                    cols = [str(c).lower().strip() for c in df.columns]
-                    df.columns = cols
-                    
-                    # Tìm cột linh hoạt
-                    lat_col = next((c for c in cols if c in ['latitude', 'lat']), None)
-                    lon_col = next((c for c in cols if c in ['longitude', 'lon', 'long']), None)
-                    node_col = next((c for c in cols if c in ['node', 'enodebid', 'enodeb_id']), None)
-                    cell_col = next((c for c in cols if c in ['cellid', 'ci', 'cell_id', 'cell id']), None)
-                    level_col = next((c for c in cols if c in ['level', 'rsrp', 'rscp', 'rxlev']), None)
-                    tech_col = next((c for c in cols if c in ['networktech', 'tech', 'network_tech']), None)
-                    qual_col = next((c for c in cols if c in ['qual', 'ecno', 'sinr', 'snr', 'rsrq']), None)
+                    if len(lines) > 1:
+                        header_line = lines[0]
+                        sep = '|' if '|' in header_line else (',' if ',' in header_line else '\t')
+                        headers = [h.strip().lower() for h in header_line.split(sep)]
+                        
+                        # Tìm vị trí cột linh hoạt (Index search)
+                        try:
+                            lat_idx = next(i for i, h in enumerate(headers) if h in ['latitude', 'lat'])
+                            lon_idx = next(i for i, h in enumerate(headers) if h in ['longitude', 'lon', 'long'])
+                        except StopIteration:
+                            lat_idx, lon_idx = -1, -1
+                            
+                        node_idx = next((i for i, h in enumerate(headers) if h in ['node', 'enodebid', 'enodeb_id']), -1)
+                        cell_idx = next((i for i, h in enumerate(headers) if h in ['cellid', 'ci', 'cell_id']), -1)
+                        level_idx = next((i for i, h in enumerate(headers) if h in ['level', 'rsrp', 'rscp', 'rxlev']), -1)
+                        tech_idx = next((i for i, h in enumerate(headers) if h in ['networktech', 'tech', 'network_tech']), -1)
+                        qual_idx = next((i for i, h in enumerate(headers) if h in ['qual', 'ecno', 'sinr', 'snr', 'rsrq']), -1)
 
-                    if not lat_col or not lon_col:
-                        flash(f'Lỗi: File log không có cột Tọa độ (Latitude/Longitude). Các cột hiện có: {", ".join(cols)}', 'danger')
-                    else:
-                        # Sample data if too large to prevent browser crash
-                        if len(df) > 15000:
-                            df = df.sample(n=15000)
-                            
-                        for _, row in df.iterrows():
-                            lat_val = row.get(lat_col)
-                            lon_val = row.get(lon_col)
-                            if pd.isna(lat_val) or pd.isna(lon_val): continue
-                            
-                            lat_str = str(lat_val).strip()
-                            lon_str = str(lon_val).strip()
-                            if not lat_str or lat_str == '-' or not lon_str or lon_str == '-': continue
-                            
-                            try:
-                                lat = float(lat_str)
-                                lon = float(lon_str)
-                            except ValueError:
-                                continue
+                        if lat_idx == -1 or lon_idx == -1:
+                            flash(f'Lỗi: Không tìm thấy cột Tọa độ (Latitude/Longitude). File của bạn có các cột: {", ".join(headers[:10])}...', 'danger')
+                        else:
+                            data_lines = lines[1:]
+                            # Giới hạn số lượng điểm vẽ để tránh treo trình duyệt
+                            if len(data_lines) > 15000:
+                                data_lines = random.sample(data_lines, 15000)
                                 
-                            n = clean_val(row.get(node_col)) if node_col else None
-                            c = clean_val(row.get(cell_col)) if cell_col else None
-                            
-                            # Khớp dữ liệu log với trạm trong RF
-                            if action_type == 'show_log':
-                                if tech == '4g' and n and c:
-                                    key = f"{n}_{c}"
-                                    if key in db_mapping:
-                                        matched_sites.add(db_mapping[key])
-                                elif tech == '3g' and c:
-                                    if c in db_mapping:
-                                        matched_sites.add(db_mapping[c])
-                                elif tech == '5g' and n and c:
-                                    key = f"{n}_{c}"
-                                    if key in db_mapping:
-                                        matched_sites.add(db_mapping[key])
-                            
-                            lvl = safe_float(row.get(level_col)) if level_col else 0.0
-                            
-                            q_val = row.get(qual_col) if qual_col else None
-                            qual_str = str(q_val).strip() if pd.notna(q_val) else ''
-                            
-                            t_val = row.get(tech_col) if tech_col else None
-                            tech_str = str(t_val).strip().upper() if pd.notna(t_val) and str(t_val).strip() else tech.upper()
-                            
-                            its_data.append({
-                                'lat': lat,
-                                'lon': lon,
-                                'level': lvl,
-                                'qual': qual_str,
-                                'tech': tech_str,
-                                'cellid': c or '',
-                                'node': n or ''
-                            })
+                            for line in data_lines:
+                                if not line.strip(): continue
+                                parts = line.split(sep)
+                                
+                                # File ragged: độ dài dòng có thể vượt độ dài header do dính các dấu | trống ở cuối
+                                if len(parts) <= max(lat_idx, lon_idx): continue
+                                
+                                try:
+                                    lat_str = parts[lat_idx].strip()
+                                    lon_str = parts[lon_idx].strip()
+                                    if not lat_str or lat_str == '-' or not lon_str or lon_str == '-': continue
+                                    
+                                    lat = float(lat_str)
+                                    lon = float(lon_str)
+                                    
+                                    n = clean_val(parts[node_idx]) if node_idx >= 0 and len(parts) > node_idx else None
+                                    c = clean_val(parts[cell_idx]) if cell_idx >= 0 and len(parts) > cell_idx else None
+                                    
+                                    # Khớp dữ liệu log với trạm trong RF
+                                    if action_type == 'show_log':
+                                        if tech == '4g' and n and c:
+                                            key = f"{n}_{c}"
+                                            if key in db_mapping:
+                                                matched_sites.add(db_mapping[key])
+                                        elif tech == '3g' and c:
+                                            if c in db_mapping:
+                                                matched_sites.add(db_mapping[c])
+                                        elif tech == '5g' and n and c:
+                                            key = f"{n}_{c}"
+                                            if key in db_mapping:
+                                                matched_sites.add(db_mapping[key])
+                                                
+                                    lvl_str = parts[level_idx] if level_idx >= 0 and len(parts) > level_idx else ''
+                                    lvl = safe_float(lvl_str)
+                                    
+                                    qual_str = parts[qual_idx].strip() if qual_idx >= 0 and len(parts) > qual_idx else ''
+                                    tech_str = parts[tech_idx].strip().upper() if tech_idx >= 0 and len(parts) > tech_idx else tech.upper()
+                                    
+                                    its_data.append({
+                                        'lat': lat,
+                                        'lon': lon,
+                                        'level': lvl,
+                                        'qual': qual_str,
+                                        'tech': tech_str,
+                                        'cellid': c or '',
+                                        'node': n or ''
+                                    })
+                                except ValueError:
+                                    continue
             except Exception as e:
                 flash(f'Lỗi xử lý file log ITS: {e}', 'danger')
                 
@@ -1370,12 +1374,12 @@ def gis():
         if action_type == 'show_log' and show_its:
             # Báo cáo chẩn đoán
             if matched_sites:
-                flash(f'Đã tải {len(its_data)} điểm Log. Tìm thấy thành công {len(matched_sites)} trạm khớp với Log trong tổng số {len(db_mapping)} Cells của Database RF.', 'success')
+                flash(f'Đã tải {len(its_data)} điểm Log. Tìm thấy {len(matched_sites)} trạm khớp trong tổng số {len(db_mapping)} Cells của Database RF.', 'success')
             else:
                 if len(its_data) == 0:
-                    flash(f'Đã đọc file nhưng không tìm thấy dữ liệu điểm đo hợp lệ. Hãy kiểm tra định dạng cột Latitude/Longitude.', 'danger')
+                    flash(f'Đã đọc file nhưng không trích xuất được điểm đo nào hợp lệ. Vui lòng kiểm tra lại định dạng.', 'danger')
                 else:
-                    flash(f'Lỗi Mismatched: File Log có {len(its_data)} điểm đo nhưng KHÔNG khớp được với bất kỳ trạm nào trong số {len(db_mapping)} Cells của Database RF. Hãy kiểm tra lại cặp ID (ENodeBID, Lcrid) hoặc (CI) trong DB.', 'danger')
+                    flash(f'Lỗi Mismatched: File Log có {len(its_data)} điểm đo nhưng KHÔNG khớp được với trạm nào trong số {len(db_mapping)} Cells của Database RF. Hãy kiểm tra ID (ENodeBID, Lcrid) hoặc (CI).', 'danger')
 
             # Lọc để CHỈ hiển thị các trạm có Cell xuất hiện trong tuyến đường đo
             if matched_sites:
