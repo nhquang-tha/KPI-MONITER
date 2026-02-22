@@ -506,17 +506,94 @@ CONTENT_TEMPLATE = """
     </div>
     <div class="card-body">
         {% if active_page == 'dashboard' %}
-            <div class="row g-4 text-center mb-5">
-                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-primary fw-bold mb-1">98.5%</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">KPI Tuần</p></div></div>
-                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-danger fw-bold mb-1">12</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Worst Cells</p></div></div>
-                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-warning fw-bold mb-1">5</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">Congestion</p></div></div>
-                <div class="col-md-3"><div class="p-4 rounded-4 shadow-sm border bg-white h-100 position-relative overflow-hidden"><h2 class="text-success fw-bold mb-1">OK</h2><p class="text-muted small text-uppercase fw-bold ls-1 mb-0">System Status</p></div></div>
-            </div>
-            <h5 class="fw-bold text-secondary mb-3"><i class="fa-solid fa-database me-2"></i>Data Overview</h5>
-            <div class="row g-4">
-                <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-primary fw-bold mb-3 small">RF Database</h6><div class="d-flex justify-content-between mb-2"><span>RF 3G</span><span class="badge bg-white text-dark border">{{ count_rf3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>RF 4G</span><span class="badge bg-white text-dark border">{{ count_rf4g }}</span></div><div class="d-flex justify-content-between"><span>RF 5G</span><span class="badge bg-white text-dark border">{{ count_rf5g }}</span></div></div></div>
-                <div class="col-md-4"><div class="bg-light rounded-3 p-3 border"><h6 class="text-uppercase text-success fw-bold mb-3 small">KPI Records</h6><div class="d-flex justify-content-between mb-2"><span>KPI 3G</span><span class="badge bg-white text-dark border">{{ count_kpi3g }}</span></div><div class="d-flex justify-content-between mb-2"><span>KPI 4G</span><span class="badge bg-white text-dark border">{{ count_kpi4g }}</span></div><div class="d-flex justify-content-between"><span>KPI 5G</span><span class="badge bg-white text-dark border">{{ count_kpi5g }}</span></div></div></div>
-            </div>
+            <h5 class="fw-bold text-secondary mb-4"><i class="fa-solid fa-chart-pie me-2"></i>Tổng quan Chất lượng Mạng 4G Toàn Hệ thống</h5>
+            {% if dashboard_data and dashboard_data.labels %}
+                <div class="row g-4">
+                    <!-- Biểu đồ Tổng Traffic -->
+                    <div class="col-md-6">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-body p-3">
+                                <h6 class="fw-bold text-primary mb-3">Tổng Traffic 4G (GB)</h6>
+                                <div class="chart-container" style="position: relative; height:30vh; width:100%">
+                                    <canvas id="chartTraffic"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Biểu đồ Trung bình Thput -->
+                    <div class="col-md-6">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-body p-3">
+                                <h6 class="fw-bold text-success mb-3">Trung bình User DL Thput (Mbps)</h6>
+                                <div class="chart-container" style="position: relative; height:30vh; width:100%">
+                                    <canvas id="chartThput"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Biểu đồ Trung bình PRB -->
+                    <div class="col-md-6">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-body p-3">
+                                <h6 class="fw-bold text-warning mb-3">Trung bình Tài nguyên PRB DL (%)</h6>
+                                <div class="chart-container" style="position: relative; height:30vh; width:100%">
+                                    <canvas id="chartPrb"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Biểu đồ Trung bình CQI -->
+                    <div class="col-md-6">
+                        <div class="card border border-light shadow-sm h-100">
+                            <div class="card-body p-3">
+                                <h6 class="fw-bold text-info mb-3">Trung bình Chất lượng Vô tuyến (CQI 4G)</h6>
+                                <div class="chart-container" style="position: relative; height:30vh; width:100%">
+                                    <canvas id="chartCqi"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const labels = {{ dashboard_data.labels | tojson }};
+                        const config = { 
+                            responsive: true, 
+                            maintainAspectRatio: false, 
+                            plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, 
+                            interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                            elements: { point: { radius: 3, hoverRadius: 6 } }
+                        };
+                        
+                        new Chart(document.getElementById('chartTraffic').getContext('2d'), { 
+                            type: 'line', 
+                            data: { labels: labels, datasets: [{ label: 'Total Traffic (GB)', data: {{ dashboard_data.traffic | tojson }}, borderColor: '#0078d4', backgroundColor: 'rgba(0,120,212,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
+                            options: config 
+                        });
+                        
+                        new Chart(document.getElementById('chartThput').getContext('2d'), { 
+                            type: 'line', 
+                            data: { labels: labels, datasets: [{ label: 'Avg Thput (Mbps)', data: {{ dashboard_data.thput | tojson }}, borderColor: '#107c10', backgroundColor: 'rgba(16,124,16,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
+                            options: config 
+                        });
+                        
+                        new Chart(document.getElementById('chartPrb').getContext('2d'), { 
+                            type: 'line', 
+                            data: { labels: labels, datasets: [{ label: 'Avg PRB (%)', data: {{ dashboard_data.prb | tojson }}, borderColor: '#ffaa44', backgroundColor: 'rgba(255,170,68,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
+                            options: config 
+                        });
+                        
+                        new Chart(document.getElementById('chartCqi').getContext('2d'), { 
+                            type: 'line', 
+                            data: { labels: labels, datasets: [{ label: 'Avg CQI', data: {{ dashboard_data.cqi | tojson }}, borderColor: '#00bcf2', backgroundColor: 'rgba(0,188,242,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
+                            options: config 
+                        });
+                    });
+                </script>
+            {% else %}
+                <div class="alert alert-info border-0 shadow-sm"><i class="fa-solid fa-circle-info me-2"></i>Chưa có dữ liệu KPI 4G để hiển thị biểu đồ. Vui lòng vào mục "Data Import" để tải lên dữ liệu.</div>
+            {% endif %}
         
         {% elif active_page == 'gis' %}
             <div class="row mb-4">
@@ -1330,17 +1407,66 @@ def logout(): logout_user(); return redirect(url_for('login'))
 @app.route('/')
 @login_required
 def index():
+    dashboard_data = {
+        'labels': [],
+        'traffic': [],
+        'thput': [],
+        'prb': [],
+        'cqi': []
+    }
+    
     try:
-        cnt = {
-            'rf3g': db.session.query(func.count(RF3G.id)).scalar(),
-            'rf4g': db.session.query(func.count(RF4G.id)).scalar(),
-            'rf5g': db.session.query(func.count(RF5G.id)).scalar(),
-            'kpi3g': db.session.query(func.count(KPI3G.id)).scalar(),
-            'kpi4g': db.session.query(func.count(KPI4G.id)).scalar(),
-            'kpi5g': db.session.query(func.count(KPI5G.id)).scalar(),
-        }
-    except: cnt = defaultdict(int)
-    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
+        # Lấy toàn bộ dữ liệu KPI 4G để tổng hợp
+        records = db.session.query(
+            KPI4G.thoi_gian,
+            KPI4G.traffic,
+            KPI4G.user_dl_avg_thput,
+            KPI4G.res_blk_dl,
+            KPI4G.cqi_4g
+        ).all()
+
+        if records:
+            agg_data = defaultdict(lambda: {'traffic_sum': 0, 'thput_sum': 0, 'thput_cnt': 0, 'prb_sum': 0, 'prb_cnt': 0, 'cqi_sum': 0, 'cqi_cnt': 0})
+            
+            # Tính tổng và biến đếm cho từng ngày
+            for r in records:
+                d = r.thoi_gian
+                if not d: continue
+                
+                if r.traffic is not None:
+                    agg_data[d]['traffic_sum'] += r.traffic
+                if r.user_dl_avg_thput is not None:
+                    agg_data[d]['thput_sum'] += r.user_dl_avg_thput
+                    agg_data[d]['thput_cnt'] += 1
+                if r.res_blk_dl is not None:
+                    agg_data[d]['prb_sum'] += r.res_blk_dl
+                    agg_data[d]['prb_cnt'] += 1
+                if r.cqi_4g is not None:
+                    agg_data[d]['cqi_sum'] += r.cqi_4g
+                    agg_data[d]['cqi_cnt'] += 1
+
+            # Sắp xếp các ngày theo thứ tự thời gian
+            sorted_dates = sorted(agg_data.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+            
+            dashboard_data['labels'] = sorted_dates
+            for d in sorted_dates:
+                # Traffic thì tính Tổng (Sum)
+                dashboard_data['traffic'].append(round(agg_data[d]['traffic_sum'], 2))
+                
+                # Các chỉ số còn lại tính Trung bình (Avg)
+                avg_thput = agg_data[d]['thput_sum'] / agg_data[d]['thput_cnt'] if agg_data[d]['thput_cnt'] > 0 else 0
+                dashboard_data['thput'].append(round(avg_thput, 2))
+                
+                avg_prb = agg_data[d]['prb_sum'] / agg_data[d]['prb_cnt'] if agg_data[d]['prb_cnt'] > 0 else 0
+                dashboard_data['prb'].append(round(avg_prb, 2))
+                
+                avg_cqi = agg_data[d]['cqi_sum'] / agg_data[d]['cqi_cnt'] if agg_data[d]['cqi_cnt'] > 0 else 0
+                dashboard_data['cqi'].append(round(avg_cqi, 2))
+                
+    except Exception as e:
+        print(f"Lỗi khi load Dashboard: {e}")
+
+    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', dashboard_data=dashboard_data)
 
 @app.route('/gis', methods=['GET', 'POST'])
 @login_required
