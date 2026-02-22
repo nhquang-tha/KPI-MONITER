@@ -1226,14 +1226,19 @@ def gis():
     its_data = []
     matched_sites = set()
     
-    # Hàm chuẩn hóa số liệu để so sánh chính xác giữa DB và file Log
+    # Hàm chuẩn hóa số liệu để so sánh chính xác giữa DB và file Log (Ép kiểu thông minh loại bỏ dấu chấm và khoảng trắng)
     def clean_val(v):
         if pd.isna(v) or v is None: return None
         s = str(v).strip()
-        if s.endswith('.0'): s = s[:-2]
-        if s == '-' or s == '': return None
-        return s
-        
+        if s == '-' or s == '' or s.lower() in ['nan', 'null', 'none']: return None
+        try:
+            f = float(s)
+            if f.is_integer():
+                return str(int(f))
+            return str(f)
+        except ValueError:
+            return s.upper()
+            
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     db_mapping = {}
     
@@ -1242,11 +1247,23 @@ def gis():
         if tech == '4g' and hasattr(Model, 'enodeb_id') and hasattr(Model, 'lcrid'):
             res = db.session.query(Model.site_code, Model.enodeb_id, Model.lcrid).all()
             for sc, en, lc in res:
-                if sc: db_mapping[(clean_val(en), clean_val(lc))] = sc
+                c_en = clean_val(en)
+                c_lc = clean_val(lc)
+                if sc and c_en and c_lc: 
+                    db_mapping[f"{c_en}_{c_lc}"] = sc
         elif tech == '3g' and hasattr(Model, 'ci'):
             res = db.session.query(Model.site_code, Model.ci).all()
             for sc, ci in res:
-                if sc: db_mapping[clean_val(ci)] = sc
+                c_ci = clean_val(ci)
+                if sc and c_ci: 
+                    db_mapping[c_ci] = sc
+        elif tech == '5g' and hasattr(Model, 'gnodeb_id') and hasattr(Model, 'lcrid'):
+            res = db.session.query(Model.site_code, Model.gnodeb_id, Model.lcrid).all()
+            for sc, gn, lc in res:
+                c_gn = clean_val(gn)
+                c_lc = clean_val(lc)
+                if sc and c_gn and c_lc: 
+                    db_mapping[f"{c_gn}_{c_lc}"] = sc
     
     # Process uploaded ITS Log file (transient, no database save)
     if request.method == 'POST' and 'its_file' in request.files:
@@ -1273,10 +1290,17 @@ def gis():
                         
                         # Khớp dữ liệu log với trạm trong RF
                         if action_type == 'show_log':
-                            if tech == '4g' and (n, c) in db_mapping:
-                                matched_sites.add(db_mapping[(n, c)])
-                            elif tech == '3g' and c in db_mapping:
-                                matched_sites.add(db_mapping[c])
+                            if tech == '4g' and n and c:
+                                key = f"{n}_{c}"
+                                if key in db_mapping:
+                                    matched_sites.add(db_mapping[key])
+                            elif tech == '3g' and c:
+                                if c in db_mapping:
+                                    matched_sites.add(db_mapping[c])
+                            elif tech == '5g' and n and c:
+                                key = f"{n}_{c}"
+                                if key in db_mapping:
+                                    matched_sites.add(db_mapping[key])
                         
                         its_data.append({
                             'lat': lat,
@@ -1298,12 +1322,22 @@ def gis():
         query = db.session.query(Model)
         
         if action_type == 'show_log' and show_its:
+            # Báo cáo chẩn đoán
+            if matched_sites:
+                flash(f'Đã tải {len(its_data)} điểm Log. Tìm thấy thành công {len(matched_sites)} trạm khớp với Log trong tổng số {len(db_mapping)} Cells của Database RF.', 'success')
+            else:
+                flash(f'Lỗi Mismatched: File Log có {len(its_data)} điểm đo nhưng KHÔNG khớp được với bất kỳ trạm nào trong số {len(db_mapping)} Cells của Database RF. Hãy kiểm tra lại cặp ID (ENodeBID, Lcrid) hoặc (CI) trong DB.', 'danger')
+
             # Lọc để CHỈ hiển thị các trạm có Cell xuất hiện trong tuyến đường đo
             if matched_sites:
-                query = query.filter(Model.site_code.in_(list(matched_sites)))
+                # Cắt bớt mảng để không vượt quá giới hạn "IN" clause của SQLite (tối đa 999)
+                matched_sites_list = list(matched_sites)[:900]
+                query = query.filter(Model.site_code.in_(matched_sites_list))
             else:
                 query = query.filter(text("1=0")) # Empty result
-                flash('Không tìm thấy trạm nào trong Database RF khớp với (Node, CellID) hoặc (CI) từ file Log.', 'warning')
+        else:
+            # Lọc theo tìm kiếm thông thường (nếu có site_code_input hoặc cell_name_input)
+            pass
 
         records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
