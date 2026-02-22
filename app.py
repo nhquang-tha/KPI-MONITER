@@ -313,6 +313,8 @@ BASE_LAYOUT = """
     <!-- Leaflet GIS Map resources -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --acrylic-bg: rgba(255, 255, 255, 0.6); --acrylic-blur: blur(20px); --sidebar-bg: rgba(240, 240, 245, 0.85); --primary-color: #0078d4; --text-color: #212529; --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05); --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1); --border-radius: 12px; }
@@ -536,32 +538,59 @@ CONTENT_TEMPLATE = """
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
                     var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
+                    var searchSite = "{{ site_code_input }}";
+                    var searchCell = "{{ cell_name_input }}";
+                    
                     var mapContainer = document.getElementById('gisMap');
                     if (!mapContainer) return;
 
                     var mapCenter = [19.807, 105.776]; // Default to Thanh Hoa region approx
                     var mapZoom = 9;
 
-                    if (gisData.length > 0 && gisData[0].lat && gisData[0].lon) {
-                        mapCenter = [gisData[0].lat, gisData[0].lon];
-                        if (gisData.length < 10) mapZoom = 14; 
+                    // Nếu có kết quả tìm kiếm, focus vào kết quả đầu tiên khớp với tìm kiếm
+                    if (gisData.length > 0) {
+                        var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
+                        
+                        // Tìm trạm khớp chính xác với site_code hoặc cell_name (nếu có nhập)
+                        if (searchSite || searchCell) {
+                            for (var i = 0; i < gisData.length; i++) {
+                                var sCode = (gisData[i].site_code || "").toLowerCase();
+                                var cName = (gisData[i].cell_name || "").toLowerCase();
+                                var sInput = searchSite.toLowerCase();
+                                var cInput = searchCell.toLowerCase();
+                                
+                                if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
+                                    targetCell = gisData[i];
+                                    break;
+                                }
+                            }
+                        }
+                        
+                        if (targetCell.lat && targetCell.lon) {
+                            mapCenter = [targetCell.lat, targetCell.lon];
+                            mapZoom = 15; // Zoom sâu hơn khi tìm kiếm cụ thể
+                        }
                     }
 
                     // Tùy chọn 2 lớp bản đồ (Bản đồ đường phố và Vệ tinh)
                     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
-                        attribution: '© OpenStreetMap contributors'
+                        attribution: '© OpenStreetMap'
                     });
 
                     var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
                         maxZoom: 19,
-                        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                        attribution: 'Tiles &copy; Esri'
                     });
 
                     var map = L.map('gisMap', {
                         center: mapCenter,
                         zoom: mapZoom,
-                        layers: [osmLayer] // Mặc định hiển thị OSM
+                        layers: [osmLayer], // Mặc định hiển thị OSM
+                        fullscreenControl: true, // Bật chế độ toàn màn hình
+                        fullscreenControlOptions: {
+                            position: 'topleft'
+                        }
                     });
 
                     // Thêm nút Control để chuyển đổi Map
@@ -692,6 +721,7 @@ CONTENT_TEMPLATE = """
                                     if(el.length>0){
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
+                                        // For POI, show only aggregate data in zoom
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
                                     }
                                 },
@@ -1102,13 +1132,14 @@ def gis():
     gis_data = []
     if Model:
         query = db.session.query(Model)
-        if site_code_input:
-            query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
-        if cell_name_input:
-            filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
-            if hasattr(Model, 'cell_name'):
-                filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
-            query = query.filter(or_(*filters))
+        # Bỏ bộ lọc query đi để load toàn bộ trạm
+        # if site_code_input:
+        #    query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
+        # if cell_name_input:
+        #    filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
+        #    if hasattr(Model, 'cell_name'):
+        #        filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
+        #    query = query.filter(or_(*filters))
             
         records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
