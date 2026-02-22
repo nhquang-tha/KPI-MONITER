@@ -550,6 +550,21 @@ CONTENT_TEMPLATE = """
                 </div>
             </div>
             
+            {% if show_its and its_data %}
+            <div class="d-flex justify-content-end mb-2 gap-2">
+                <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
+                    <label class="small fw-bold text-muted mb-0 me-2"><i class="fa-solid fa-circle text-primary me-1"></i>Kích thước điểm:</label>
+                    <input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 120px;">
+                </div>
+                <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input mt-0 me-2" type="checkbox" id="showLinesToggle" checked style="cursor: pointer;">
+                        <label class="form-check-label small fw-bold text-muted" for="showLinesToggle" style="cursor: pointer;"><i class="fa-solid fa-link text-success me-1"></i>Nối thẳng về Cell</label>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="card border border-light shadow-sm">
                 <div class="card-body p-2 position-relative">
                     <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index: 1;"></div>
@@ -631,6 +646,38 @@ CONTENT_TEMPLATE = """
                         map.setView(mapCenter, mapZoom);
                     }
 
+                    // Xây dựng Lookup Table để nối đường nhanh
+                    var cellLookup = {};
+                    function cVal(v) {
+                        if (v === null || v === undefined) return "";
+                        var s = String(v).trim();
+                        if (s.endsWith(".0")) s = s.slice(0, -2);
+                        return s;
+                    }
+
+                    gisData.forEach(function(cell) {
+                        var tech = cell.tech;
+                        var info = cell.info;
+                        var key = "";
+
+                        if (tech === '4g') {
+                            var en = cVal(info.enodeb_id);
+                            var lc = cVal(info.lcrid);
+                            if (en && lc) key = en + "_" + lc;
+                        } else if (tech === '3g') {
+                            var ci = cVal(info.ci);
+                            if (ci) key = ci;
+                        } else if (tech === '5g') {
+                             var gn = cVal(info.gnodeb_id);
+                             var lc5 = cVal(info.lcrid);
+                             if (gn && lc5) key = gn + "_" + lc5;
+                        }
+
+                        if (key) {
+                            cellLookup[key] = [cell.lat, cell.lon];
+                        }
+                    });
+
                     // Function to calculate sector polygon points
                     function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
                         var center = [lat, lon];
@@ -697,38 +744,90 @@ CONTENT_TEMPLATE = """
                     });
                     
                     // Vẽ các điểm ITS Log nếu có
-                    if (isShowIts && itsData.length > 0) {
-                        function getSignalColor(tech, level) {
-                            var t = (tech || '').toUpperCase();
-                            if (t.includes('4G') || t.includes('LTE')) {
-                                if (level >= -80) return '#00FF00'; // Green
-                                if (level >= -90) return '#0000FF'; // Blue
-                                if (level >= -100) return '#FFFF00'; // Yellow
-                                if (level >= -110) return '#FFA500'; // Orange
-                                return '#FF0000'; // Red
-                            } else { // 3G/WCDMA
-                                if (level >= -75) return '#00FF00';
-                                if (level >= -85) return '#0000FF';
-                                if (level >= -95) return '#FFFF00';
-                                if (level >= -105) return '#FFA500';
-                                return '#FF0000';
-                            }
+                    function getSignalColor(tech, level) {
+                        var t = (tech || '').toUpperCase();
+                        if (t.includes('4G') || t.includes('LTE')) {
+                            if (level >= -80) return '#00FF00'; // Green
+                            if (level >= -90) return '#0000FF'; // Blue
+                            if (level >= -100) return '#FFFF00'; // Yellow
+                            if (level >= -110) return '#FFA500'; // Orange
+                            return '#FF0000'; // Red
+                        } else { // 3G/WCDMA
+                            if (level >= -75) return '#00FF00';
+                            if (level >= -85) return '#0000FF';
+                            if (level >= -95) return '#FFFF00';
+                            if (level >= -105) return '#FFA500';
+                            return '#FF0000';
                         }
+                    }
 
-                        var itsLayerGroup = L.layerGroup().addTo(map);
+                    var itsLayerGroup = L.layerGroup().addTo(map);
+
+                    function drawITSData() {
+                        if (!isShowIts || itsData.length === 0) return;
                         
+                        itsLayerGroup.clearLayers(); // Xóa lớp cũ để vẽ lại
+
+                        var pointSizeSlider = document.getElementById('pointSizeSlider');
+                        var pointSize = pointSizeSlider ? parseInt(pointSizeSlider.value) : 3;
+                        
+                        var showLinesToggle = document.getElementById('showLinesToggle');
+                        var showLines = showLinesToggle ? showLinesToggle.checked : false;
+
                         itsData.forEach(function(pt) {
-                            L.circleMarker([pt.lat, pt.lon], {
-                                radius: 3,
-                                fillColor: getSignalColor(pt.tech, pt.level),
+                            var ptColor = getSignalColor(pt.tech, pt.level);
+                            var ptCoord = [pt.lat, pt.lon];
+                            
+                            // 1. Vẽ điểm đo
+                            L.circleMarker(ptCoord, {
+                                radius: pointSize,
+                                fillColor: ptColor,
                                 color: "#000",
                                 weight: 0.5,
                                 fillOpacity: 0.9
                             }).bindPopup("<b>Công nghệ:</b> " + pt.tech + "<br><b>Mức thu (Level):</b> " + pt.level + " dBm<br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>Node/CellID:</b> " + (pt.node||'-') + " / " + pt.cellid)
                               .addTo(itsLayerGroup);
-                        });
 
-                        // Add Legend control
+                            // 2. Vẽ đường nối nếu được bật
+                            if (showLines) {
+                                var ptTech = (pt.tech || '').toLowerCase();
+                                var key = "";
+                                if (ptTech.includes('4g') || ptTech.includes('lte')) {
+                                    if (pt.node && pt.cellid) key = pt.node + "_" + pt.cellid;
+                                } else if (ptTech.includes('3g') || ptTech.includes('wcdma') || ptTech.includes('hspa') || ptTech.includes('umts')) {
+                                    if (pt.cellid) key = pt.cellid;
+                                } else if (ptTech.includes('5g') || ptTech.includes('nr')) {
+                                    if (pt.node && pt.cellid) key = pt.node + "_" + pt.cellid;
+                                }
+
+                                var targetCellCoord = cellLookup[key];
+                                if (targetCellCoord) {
+                                    L.polyline([ptCoord, targetCellCoord], {
+                                        color: ptColor,
+                                        weight: 1,
+                                        opacity: 0.5,
+                                        dashArray: '3, 4'
+                                    }).addTo(itsLayerGroup);
+                                }
+                            }
+                        });
+                    }
+
+                    // Gọi hàm vẽ lần đầu
+                    drawITSData();
+
+                    // Bắt sự kiện khi người dùng kéo thanh trượt kích thước hoặc gạt nút vẽ đường
+                    var sliderEl = document.getElementById('pointSizeSlider');
+                    if (sliderEl) {
+                        sliderEl.addEventListener('input', drawITSData);
+                    }
+                    var toggleEl = document.getElementById('showLinesToggle');
+                    if (toggleEl) {
+                        toggleEl.addEventListener('change', drawITSData);
+                    }
+
+                    // Thêm Legend control
+                    if (isShowIts && itsData.length > 0) {
                         var legend = L.control({position: 'bottomright'});
                         legend.onAdd = function (map) {
                             var div = L.DomUtil.create('div', 'info legend shadow-sm');
