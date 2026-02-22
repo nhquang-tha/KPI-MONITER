@@ -624,7 +624,18 @@ CONTENT_TEMPLATE = """
                     if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
                         var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
                         // Tìm chính xác cell/site khớp
-                        if targetCell.lat && targetCell.lon) {
+                        for (var i = 0; i < gisData.length; i++) {
+                            var sCode = (gisData[i].site_code || "").toLowerCase();
+                            var cName = (gisData[i].cell_name || "").toLowerCase();
+                            var sInput = searchSite.toLowerCase();
+                            var cInput = searchCell.toLowerCase();
+                            
+                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
+                                targetCell = gisData[i];
+                                break;
+                            }
+                        }
+                        if (targetCell.lat && targetCell.lon) {
                             map.setView([targetCell.lat, targetCell.lon], 15);
                         } else {
                             map.setView(mapCenter, mapZoom);
