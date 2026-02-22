@@ -285,17 +285,6 @@ class KPI5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
 
-class ITSLog(db.Model):
-    __tablename__ = 'its_log'
-    id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.String(50))
-    latitude = db.Column(db.Float)
-    longitude = db.Column(db.Float)
-    networktech = db.Column(db.String(20))
-    level = db.Column(db.Float)
-    qual = db.Column(db.Float)
-    cellid = db.Column(db.String(50))
-
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -519,7 +508,7 @@ CONTENT_TEMPLATE = """
         {% elif active_page == 'gis' %}
             <div class="row mb-4">
                 <div class="col-md-12">
-                    <form method="GET" action="/gis" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                    <form method="POST" action="/gis" enctype="multipart/form-data" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
                         <div class="col-md-2">
                             <label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label>
                             <select name="tech" class="form-select border-0 shadow-sm">
@@ -528,22 +517,20 @@ CONTENT_TEMPLATE = """
                                 <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label class="form-label fw-bold small text-muted">TÌM THEO SITE CODE</label>
+                        <div class="col-md-2">
+                            <label class="form-label fw-bold small text-muted">SITE CODE</label>
                             <input type="text" name="site_code" class="form-control border-0 shadow-sm" placeholder="VD: THA001" value="{{ site_code_input }}">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold small text-muted">TÌM THEO CELL NAME/CODE</label>
+                            <label class="form-label fw-bold small text-muted">CELL NAME/CODE</label>
                             <input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}">
                         </div>
-                        <div class="col-md-2 mt-4 text-center">
-                            <div class="form-check form-switch d-inline-block">
-                                <input class="form-check-input" type="checkbox" role="switch" name="show_its" value="1" id="showIts" {% if show_its %}checked{% endif %}>
-                                <label class="form-check-label fw-bold small text-muted ms-1" for="showIts">LOG ITS</label>
-                            </div>
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small text-muted text-warning"><i class="fa-solid fa-file-lines me-1"></i>IMPORT LOG ITS (.TXT)</label>
+                            <input type="file" name="its_file" class="form-control border-0 shadow-sm" accept=".txt,.csv">
                         </div>
                         <div class="col-md-2 align-self-end">
-                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Tìm kiếm</button>
+                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Áp dụng</button>
                         </div>
                     </form>
                 </div>
@@ -693,7 +680,7 @@ CONTENT_TEMPLATE = """
                     // Vẽ các điểm ITS Log nếu có
                     if (isShowIts && itsData.length > 0) {
                         function getSignalColor(tech, level) {
-                            var t = tech.toUpperCase();
+                            var t = (tech || '').toUpperCase();
                             if (t.includes('4G') || t.includes('LTE')) {
                                 if (level >= -80) return '#00FF00'; // Green
                                 if (level >= -90) return '#0000FF'; // Blue
@@ -890,7 +877,6 @@ CONTENT_TEMPLATE = """
                              <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF" type="button">Import RF</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li>
-                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabITS" type="button">Import Log ITS</button></li>
                          </ul>
                          
                          <!-- Tabs Content -->
@@ -948,21 +934,6 @@ CONTENT_TEMPLATE = """
                                          <input type="file" name="file" class="form-control" multiple required>
                                      </div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload KPI Data</button>
-                                 </form>
-                             </div>
-                             
-                             <!-- ITS Log Tab -->
-                             <div class="tab-pane fade" id="tabITS">
-                                 <div class="alert alert-info border-0 shadow-sm small">
-                                     <i class="fa-solid fa-circle-info me-2"></i><strong>Lưu ý:</strong> Hỗ trợ định dạng file <code>.txt</code> phân cách bằng dấu <code>|</code> hoặc <code>.csv</code>.
-                                 </div>
-                                 <form action="/import" method="POST" enctype="multipart/form-data">
-                                     <input type="hidden" name="type" value="its_log">
-                                     <div class="mb-3">
-                                         <label class="form-label fw-bold">Chọn File Log ITS</label>
-                                         <input type="file" name="file" class="form-control" accept=".txt,.csv" multiple required>
-                                     </div>
-                                     <button class="btn btn-warning w-100 fw-bold"><i class="fa-solid fa-map-location-dot me-2"></i>Upload Log ITS</button>
                                  </form>
                              </div>
                          </div>
@@ -1223,17 +1194,58 @@ def index():
     except: cnt = defaultdict(int)
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', **cnt)
 
-@app.route('/gis')
+@app.route('/gis', methods=['GET', 'POST'])
 @login_required
 def gis():
-    tech = request.args.get('tech', '4g')
-    site_code_input = request.args.get('site_code', '').strip()
-    cell_name_input = request.args.get('cell_name', '').strip()
-    show_its = request.args.get('show_its') == '1'
+    if request.method == 'POST':
+        tech = request.form.get('tech', '4g')
+        site_code_input = request.form.get('site_code', '').strip()
+        cell_name_input = request.form.get('cell_name', '').strip()
+    else:
+        tech = request.args.get('tech', '4g')
+        site_code_input = request.args.get('site_code', '').strip()
+        cell_name_input = request.args.get('cell_name', '').strip()
     
+    show_its = False
+    its_data = []
+    
+    # Process uploaded ITS Log file (transient, no database save)
+    if request.method == 'POST' and 'its_file' in request.files:
+        file = request.files['its_file']
+        if file and file.filename:
+            show_its = True
+            try:
+                # Read using pandas to easily map headers and separate using '|'
+                df = pd.read_csv(file, sep='|', encoding='utf-8-sig', on_bad_lines='skip')
+                df.columns = [clean_header(c) for c in df.columns]
+                
+                # Sample data if too large to prevent browser crash (max 15000 dots)
+                if len(df) > 15000:
+                    df = df.sample(n=15000)
+                    
+                for _, row in df.iterrows():
+                    try:
+                        lat = float(row.get('latitude'))
+                        lon = float(row.get('longitude'))
+                        if pd.isna(lat) or pd.isna(lon): continue
+                        
+                        its_data.append({
+                            'lat': lat,
+                            'lon': lon,
+                            'level': float(row.get('level', 0)),
+                            'qual': str(row.get('qual', '')),
+                            'tech': str(row.get('networktech', '')),
+                            'cellid': str(row.get('cellid', ''))
+                        })
+                    except:
+                        continue
+            except Exception as e:
+                flash(f'Lỗi xử lý file log ITS: {e}', 'danger')
+                
+    # Process RF Data
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    
     gis_data = []
+    
     if Model:
         query = db.session.query(Model)
         records = query.all()
@@ -1259,25 +1271,10 @@ def gis():
                     })
             except (ValueError, TypeError):
                 continue
-                
-    its_data = []
-    if show_its:
-        # Lấy 10,000 logs gần nhất hoặc tương ứng
-        logs = db.session.query(ITSLog).filter(ITSLog.networktech.ilike(f"%{tech}%")).limit(10000).all()
-        for r in logs:
-            try:
-                its_data.append({
-                    'lat': float(r.latitude),
-                    'lon': float(r.longitude),
-                    'level': float(r.level),
-                    'qual': r.qual,
-                    'tech': r.networktech,
-                    'cellid': r.cellid
-                })
-            except (ValueError, TypeError): pass
 
     return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', 
-                       selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data, its_data=its_data, show_its=show_its)
+                       selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, 
+                       gis_data=gis_data, its_data=its_data, show_its=show_its)
 
 @app.route('/kpi')
 @login_required
@@ -1690,22 +1687,15 @@ def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type') or request.args.get('type')
-        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G, 'its_log': ITSLog}
+        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
         Model = cfg.get(itype)
         
         if Model:
             valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
             for file in files:
                 try:
-                    # Đặc thù cho file log ITS (phân cách bằng dấu '|')
-                    if itype == 'its_log':
-                        if file.filename.endswith('.txt') or file.filename.endswith('.csv'):
-                            chunks = pd.read_csv(file, chunksize=5000, sep='|', encoding='utf-8-sig', on_bad_lines='skip')
-                        else:
-                            chunks = [pd.read_excel(file)]
-                    else:
-                        if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
-                        else: chunks = [pd.read_excel(file)]
+                    if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
+                    else: chunks = [pd.read_excel(file)]
                     
                     for df in chunks:
                         df.columns = [clean_header(c) for c in df.columns]
