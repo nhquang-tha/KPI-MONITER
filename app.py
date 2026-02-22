@@ -1224,15 +1224,29 @@ def gis():
     
     show_its = False
     its_data = []
-    log_4g_pairs = set()
-    log_3g_cells = set()
+    matched_sites = set()
     
+    # Hàm chuẩn hóa số liệu để so sánh chính xác giữa DB và file Log
     def clean_val(v):
-        if pd.isna(v): return None
+        if pd.isna(v) or v is None: return None
         s = str(v).strip()
         if s.endswith('.0'): s = s[:-2]
         if s == '-' or s == '': return None
         return s
+        
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    db_mapping = {}
+    
+    # Tải trước bộ tham chiếu RF Mapping lên RAM để tra cứu siêu tốc
+    if Model and action_type == 'show_log':
+        if tech == '4g' and hasattr(Model, 'enodeb_id') and hasattr(Model, 'lcrid'):
+            res = db.session.query(Model.site_code, Model.enodeb_id, Model.lcrid).all()
+            for sc, en, lc in res:
+                if sc: db_mapping[(clean_val(en), clean_val(lc))] = sc
+        elif tech == '3g' and hasattr(Model, 'ci'):
+            res = db.session.query(Model.site_code, Model.ci).all()
+            for sc, ci in res:
+                if sc: db_mapping[clean_val(ci)] = sc
     
     # Process uploaded ITS Log file (transient, no database save)
     if request.method == 'POST' and 'its_file' in request.files:
@@ -1243,23 +1257,6 @@ def gis():
                 # Read using pandas to easily map headers and separate using '|'
                 df = pd.read_csv(file, sep='|', encoding='utf-8-sig', on_bad_lines='skip')
                 df.columns = [clean_header(c) for c in df.columns]
-                
-                has_node = 'node' in df.columns
-                has_cellid = 'cellid' in df.columns
-                
-                # Extract distinct nodes and cells for mapping if action is show_log
-                if action_type == 'show_log':
-                    if tech == '4g' and has_node and has_cellid:
-                        for _, r in df.iterrows():
-                            n = clean_val(r.get('node'))
-                            c = clean_val(r.get('cellid'))
-                            if n and c:
-                                log_4g_pairs.add((n, c))
-                    elif tech == '3g' and has_cellid:
-                        for _, r in df.iterrows():
-                            c = clean_val(r.get('cellid'))
-                            if c:
-                                log_3g_cells.add(c)
 
                 # Sample data if too large to prevent browser crash (max 15000 dots)
                 if len(df) > 15000:
@@ -1271,52 +1268,42 @@ def gis():
                         lon = float(row.get('longitude'))
                         if pd.isna(lat) or pd.isna(lon): continue
                         
+                        n = clean_val(row.get('node'))
+                        c = clean_val(row.get('cellid'))
+                        
+                        # Khớp dữ liệu log với trạm trong RF
+                        if action_type == 'show_log':
+                            if tech == '4g' and (n, c) in db_mapping:
+                                matched_sites.add(db_mapping[(n, c)])
+                            elif tech == '3g' and c in db_mapping:
+                                matched_sites.add(db_mapping[c])
+                        
                         its_data.append({
                             'lat': lat,
                             'lon': lon,
                             'level': float(row.get('level', 0)),
                             'qual': str(row.get('qual', '')),
                             'tech': str(row.get('networktech', '')),
-                            'cellid': str(row.get('cellid', '')),
-                            'node': str(row.get('node', ''))
+                            'cellid': c,
+                            'node': n
                         })
                     except:
                         continue
             except Exception as e:
                 flash(f'Lỗi xử lý file log ITS: {e}', 'danger')
                 
-    # Process RF Data
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     gis_data = []
     
     if Model:
         query = db.session.query(Model)
         
         if action_type == 'show_log' and show_its:
-            # Lọc chỉ hiển thị các trạm có cell xuất hiện trong log
-            matched_sites = set()
-            conditions = []
-            
-            if tech == '4g' and log_4g_pairs:
-                # Limit to max 500 conditions to prevent query too large
-                for n, c in list(log_4g_pairs)[:500]:
-                    conditions.append(and_(Model.enodeb_id == n, Model.lcrid == c))
-                if conditions:
-                    matching_cells = db.session.query(Model.site_code).filter(or_(*conditions)).distinct().all()
-                    matched_sites.update([r[0] for r in matching_cells if r[0]])
-                    
-            elif tech == '3g' and log_3g_cells:
-                matching_cells = db.session.query(Model.site_code).filter(Model.ci.in_(list(log_3g_cells)[:500])).distinct().all()
-                matched_sites.update([r[0] for r in matching_cells if r[0]])
-            
+            # Lọc để CHỈ hiển thị các trạm có Cell xuất hiện trong tuyến đường đo
             if matched_sites:
                 query = query.filter(Model.site_code.in_(list(matched_sites)))
             else:
-                query = query.filter(text("1=0"))
-                flash('Không tìm thấy trạm nào trong Database RF khớp với dữ liệu từ file Log.', 'warning')
-        else:
-            # Lọc theo tìm kiếm thông thường (nếu có site_code_input hoặc cell_name_input)
-            pass
+                query = query.filter(text("1=0")) # Empty result
+                flash('Không tìm thấy trạm nào trong Database RF khớp với (Node, CellID) hoặc (CI) từ file Log.', 'warning')
 
         records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
