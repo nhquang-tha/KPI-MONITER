@@ -504,7 +504,7 @@ CONTENT_TEMPLATE = """
             <div class="row mb-4">
                 <div class="col-md-12">
                     <form method="GET" action="/gis" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label>
                             <select name="tech" class="form-select border-0 shadow-sm">
                                 <option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option>
@@ -512,12 +512,16 @@ CONTENT_TEMPLATE = """
                                 <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
                             </select>
                         </div>
-                        <div class="col-md-5">
-                            <label class="form-label fw-bold small text-muted">TÌM THEO SITE CODE (TÙY CHỌN)</label>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">TÌM THEO SITE CODE</label>
                             <input type="text" name="site_code" class="form-control border-0 shadow-sm" placeholder="VD: THA001" value="{{ site_code_input }}">
                         </div>
-                        <div class="col-md-3 align-self-end">
-                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Xem Bản Đồ</button>
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold small text-muted">TÌM THEO CELL NAME/CODE</label>
+                            <input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}">
+                        </div>
+                        <div class="col-md-2 align-self-end">
+                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Tìm kiếm</button>
                         </div>
                     </form>
                 </div>
@@ -543,11 +547,29 @@ CONTENT_TEMPLATE = """
                         if (gisData.length < 10) mapZoom = 14; 
                     }
 
-                    var map = L.map('gisMap').setView(mapCenter, mapZoom);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    // Tùy chọn 2 lớp bản đồ (Bản đồ đường phố và Vệ tinh)
+                    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '© OpenStreetMap contributors'
-                    }).addTo(map);
+                    });
+
+                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                    });
+
+                    var map = L.map('gisMap', {
+                        center: mapCenter,
+                        zoom: mapZoom,
+                        layers: [osmLayer] // Mặc định hiển thị OSM
+                    });
+
+                    // Thêm nút Control để chuyển đổi Map
+                    var baseMaps = {
+                        "Bản đồ chuẩn (OSM)": osmLayer,
+                        "Vệ tinh (Satellite)": satelliteLayer
+                    };
+                    L.control.layers(baseMaps).addTo(map);
 
                     // Function to calculate sector polygon points
                     function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
@@ -561,7 +583,6 @@ CONTENT_TEMPLATE = """
                         var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
                         
                         for (var i = startAngle; i <= endAngle; i += 5) {
-                            // Convert standard azimuth (0=North, 90=East) to radians math logic
                             var radMap = i * Math.PI / 180;
                             var dx = (radiusMeters * Math.sin(radMap)) / lonFactor; // East-West
                             var dy = (radiusMeters * Math.cos(radMap)) / latFactor; // North-South
@@ -596,11 +617,22 @@ CONTENT_TEMPLATE = """
                             fillOpacity: 0.35
                         }).addTo(map);
 
+                        // Tạo nội dung bảng chi tiết RF cho Popup
+                        var infoHtml = "<div style='max-height: 200px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.75rem;'>";
+                        for (const [key, value] of Object.entries(cell.info)) {
+                            if (value !== null && value !== '' && value !== 'None') {
+                                infoHtml += "<tr><th class='text-muted text-uppercase' style='width: 40%;'>" + key + "</th><td>" + value + "</td></tr>";
+                            }
+                        }
+                        infoHtml += "</table></div>";
+
                         polygon.bindPopup(
-                            "<b>Cell Name:</b> <span class='text-primary'>" + cell.cell_name + "</span><br>" +
-                            "<b>Site Code:</b> " + cell.site_code + "<br>" +
-                            "<b>Azimuth:</b> " + cell.azi + "°<br>" +
-                            "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon
+                            "<b>Cell:</b> <span class='text-primary fs-6'>" + cell.cell_name + "</span><br>" +
+                            "<b>Site:</b> " + cell.site_code + "<br>" +
+                            "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon + "<br>" +
+                            "<hr class='my-2'>" +
+                            infoHtml,
+                            { minWidth: 280, maxWidth: 400 } // Tăng kích thước popup để chứa bảng
                         );
                     });
                 });
@@ -660,7 +692,6 @@ CONTENT_TEMPLATE = """
                                     if(el.length>0){
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
-                                        // For POI, show only aggregate data in zoom
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
                                     }
                                 },
@@ -1064,6 +1095,7 @@ def index():
 def gis():
     tech = request.args.get('tech', '4g')
     site_code_input = request.args.get('site_code', '').strip()
+    cell_name_input = request.args.get('cell_name', '').strip()
     
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     
@@ -1072,8 +1104,14 @@ def gis():
         query = db.session.query(Model)
         if site_code_input:
             query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
+        if cell_name_input:
+            filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
+            if hasattr(Model, 'cell_name'):
+                filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
+            query = query.filter(or_(*filters))
             
         records = query.all()
+        cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
         for r in records:
             try:
                 lat = float(r.latitude)
@@ -1082,19 +1120,23 @@ def gis():
                 
                 # Check for valid coordinate range (roughly within Vietnam or valid numbers)
                 if 8 <= lat <= 24 and 102 <= lon <= 110:
+                    cell_info = {c: getattr(r, c) for c in cols}
+                    cell_info = {k: (v if pd.notna(v) else '') for k, v in cell_info.items() if v is not None}
+                    
                     gis_data.append({
                         'cell_name': getattr(r, 'cell_name', getattr(r, 'site_name', str(r.cell_code))),
                         'site_code': r.site_code,
                         'lat': lat,
                         'lon': lon,
                         'azi': azi,
-                        'tech': tech
+                        'tech': tech,
+                        'info': cell_info
                     })
             except (ValueError, TypeError):
                 continue
 
     return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', 
-                       selected_tech=tech, site_code_input=site_code_input, gis_data=gis_data)
+                       selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data)
 
 @app.route('/kpi')
 @login_required
