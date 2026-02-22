@@ -285,6 +285,17 @@ class KPI5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
 
+class ITSLog(db.Model):
+    __tablename__ = 'its_log'
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    networktech = db.Column(db.String(20))
+    level = db.Column(db.Float)
+    qual = db.Column(db.Float)
+    cellid = db.Column(db.String(50))
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -334,6 +345,8 @@ BASE_LAYOUT = """
         .card-body { padding: 1.5rem; }
         .btn-primary { background-color: var(--primary-color); border: none; box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3); border-radius: 6px; padding: 0.5rem 1.25rem; font-weight: 500; transition: all 0.2s; }
         .btn-primary:hover { background-color: #0063b1; box-shadow: 0 4px 12px rgba(0, 120, 212, 0.4); transform: translateY(-1px); }
+        .btn-warning { background-color: #ffaa44; border: none; box-shadow: 0 2px 6px rgba(255, 170, 68, 0.3); border-radius: 6px; padding: 0.5rem 1.25rem; font-weight: 500; color: #fff; transition: all 0.2s; }
+        .btn-warning:hover { background-color: #e69532; color: #fff; box-shadow: 0 4px 12px rgba(255, 170, 68, 0.4); transform: translateY(-1px); }
         .table { background: transparent; }
         .table thead th { background-color: rgba(248, 249, 250, 0.8); border-bottom: 2px solid #e9ecef; color: #555; font-weight: 600; font-size: 0.9rem; text-transform: uppercase; }
         .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
@@ -526,11 +539,12 @@ CONTENT_TEMPLATE = """
                             <input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}">
                         </div>
                         <div class="col-md-3">
-                            <label class="form-label fw-bold small text-muted text-warning"><i class="fa-solid fa-file-lines me-1"></i>IMPORT LOG ITS (.TXT)</label>
+                            <label class="form-label fw-bold small text-muted text-warning"><i class="fa-solid fa-file-lines me-1"></i>LOG ITS (.TXT/.CSV)</label>
                             <input type="file" name="its_file" class="form-control border-0 shadow-sm" accept=".txt,.csv">
                         </div>
-                        <div class="col-md-2 align-self-end">
-                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Áp dụng</button>
+                        <div class="col-md-2 d-flex flex-column gap-2 mt-4 pt-1">
+                            <button type="submit" name="action" value="search" class="btn btn-primary btn-sm w-100 shadow-sm fw-bold"><i class="fa-solid fa-search me-1"></i>Tìm kiếm</button>
+                            <button type="submit" name="action" value="show_log" class="btn btn-warning btn-sm w-100 shadow-sm fw-bold text-white"><i class="fa-solid fa-route me-1"></i>Hiển thị Log File</button>
                         </div>
                     </form>
                 </div>
@@ -549,40 +563,13 @@ CONTENT_TEMPLATE = """
                     var searchSite = "{{ site_code_input }}";
                     var searchCell = "{{ cell_name_input }}";
                     var isShowIts = {{ 'true' if show_its else 'false' }};
+                    var actionType = "{{ action_type }}";
                     
                     var mapContainer = document.getElementById('gisMap');
                     if (!mapContainer) return;
 
                     var mapCenter = [19.807, 105.776]; // Default to Thanh Hoa region approx
                     var mapZoom = 9;
-
-                    // Nếu có kết quả tìm kiếm, focus vào kết quả đầu tiên khớp với tìm kiếm
-                    if (gisData.length > 0) {
-                        var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
-                        
-                        // Tìm trạm khớp chính xác với site_code hoặc cell_name (nếu có nhập)
-                        if (searchSite || searchCell) {
-                            for (var i = 0; i < gisData.length; i++) {
-                                var sCode = (gisData[i].site_code || "").toLowerCase();
-                                var cName = (gisData[i].cell_name || "").toLowerCase();
-                                var sInput = searchSite.toLowerCase();
-                                var cInput = searchCell.toLowerCase();
-                                
-                                if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
-                                    targetCell = gisData[i];
-                                    break;
-                                }
-                            }
-                        }
-                        
-                        if (targetCell.lat && targetCell.lon) {
-                            mapCenter = [targetCell.lat, targetCell.lon];
-                            mapZoom = 15; // Zoom sâu hơn khi tìm kiếm cụ thể
-                        }
-                    } else if (itsData.length > 0 && isShowIts) {
-                         mapCenter = [itsData[0].lat, itsData[0].lon];
-                         mapZoom = 13;
-                    }
 
                     // Tùy chọn 2 lớp bản đồ (Bản đồ đường phố và Vệ tinh)
                     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -596,8 +583,6 @@ CONTENT_TEMPLATE = """
                     });
 
                     var map = L.map('gisMap', {
-                        center: mapCenter,
-                        zoom: mapZoom,
                         layers: [osmLayer], // Mặc định hiển thị OSM
                         fullscreenControl: true, // Bật chế độ toàn màn hình
                         fullscreenControlOptions: {
@@ -611,6 +596,40 @@ CONTENT_TEMPLATE = """
                         "Vệ tinh (Satellite)": satelliteLayer
                     };
                     L.control.layers(baseMaps).addTo(map);
+
+                    // Xử lý zoom/bounds thông minh
+                    var bounds = [];
+                    if (isShowIts && itsData.length > 0) {
+                        itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
+                    }
+                    if (actionType === 'show_log' && gisData.length > 0) {
+                        gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
+                    }
+
+                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
+                        var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
+                        // Tìm chính xác cell/site khớp
+                        for (var i = 0; i < gisData.length; i++) {
+                            var sCode = (gisData[i].site_code || "").toLowerCase();
+                            var cName = (gisData[i].cell_name || "").toLowerCase();
+                            var sInput = searchSite.toLowerCase();
+                            var cInput = searchCell.toLowerCase();
+                            
+                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
+                                targetCell = gisData[i];
+                                break;
+                            }
+                        }
+                        if (targetCell.lat && targetCell.lon) {
+                            map.setView([targetCell.lat, targetCell.lon], 15);
+                        } else {
+                            map.setView(mapCenter, mapZoom);
+                        }
+                    } else if (bounds.length > 0) {
+                        map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
+                    } else {
+                        map.setView(mapCenter, mapZoom);
+                    }
 
                     // Function to calculate sector polygon points
                     function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
@@ -1197,17 +1216,16 @@ def index():
 @app.route('/gis', methods=['GET', 'POST'])
 @login_required
 def gis():
-    if request.method == 'POST':
-        tech = request.form.get('tech', '4g')
-        site_code_input = request.form.get('site_code', '').strip()
-        cell_name_input = request.form.get('cell_name', '').strip()
-    else:
-        tech = request.args.get('tech', '4g')
-        site_code_input = request.args.get('site_code', '').strip()
-        cell_name_input = request.args.get('cell_name', '').strip()
+    action_type = request.form.get('action', 'search') if request.method == 'POST' else 'search'
+    
+    tech = request.form.get('tech', '4g') if request.method == 'POST' else request.args.get('tech', '4g')
+    site_code_input = request.form.get('site_code', '').strip() if request.method == 'POST' else request.args.get('site_code', '').strip()
+    cell_name_input = request.form.get('cell_name', '').strip() if request.method == 'POST' else request.args.get('cell_name', '').strip()
     
     show_its = False
     its_data = []
+    log_nodes = []
+    log_cells = []
     
     # Process uploaded ITS Log file (transient, no database save)
     if request.method == 'POST' and 'its_file' in request.files:
@@ -1219,6 +1237,15 @@ def gis():
                 df = pd.read_csv(file, sep='|', encoding='utf-8-sig', on_bad_lines='skip')
                 df.columns = [clean_header(c) for c in df.columns]
                 
+                # Extract distinct nodes and cells for mapping if action is show_log
+                if action_type == 'show_log':
+                    if 'node' in df.columns:
+                        valid_nodes = [str(x).strip() for x in df['node'] if pd.notna(x) and str(x).strip() not in ['-', '']]
+                        log_nodes = list(set(valid_nodes))
+                    if 'cellid' in df.columns:
+                        valid_cells = [str(x).strip() for x in df['cellid'] if pd.notna(x) and str(x).strip() not in ['-', '']]
+                        log_cells = list(set(valid_cells))
+
                 # Sample data if too large to prevent browser crash (max 15000 dots)
                 if len(df) > 15000:
                     df = df.sample(n=15000)
@@ -1248,6 +1275,36 @@ def gis():
     
     if Model:
         query = db.session.query(Model)
+        
+        if action_type == 'show_log' and show_its:
+            # Lọc chỉ hiển thị các trạm có cell xuất hiện trong log
+            matched_sites = set()
+            filters = []
+            
+            # Map log_cells vào cột CI hoặc LCRID tương ứng với chuẩn
+            if hasattr(Model, 'ci') and log_cells: filters.append(Model.ci.in_(log_cells))
+            if hasattr(Model, 'lcrid') and log_cells: filters.append(Model.lcrid.in_(log_cells))
+            
+            # Map log_nodes vào eNodeB hoặc gNodeB hoặc site_code
+            if hasattr(Model, 'enodeb_id') and log_nodes: filters.append(Model.enodeb_id.in_(log_nodes))
+            if hasattr(Model, 'gnodeb_id') and log_nodes: filters.append(Model.gnodeb_id.in_(log_nodes))
+            if hasattr(Model, 'site_code') and log_nodes: filters.append(Model.site_code.in_(log_nodes))
+            
+            if filters:
+                matching_cells = db.session.query(Model.site_code).filter(or_(*filters)).distinct().all()
+                matched_sites.update([r[0] for r in matching_cells if r[0]])
+            
+            if matched_sites:
+                query = query.filter(Model.site_code.in_(list(matched_sites)))
+            else:
+                # Nếu không khớp được trạm nào từ log, hiển thị mảng rỗng để tránh load toàn bộ db
+                query = query.filter(text("1=0"))
+                flash('Không tìm thấy trạm nào trong Database RF khớp với dữ liệu từ file Log.', 'warning')
+        else:
+            # Lọc theo tìm kiếm thông thường (nếu có site_code_input hoặc cell_name_input)
+            # Web sẽ load toàn bộ (có thể nặng nếu DB quá lớn, có thể tối ưu limit trong tương lai)
+            pass
+
         records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
         for r in records:
@@ -1256,6 +1313,7 @@ def gis():
                 lon = float(r.longitude)
                 azi = int(r.azimuth) if r.azimuth is not None else 0
                 
+                # Check for valid coordinate range (roughly within Vietnam or valid numbers)
                 if 8 <= lat <= 24 and 102 <= lon <= 110:
                     cell_info = {c: getattr(r, c) for c in cols}
                     cell_info = {k: (v if pd.notna(v) else '') for k, v in cell_info.items() if v is not None}
@@ -1274,7 +1332,7 @@ def gis():
 
     return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', 
                        selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, 
-                       gis_data=gis_data, its_data=its_data, show_its=show_its)
+                       gis_data=gis_data, its_data=its_data, show_its=show_its, action_type=action_type)
 
 @app.route('/kpi')
 @login_required
