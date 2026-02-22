@@ -1157,19 +1157,38 @@ def kpi():
         if POI_Model:
             target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
     elif cell_name_input:
-        is_site = False
+        # Tìm kiếm mở rộng (ilike) cho cả Site Code và Cell Code
         if RF_Model:
-            site_cells = RF_Model.query.filter(RF_Model.site_code == cell_name_input).all()
-            if site_cells:
-                target_cells = [r.cell_code for r in site_cells]
-                is_site = True
+            matched_rf = RF_Model.query.filter(
+                or_(
+                    RF_Model.site_code.ilike(f"%{cell_name_input}%"),
+                    RF_Model.cell_code.ilike(f"%{cell_name_input}%")
+                )
+            ).all()
+            if matched_rf:
+                target_cells.extend([r.cell_code for r in matched_rf])
         
-        if not is_site:
-             target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+        if KPI_Model:
+            matched_kpi = KPI_Model.query.filter(
+                KPI_Model.ten_cell.ilike(f"%{cell_name_input}%")
+            ).with_entities(KPI_Model.ten_cell).distinct().all()
+            if matched_kpi:
+                target_cells.extend([r[0] for r in matched_kpi])
+                
+        if not target_cells:
+            target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
              
-    # Ensure unique cells to prevent duplicate lines in charts
+    # Lọc trùng lặp triệt để không phân biệt hoa thường (1 cell code chỉ vẽ 1 lần)
     if target_cells:
-        target_cells = sorted(list(set(target_cells)))
+        unique_cells = []
+        seen = set()
+        for c in target_cells:
+            if not c: continue
+            c_clean = str(c).strip().upper()
+            if c_clean not in seen:
+                seen.add(c_clean)
+                unique_cells.append(str(c).strip())
+        target_cells = unique_cells
 
     if target_cells and KPI_Model:
         data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
@@ -1180,7 +1199,9 @@ def kpi():
         if data:
             all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
             data_by_cell = defaultdict(list)
-            for x in data: data_by_cell[x.ten_cell].append(x)
+            for x in data: 
+                # Gom nhóm theo tên in hoa để tránh lỗi phân biệt hoa/thường
+                data_by_cell[str(x.ten_cell).strip().upper()].append(x)
 
             metrics_config = {
                 '3g': [{'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'}, {'key': 'traffic', 'label': 'TRAFFIC (Erl)'}, {'key': 'psconges', 'label': 'PS CONGESTION (%)'}, {'key': 'csconges', 'label': 'CS CONGESTION (%)'}],
@@ -1193,8 +1214,11 @@ def kpi():
                 metric_key = metric['key']
                 datasets = []
                 for i, cell_code in enumerate(target_cells):
-                    cell_data = data_by_cell.get(cell_code, [])
-                    data_map = {item.thoi_gian: getattr(item, metric_key, 0) or 0 for item in cell_data}
+                    cell_data = data_by_cell.get(cell_code.upper(), [])
+                    data_map = {}
+                    for item in cell_data:
+                        val = getattr(item, metric_key, 0)
+                        data_map[item.thoi_gian] = val if val is not None else 0
                     datasets.append({'label': cell_code, 'data': [data_map.get(label, None) for label in all_labels], 'borderColor': colors[i % len(colors)], 'fill': False, 'spanGaps': True})
                 charts[f"chart_{metric_key}"] = {'title': metric['label'], 'labels': all_labels, 'datasets': datasets}
 
