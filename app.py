@@ -624,18 +624,7 @@ CONTENT_TEMPLATE = """
                     if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
                         var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
                         // Tìm chính xác cell/site khớp
-                        for (var i = 0; i < gisData.length; i++) {
-                            var sCode = (gisData[i].site_code || "").toLowerCase();
-                            var cName = (gisData[i].cell_name || "").toLowerCase();
-                            var sInput = searchSite.toLowerCase();
-                            var cInput = searchCell.toLowerCase();
-                            
-                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
-                                targetCell = gisData[i];
-                                break;
-                            }
-                        }
-                        if (targetCell.lat && targetCell.lon) {
+                        if targetCell.lat && targetCell.lon) {
                             map.setView([targetCell.lat, targetCell.lon], 15);
                         } else {
                             map.setView(mapCenter, mapZoom);
@@ -644,6 +633,16 @@ CONTENT_TEMPLATE = """
                         map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
                     } else {
                         map.setView(mapCenter, mapZoom);
+                    }
+
+                    // Hàm tính toán điểm nằm giữa cánh sóng (quạt) theo hướng azimuth
+                    function getSectorMidPoint(lat, lon, azimuth, distanceMeters) {
+                        var latFactor = 111320;
+                        var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
+                        var radMap = (azimuth || 0) * Math.PI / 180;
+                        var dx = (distanceMeters * Math.sin(radMap)) / lonFactor; // East-West
+                        var dy = (distanceMeters * Math.cos(radMap)) / latFactor; // North-South
+                        return [lat + dy, lon + dx];
                     }
 
                     // Xây dựng Lookup Table để nối đường nhanh
@@ -674,7 +673,8 @@ CONTENT_TEMPLATE = """
                         }
 
                         if (key) {
-                            cellLookup[key] = [cell.lat, cell.lon];
+                            // Thay vì nối về gốc trạm, nối về điểm giữa của quạt (cách gốc 250m)
+                            cellLookup[key] = getSectorMidPoint(cell.lat, cell.lon, cell.azi, 250);
                         }
                     });
 
