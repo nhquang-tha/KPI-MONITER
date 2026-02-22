@@ -71,7 +71,8 @@ def clean_header(col_name):
         'Anten_height': 'anten_height', 'Azimuth': 'azimuth', 'M_T': 'm_t', 'E_T': 'e_t', 'Total_tilt': 'total_tilt',
         'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac', 'CI': 'ci',
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
-        'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo'
+        'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
+        'CellID': 'cellid', 'NetworkTech': 'networktech'
     }
     
     col_upper = col_name.upper()
@@ -284,6 +285,17 @@ class KPI5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
 
+class ITSLog(db.Model):
+    __tablename__ = 'its_log'
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    networktech = db.Column(db.String(20))
+    level = db.Column(db.Float)
+    qual = db.Column(db.Float)
+    cellid = db.Column(db.String(50))
+
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
@@ -338,6 +350,8 @@ BASE_LAYOUT = """
         .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
         .chart-container canvas { cursor: zoom-in; }
         @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
+        .legend { line-height: 18px; color: #333; }
+        .legend i { width: 14px; height: 14px; float: left; margin-right: 8px; opacity: 0.8; border: 1px solid #999; }
     </style>
 </head>
 <body>
@@ -514,13 +528,19 @@ CONTENT_TEMPLATE = """
                                 <option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-bold small text-muted">TÌM THEO SITE CODE</label>
                             <input type="text" name="site_code" class="form-control border-0 shadow-sm" placeholder="VD: THA001" value="{{ site_code_input }}">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <label class="form-label fw-bold small text-muted">TÌM THEO CELL NAME/CODE</label>
                             <input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}">
+                        </div>
+                        <div class="col-md-2 mt-4 text-center">
+                            <div class="form-check form-switch d-inline-block">
+                                <input class="form-check-input" type="checkbox" role="switch" name="show_its" value="1" id="showIts" {% if show_its %}checked{% endif %}>
+                                <label class="form-check-label fw-bold small text-muted ms-1" for="showIts">LOG ITS</label>
+                            </div>
                         </div>
                         <div class="col-md-2 align-self-end">
                             <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-map-location-dot me-2"></i>Tìm kiếm</button>
@@ -538,8 +558,10 @@ CONTENT_TEMPLATE = """
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
                     var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
+                    var itsData = {{ its_data | tojson | safe if its_data else '[]' }};
                     var searchSite = "{{ site_code_input }}";
                     var searchCell = "{{ cell_name_input }}";
+                    var isShowIts = {{ 'true' if show_its else 'false' }};
                     
                     var mapContainer = document.getElementById('gisMap');
                     if (!mapContainer) return;
@@ -570,6 +592,9 @@ CONTENT_TEMPLATE = """
                             mapCenter = [targetCell.lat, targetCell.lon];
                             mapZoom = 15; // Zoom sâu hơn khi tìm kiếm cụ thể
                         }
+                    } else if (itsData.length > 0 && isShowIts) {
+                         mapCenter = [itsData[0].lat, itsData[0].lon];
+                         mapZoom = 13;
                     }
 
                     // Tùy chọn 2 lớp bản đồ (Bản đồ đường phố và Vệ tinh)
@@ -664,6 +689,68 @@ CONTENT_TEMPLATE = """
                             { minWidth: 280, maxWidth: 400 } // Tăng kích thước popup để chứa bảng
                         );
                     });
+                    
+                    // Vẽ các điểm ITS Log nếu có
+                    if (isShowIts && itsData.length > 0) {
+                        function getSignalColor(tech, level) {
+                            var t = tech.toUpperCase();
+                            if (t.includes('4G') || t.includes('LTE')) {
+                                if (level >= -80) return '#00FF00'; // Green
+                                if (level >= -90) return '#0000FF'; // Blue
+                                if (level >= -100) return '#FFFF00'; // Yellow
+                                if (level >= -110) return '#FFA500'; // Orange
+                                return '#FF0000'; // Red
+                            } else { // 3G/WCDMA
+                                if (level >= -75) return '#00FF00';
+                                if (level >= -85) return '#0000FF';
+                                if (level >= -95) return '#FFFF00';
+                                if (level >= -105) return '#FFA500';
+                                return '#FF0000';
+                            }
+                        }
+
+                        var itsLayerGroup = L.layerGroup().addTo(map);
+                        
+                        itsData.forEach(function(pt) {
+                            L.circleMarker([pt.lat, pt.lon], {
+                                radius: 3,
+                                fillColor: getSignalColor(pt.tech, pt.level),
+                                color: "#000",
+                                weight: 0.5,
+                                fillOpacity: 0.9
+                            }).bindPopup("<b>Công nghệ:</b> " + pt.tech + "<br><b>Mức thu (Level):</b> " + pt.level + " dBm<br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>CellID:</b> " + pt.cellid)
+                              .addTo(itsLayerGroup);
+                        });
+
+                        // Add Legend control
+                        var legend = L.control({position: 'bottomright'});
+                        legend.onAdd = function (map) {
+                            var div = L.DomUtil.create('div', 'info legend shadow-sm');
+                            div.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                            div.style.padding = '10px';
+                            div.style.borderRadius = '5px';
+                            div.style.fontSize = '0.85rem';
+                            
+                            var html = '<strong class="text-primary">Mức thu tín hiệu (dBm)</strong><hr class="my-1">';
+                            html += '<small class="fw-bold d-block text-success">4G (RSRP)</small>';
+                            html += '<i style="background:#00FF00;"></i> &ge; -80 (Tốt)<br>';
+                            html += '<i style="background:#0000FF;"></i> -80 ~ -90 (Khá)<br>';
+                            html += '<i style="background:#FFFF00;"></i> -90 ~ -100 (TB)<br>';
+                            html += '<i style="background:#FFA500;"></i> -100 ~ -110 (Yếu)<br>';
+                            html += '<i style="background:#FF0000;"></i> &lt; -110 (Kém)<br>';
+                            
+                            html += '<small class="fw-bold d-block text-success mt-2">3G (RSCP)</small>';
+                            html += '<i style="background:#00FF00;"></i> &ge; -75 (Tốt)<br>';
+                            html += '<i style="background:#0000FF;"></i> -75 ~ -85 (Khá)<br>';
+                            html += '<i style="background:#FFFF00;"></i> -85 ~ -95 (TB)<br>';
+                            html += '<i style="background:#FFA500;"></i> -95 ~ -105 (Yếu)<br>';
+                            html += '<i style="background:#FF0000;"></i> &lt; -105 (Kém)<br>';
+                            
+                            div.innerHTML = html;
+                            return div;
+                        };
+                        legend.addTo(map);
+                    }
                 });
             </script>
 
@@ -803,6 +890,7 @@ CONTENT_TEMPLATE = """
                              <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF" type="button">Import RF</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li>
+                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabITS" type="button">Import Log ITS</button></li>
                          </ul>
                          
                          <!-- Tabs Content -->
@@ -860,6 +948,21 @@ CONTENT_TEMPLATE = """
                                          <input type="file" name="file" class="form-control" multiple required>
                                      </div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload KPI Data</button>
+                                 </form>
+                             </div>
+                             
+                             <!-- ITS Log Tab -->
+                             <div class="tab-pane fade" id="tabITS">
+                                 <div class="alert alert-info border-0 shadow-sm small">
+                                     <i class="fa-solid fa-circle-info me-2"></i><strong>Lưu ý:</strong> Hỗ trợ định dạng file <code>.txt</code> phân cách bằng dấu <code>|</code> hoặc <code>.csv</code>.
+                                 </div>
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <input type="hidden" name="type" value="its_log">
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn File Log ITS</label>
+                                         <input type="file" name="file" class="form-control" accept=".txt,.csv" multiple required>
+                                     </div>
+                                     <button class="btn btn-warning w-100 fw-bold"><i class="fa-solid fa-map-location-dot me-2"></i>Upload Log ITS</button>
                                  </form>
                              </div>
                          </div>
@@ -1126,21 +1229,13 @@ def gis():
     tech = request.args.get('tech', '4g')
     site_code_input = request.args.get('site_code', '').strip()
     cell_name_input = request.args.get('cell_name', '').strip()
+    show_its = request.args.get('show_its') == '1'
     
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     
     gis_data = []
     if Model:
         query = db.session.query(Model)
-        # Bỏ bộ lọc query đi để load toàn bộ trạm
-        # if site_code_input:
-        #    query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
-        # if cell_name_input:
-        #    filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
-        #    if hasattr(Model, 'cell_name'):
-        #        filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
-        #    query = query.filter(or_(*filters))
-            
         records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
         for r in records:
@@ -1149,7 +1244,6 @@ def gis():
                 lon = float(r.longitude)
                 azi = int(r.azimuth) if r.azimuth is not None else 0
                 
-                # Check for valid coordinate range (roughly within Vietnam or valid numbers)
                 if 8 <= lat <= 24 and 102 <= lon <= 110:
                     cell_info = {c: getattr(r, c) for c in cols}
                     cell_info = {k: (v if pd.notna(v) else '') for k, v in cell_info.items() if v is not None}
@@ -1165,9 +1259,25 @@ def gis():
                     })
             except (ValueError, TypeError):
                 continue
+                
+    its_data = []
+    if show_its:
+        # Lấy 10,000 logs gần nhất hoặc tương ứng
+        logs = db.session.query(ITSLog).filter(ITSLog.networktech.ilike(f"%{tech}%")).limit(10000).all()
+        for r in logs:
+            try:
+                its_data.append({
+                    'lat': float(r.latitude),
+                    'lon': float(r.longitude),
+                    'level': float(r.level),
+                    'qual': r.qual,
+                    'tech': r.networktech,
+                    'cellid': r.cellid
+                })
+            except (ValueError, TypeError): pass
 
     return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', 
-                       selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data)
+                       selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data, its_data=its_data, show_its=show_its)
 
 @app.route('/kpi')
 @login_required
@@ -1580,15 +1690,22 @@ def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type') or request.args.get('type')
-        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G, 'its_log': ITSLog}
         Model = cfg.get(itype)
         
         if Model:
             valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
             for file in files:
                 try:
-                    if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
-                    else: chunks = [pd.read_excel(file)]
+                    # Đặc thù cho file log ITS (phân cách bằng dấu '|')
+                    if itype == 'its_log':
+                        if file.filename.endswith('.txt') or file.filename.endswith('.csv'):
+                            chunks = pd.read_csv(file, chunksize=5000, sep='|', encoding='utf-8-sig', on_bad_lines='skip')
+                        else:
+                            chunks = [pd.read_excel(file)]
+                    else:
+                        if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
+                        else: chunks = [pd.read_excel(file)]
                     
                     for df in chunks:
                         df.columns = [clean_header(c) for c in df.columns]
