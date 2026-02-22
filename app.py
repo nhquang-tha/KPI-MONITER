@@ -1416,55 +1416,42 @@ def index():
     }
     
     try:
-        # Lấy toàn bộ dữ liệu KPI 4G để tổng hợp
+        # Tối ưu hóa Database: Nhường việc tính tổng và trung bình cho DB thay vì tải hàng vạn record lên RAM
         records = db.session.query(
             KPI4G.thoi_gian,
-            KPI4G.traffic,
-            KPI4G.user_dl_avg_thput,
-            KPI4G.res_blk_dl,
-            KPI4G.cqi_4g
-        ).all()
+            func.sum(KPI4G.traffic).label('traffic'),
+            func.avg(KPI4G.user_dl_avg_thput).label('user_dl_avg_thput'),
+            func.avg(KPI4G.res_blk_dl).label('res_blk_dl'),
+            func.avg(KPI4G.cqi_4g).label('cqi_4g')
+        ).group_by(KPI4G.thoi_gian).all()
 
         if records:
-            agg_data = defaultdict(lambda: {'traffic_sum': 0, 'thput_sum': 0, 'thput_cnt': 0, 'prb_sum': 0, 'prb_cnt': 0, 'cqi_sum': 0, 'cqi_cnt': 0})
-            
-            # Tính tổng và biến đếm cho từng ngày
+            agg_data = {}
             for r in records:
-                d = r.thoi_gian
+                d = r[0]
                 if not d: continue
-                
-                if r.traffic is not None:
-                    agg_data[d]['traffic_sum'] += r.traffic
-                if r.user_dl_avg_thput is not None:
-                    agg_data[d]['thput_sum'] += r.user_dl_avg_thput
-                    agg_data[d]['thput_cnt'] += 1
-                if r.res_blk_dl is not None:
-                    agg_data[d]['prb_sum'] += r.res_blk_dl
-                    agg_data[d]['prb_cnt'] += 1
-                if r.cqi_4g is not None:
-                    agg_data[d]['cqi_sum'] += r.cqi_4g
-                    agg_data[d]['cqi_cnt'] += 1
+                # r[1] là sum_traffic, r[2] là avg_thput, r[3] là avg_prb, r[4] là avg_cqi
+                agg_data[d] = {
+                    'traffic_sum': r[1] or 0,
+                    'thput_avg': r[2] or 0,
+                    'prb_avg': r[3] or 0,
+                    'cqi_avg': r[4] or 0
+                }
 
             # Sắp xếp các ngày theo thứ tự thời gian
             sorted_dates = sorted(agg_data.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
             
             dashboard_data['labels'] = sorted_dates
             for d in sorted_dates:
-                # Traffic thì tính Tổng (Sum)
                 dashboard_data['traffic'].append(round(agg_data[d]['traffic_sum'], 2))
-                
-                # Các chỉ số còn lại tính Trung bình (Avg)
-                avg_thput = agg_data[d]['thput_sum'] / agg_data[d]['thput_cnt'] if agg_data[d]['thput_cnt'] > 0 else 0
-                dashboard_data['thput'].append(round(avg_thput, 2))
-                
-                avg_prb = agg_data[d]['prb_sum'] / agg_data[d]['prb_cnt'] if agg_data[d]['prb_cnt'] > 0 else 0
-                dashboard_data['prb'].append(round(avg_prb, 2))
-                
-                avg_cqi = agg_data[d]['cqi_sum'] / agg_data[d]['cqi_cnt'] if agg_data[d]['cqi_cnt'] > 0 else 0
-                dashboard_data['cqi'].append(round(avg_cqi, 2))
+                dashboard_data['thput'].append(round(agg_data[d]['thput_avg'], 2))
+                dashboard_data['prb'].append(round(agg_data[d]['prb_avg'], 2))
+                dashboard_data['cqi'].append(round(agg_data[d]['cqi_avg'], 2))
                 
     except Exception as e:
         print(f"Lỗi khi load Dashboard: {e}")
+        
+    gc.collect() # Giải phóng RAM
 
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', dashboard_data=dashboard_data)
 
@@ -1644,8 +1631,9 @@ def gis():
             else:
                 query = query.filter(text("1=0")) # Empty result
         else:
-            # Lọc theo tìm kiếm thông thường
-            pass
+            # Lọc theo tìm kiếm thông thường. Nếu để trống thì giới hạn 2000 trạm để tránh OOM bộ nhớ
+            if not site_code_input and not cell_name_input:
+                query = query.limit(2000)
 
         records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
@@ -1671,6 +1659,8 @@ def gis():
                     })
             except (ValueError, TypeError):
                 continue
+                
+    gc.collect() # Giải phóng RAM
 
     return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', 
                        selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, 
@@ -1768,6 +1758,7 @@ def kpi():
             poi_list = sorted(list(set(p4 + p5)))
         except: pass
 
+    gc.collect() # Giải phóng RAM
     return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', 
                        selected_tech=selected_tech, cell_name_input=cell_name_input, 
                        selected_poi=poi_input, poi_list=poi_list, charts=charts)
@@ -1788,9 +1779,9 @@ def poi():
         c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
         c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
         
-        # 4G Chart (Aggregate)
+        # 4G Chart (Aggregate) - Tối ưu Query trả Tuple thay vì Full Model Object
         if c4:
-            k4 = KPI4G.query.filter(KPI4G.ten_cell.in_(c4)).all()
+            k4 = db.session.query(KPI4G.thoi_gian, KPI4G.traffic, KPI4G.user_dl_avg_thput).filter(KPI4G.ten_cell.in_(c4)).all()
             if k4:
                 try: k4.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
                 except: pass
@@ -1802,7 +1793,7 @@ def poi():
                 for r in k4:
                     if r.thoi_gian in dates4:
                         agg_traf[r.thoi_gian] += (r.traffic or 0)
-                        if r.user_dl_avg_thput: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
+                        if r.user_dl_avg_thput is not None: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
 
                 ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
                 ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
@@ -1810,9 +1801,9 @@ def poi():
                 charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg}
                 charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg}
         
-        # 5G Chart (Aggregate)
+        # 5G Chart (Aggregate) - Tối ưu Query trả Tuple
         if c5:
-             k5 = KPI5G.query.filter(KPI5G.ten_cell.in_(c5)).all()
+             k5 = db.session.query(KPI5G.thoi_gian, KPI5G.traffic, KPI5G.user_dl_avg_throughput).filter(KPI5G.ten_cell.in_(c5)).all()
              if k5:
                 try: k5.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
                 except: pass
@@ -1824,7 +1815,7 @@ def poi():
                 for r in k5:
                     if r.thoi_gian in dates5:
                         agg_traf5[r.thoi_gian] += (r.traffic or 0)
-                        if r.user_dl_avg_throughput: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
+                        if r.user_dl_avg_throughput is not None: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
                 
                 ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
                 ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
@@ -1832,6 +1823,7 @@ def poi():
                 charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5}
                 charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5}
 
+    gc.collect() # Giải phóng RAM
     return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
 
 @app.route('/conges-3g')
@@ -1846,7 +1838,8 @@ def conges_3g():
             date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
             if len(date_objs) >= 3:
                 target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
-                records = KPI3G.query.filter(
+                # Tối ưu: Dùng Tuple Query tiết kiệm bộ nhớ thay vì Full Object
+                records = db.session.query(KPI3G.ten_cell, KPI3G.traffic, KPI3G.csconges, KPI3G.pstraffic, KPI3G.psconges).filter(
                     KPI3G.thoi_gian.in_(target_dates),
                     ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
                 ).all()
@@ -1864,6 +1857,8 @@ def conges_3g():
                         
         except: pass
         
+    gc.collect() # Giải phóng RAM
+
     if action == 'export':
         df = pd.DataFrame(conges_data)
         output = BytesIO()
@@ -1894,7 +1889,8 @@ def worst_cell():
         # Lấy danh sách các cell có dữ liệu trong ngày KPI gần nhất
         active_latest_cells = {c[0] for c in db.session.query(KPI4G.ten_cell).filter(KPI4G.thoi_gian == latest_date).all()}
 
-        records = KPI4G.query.filter(
+        # Tối ưu: Dùng Tuple Query giúp ngăn chặn OOM (Out Of Memory)
+        records = db.session.query(KPI4G.ten_cell, KPI4G.user_dl_avg_thput, KPI4G.res_blk_dl, KPI4G.cqi_4g, KPI4G.service_drop_all).filter(
             KPI4G.thoi_gian.in_(target_dates),
             ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
             ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
@@ -1916,6 +1912,8 @@ def worst_cell():
                     'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
                 })
                 
+    gc.collect() # Giải phóng RAM
+    
     if action == 'export':
         df = pd.DataFrame(results)
         output = BytesIO()
@@ -1946,7 +1944,8 @@ def traffic_down():
                 needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
                 needed_str = [d.strftime('%d/%m/%Y') for d in needed]
                 
-                records = Model.query.filter(Model.thoi_gian.in_(needed_str)).all()
+                # Tối ưu RAM: Lấy đúng 3 cột cần thiết bằng Tuple Query
+                records = db.session.query(Model.ten_cell, Model.thoi_gian, Model.traffic).filter(Model.thoi_gian.in_(needed_str)).all()
                 data_map = defaultdict(dict)
                 for r in records:
                     if r.ten_cell.startswith('MBF_TH') or r.ten_cell.startswith('VNP-4G'): continue
@@ -1983,6 +1982,8 @@ def traffic_down():
                         # Threshold for POI degradation: Today < 70% LastWeek AND LastWeek > 5GB (to filter tiny POIs)
                         if t_last > 5 and t0 < 0.7 * t_last:
                              degraded_pois.append({'poi_name': pname, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+
+        gc.collect() # Giải phóng RAM
 
         if action == 'export_zero':
             df = pd.DataFrame(zero_traffic)
@@ -2114,6 +2115,8 @@ def import_data():
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
+    
+    gc.collect() # Giải phóng RAM
     return render_page(CONTENT_TEMPLATE, title="Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
 
 @app.route('/backup', methods=['POST'])
@@ -2139,6 +2142,7 @@ def backup_db():
                 zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
     
     stream.seek(0)
+    gc.collect() # Giải phóng RAM
     return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
 
 @app.route('/restore', methods=['POST'])
