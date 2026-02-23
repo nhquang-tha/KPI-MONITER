@@ -8,9 +8,10 @@ import zipfile
 import unicodedata
 import random
 import math
+import requests # Thêm thư viện requests để gọi Zalo API
 from io import BytesIO, StringIO
 from datetime import datetime, timedelta
-from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context
+from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -28,6 +29,9 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:/
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_recycle': 280, 'pool_pre_ping': True}
 app.config['MAX_CONTENT_LENGTH'] = 64 * 1024 * 1024
+
+# Cấu hình Telegram Bot Token
+TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '8684244776:AAEjz9Lv8Zc5u-o6BJoHM3eCGXDBQE6hRUU')
 
 db = SQLAlchemy(app)
 login_manager = LoginManager()
@@ -1436,6 +1440,89 @@ def render_page(tpl, **kwargs):
 # ==============================================================================
 # 5. ROUTES
 # ==============================================================================
+
+# --- TELEGRAM BOT LOGIC ---
+def send_telegram_message(chat_id, text_content):
+    if not TELEGRAM_BOT_TOKEN: return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": text_content,
+        "parse_mode": "HTML"  # Hỗ trợ định dạng in đậm, in nghiêng
+    }
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"Telegram send error: {e}")
+
+def process_bot_command(text):
+    text = str(text).strip().upper()
+    parts = text.split()
+    
+    if len(parts) < 3:
+        return "🤖 <b>Lỗi cú pháp!</b>\nVui lòng soạn theo mẫu:\n👉 <code>KPI 4G [Mã_Cell]</code>\n👉 <code>RF 4G [Mã_Cell]</code>"
+        
+    cmd = parts[0]
+    tech = parts[1].lower()
+    target = parts[2]
+    
+    with app.app_context():
+        if cmd == 'KPI':
+            Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
+            if not Model: return "❌ Công nghệ không hợp lệ (Chỉ hỗ trợ 3G/4G/5G)"
+            
+            # Lấy bản ghi KPI mới nhất của cell
+            record = Model.query.filter(Model.ten_cell.ilike(f"%{target}%")).order_by(Model.id.desc()).first()
+            if record:
+                if tech == '4g':
+                    return f"📊 <b>KPI 4G - {record.ten_cell}</b>\n📅 Ngày: {record.thoi_gian}\n- Traffic: {record.traffic} GB\n- Avg Thput: {record.user_dl_avg_thput} Mbps\n- PRB: {record.res_blk_dl}%\n- CQI: {record.cqi_4g}\n- Drop Rate: {record.service_drop_all}%"
+                elif tech == '3g':
+                    return f"📊 <b>KPI 3G - {record.ten_cell}</b>\n📅 Ngày: {record.thoi_gian}\n- CS Traffic: {record.traffic} Erl\n- PS Traffic: {record.pstraffic} GB\n- CS Conges: {record.csconges}%\n- PS Conges: {record.psconges}%"
+            return f"❌ Không tìm thấy dữ liệu KPI cho Cell: <b>{target}</b>"
+            
+        elif cmd == 'RF':
+            Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+            if not Model: return "❌ Công nghệ không hợp lệ"
+            
+            record = Model.query.filter(Model.cell_code.ilike(f"%{target}%")).first()
+            if record:
+                if tech == '4g':
+                    return f"📡 <b>RF 4G - {record.cell_code}</b>\n📍 Trạm: {record.site_code}\n- Tọa độ: {record.latitude}, {record.longitude}\n- Azimuth: {record.azimuth}\n- Tilt: {record.total_tilt}\n- Tần số: {record.frequency}\n- ENodeB: {record.enodeb_id}\n- LCRID: {record.lcrid}"
+                elif tech == '3g':
+                    return f"📡 <b>RF 3G - {record.cell_code}</b>\n📍 Trạm: {record.site_code}\n- Tọa độ: {record.latitude}, {record.longitude}\n- Azimuth: {record.azimuth}\n- Tần số: {record.frequency}\n- BSC_LAC: {record.bsc_lac}\n- CI: {record.ci}"
+            return f"❌ Không tìm thấy cấu hình RF cho Cell: <b>{target}</b>"
+            
+    return "🤖 Cú pháp không được hỗ trợ. Gõ <code>HELP</code> để xem hướng dẫn."
+
+@app.route('/telegram/webhook', methods=['POST'])
+def telegram_webhook():
+    # Nhận tin nhắn từ Telegram
+    data = request.json
+    if data and 'message' in data:
+        chat_id = data['message']['chat']['id']
+        text = data['message'].get('text', '')
+        
+        if text:
+            reply_text = process_bot_command(text)
+            send_telegram_message(chat_id, reply_text)
+            
+    return jsonify({"status": "success"}), 200
+
+@app.route('/telegram/set_webhook')
+def set_telegram_webhook():
+    """Đường dẫn tiện ích để tự động kết nối Webhook với Telegram"""
+    if not TELEGRAM_BOT_TOKEN:
+        return "Missing Bot Token", 400
+    
+    # Lấy đường dẫn thực tế của website bạn (Render)
+    webhook_url = request.host_url.rstrip('/') + url_for('telegram_webhook')
+    api_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}"
+    
+    try:
+        r = requests.get(api_url)
+        return jsonify({"message": "Đã gửi yêu cầu kết nối Webhook tới Telegram", "telegram_response": r.json()})
+    except Exception as e:
+        return str(e), 500
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
