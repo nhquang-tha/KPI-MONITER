@@ -352,6 +352,8 @@ BASE_LAYOUT = """
         .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
         .chart-container canvas { cursor: zoom-in; }
         @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
+        .legend { line-height: 18px; color: #333; }
+        .legend i { width: 14px; height: 14px; float: left; margin-right: 8px; opacity: 0.8; border: 1px solid #999; }
     </style>
 </head>
 <body>
@@ -625,30 +627,6 @@ CONTENT_TEMPLATE = """
                     </form>
                 </div>
             </div>
-            
-            {% if gis_data or its_data %}
-            <div class="d-flex flex-wrap justify-content-end mb-2 gap-2">
-                {% if gis_data %}
-                <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
-                    <label class="small fw-bold text-muted mb-0 me-2"><i class="fa-solid fa-wifi text-info me-1"></i>Bán kính quạt:</label>
-                    <input type="range" class="form-range" id="sectorRadiusSlider" min="50" max="2000" step="50" value="350" style="width: 120px;">
-                    <span id="sectorRadiusVal" class="small text-muted ms-2 fw-bold" style="min-width: 45px;">350m</span>
-                </div>
-                {% endif %}
-                {% if show_its and its_data %}
-                <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
-                    <label class="small fw-bold text-muted mb-0 me-2"><i class="fa-solid fa-circle text-primary me-1"></i>Kích thước điểm:</label>
-                    <input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 100px;">
-                </div>
-                <div class="bg-white border rounded shadow-sm px-3 py-2 d-flex align-items-center">
-                    <div class="form-check form-switch mb-0">
-                        <input class="form-check-input mt-0 me-2" type="checkbox" id="showLinesToggle" checked style="cursor: pointer;">
-                        <label class="form-check-label small fw-bold text-muted" for="showLinesToggle" style="cursor: pointer;"><i class="fa-solid fa-link text-success me-1"></i>Nối thẳng về Cell</label>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-            {% endif %}
 
             <div class="card border border-light shadow-sm">
                 <div class="card-body p-2 position-relative">
@@ -664,6 +642,8 @@ CONTENT_TEMPLATE = """
                     var searchCell = "{{ cell_name_input }}";
                     var isShowIts = {{ 'true' if show_its else 'false' }};
                     var actionType = "{{ action_type }}";
+                    var hasGisData = gisData.length > 0;
+                    var hasItsData = isShowIts && itsData.length > 0;
                     
                     var mapContainer = document.getElementById('gisMap');
                     if (!mapContainer) return;
@@ -699,16 +679,79 @@ CONTENT_TEMPLATE = """
                     };
                     L.control.layers(baseMaps).addTo(map);
 
+                    // Thêm Custom Control để chứa thanh trượt và toggle (Nổi trên Map)
+                    if (hasGisData || hasItsData) {
+                        var settingsControl = L.control({position: 'topright'});
+                        settingsControl.onAdd = function (map) {
+                            var div = L.DomUtil.create('div', 'info settings-control shadow-sm');
+                            div.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                            div.style.padding = '10px';
+                            div.style.borderRadius = '8px';
+                            div.style.border = '1px solid #ccc';
+                            
+                            // Ngăn chặn sự kiện click/drag lên map khi đang kéo thanh trượt
+                            L.DomEvent.disableClickPropagation(div);
+
+                            var html = '<div class="d-flex flex-column gap-2">';
+
+                            if (hasGisData) {
+                                html += '<div class="d-flex align-items-center justify-content-between">';
+                                html += '<label class="small fw-bold text-muted mb-0 me-2" style="white-space: nowrap;"><i class="fa-solid fa-wifi text-info me-1"></i>Bán kính quạt:</label>';
+                                html += '<input type="range" class="form-range" id="sectorRadiusSlider" min="50" max="2000" step="50" value="350" style="width: 100px;">';
+                                html += '<span id="sectorRadiusVal" class="small text-muted ms-2 fw-bold" style="min-width: 40px; text-align: right;">350m</span>';
+                                html += '</div>';
+                            }
+
+                            if (hasItsData) {
+                                html += '<div class="d-flex align-items-center justify-content-between">';
+                                html += '<label class="small fw-bold text-muted mb-0 me-2" style="white-space: nowrap;"><i class="fa-solid fa-circle text-primary me-1"></i>Kích thước điểm:</label>';
+                                html += '<input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 100px;">';
+                                html += '</div>';
+
+                                html += '<div class="d-flex align-items-center mt-1 pt-2 border-top">';
+                                html += '<div class="form-check form-switch mb-0 w-100 d-flex align-items-center ps-0">';
+                                html += '<label class="form-check-label small fw-bold text-muted me-3" for="showLinesToggle" style="cursor: pointer;"><i class="fa-solid fa-link text-success me-1"></i>Nối về Cell</label>';
+                                html += '<input class="form-check-input mt-0 ms-auto float-none" type="checkbox" id="showLinesToggle" checked style="cursor: pointer;">';
+                                html += '</div>';
+                                html += '</div>';
+                            }
+
+                            html += '</div>';
+                            div.innerHTML = html;
+                            return div;
+                        };
+                        settingsControl.addTo(map);
+                    }
+
                     // Xử lý zoom/bounds thông minh
                     var bounds = [];
                     if (isShowIts && itsData.length > 0) {
                         itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
                     }
-                    if (gisData.length > 0) {
+                    if (actionType === 'show_log' && gisData.length > 0) {
                         gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
                     }
 
-                    if (bounds.length > 0) {
+                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
+                        var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
+                        // Tìm chính xác cell/site khớp
+                        for (var i = 0; i < gisData.length; i++) {
+                            var sCode = (gisData[i].site_code || "").toLowerCase();
+                            var cName = (gisData[i].cell_name || "").toLowerCase();
+                            var sInput = searchSite.toLowerCase();
+                            var cInput = searchCell.toLowerCase();
+                            
+                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
+                                targetCell = gisData[i];
+                                break;
+                            }
+                        }
+                        if (targetCell.lat && targetCell.lon) {
+                            map.setView([targetCell.lat, targetCell.lon], 15);
+                        } else {
+                            map.setView(mapCenter, mapZoom);
+                        }
+                    } else if (bounds.length > 0) {
                         map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
                     } else {
                         map.setView(mapCenter, mapZoom);
@@ -909,7 +952,7 @@ CONTENT_TEMPLATE = """
                     // Render lần đầu
                     buildLookupAndDrawSectors();
 
-                    // Bắt sự kiện
+                    // Bắt sự kiện LẠI cho các thẻ input vừa được tạo bên trong custom control
                     var radSliderEl = document.getElementById('sectorRadiusSlider');
                     if (radSliderEl) radSliderEl.addEventListener('input', buildLookupAndDrawSectors);
 
