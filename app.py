@@ -352,8 +352,6 @@ BASE_LAYOUT = """
         .table-hover tbody tr:hover { background-color: rgba(0, 120, 212, 0.05); }
         .chart-container canvas { cursor: zoom-in; }
         @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
-        .legend { line-height: 18px; color: #333; }
-        .legend i { width: 14px; height: 14px; float: left; margin-right: 8px; opacity: 0.8; border: 1px solid #999; }
     </style>
 </head>
 <body>
@@ -703,6 +701,23 @@ CONTENT_TEMPLATE = """
 
                     // Xử lý zoom/bounds thông minh
                     var bounds = [];
+                    if (isShowIts && itsData.length > 0) {
+                        itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
+                    }
+                    if (gisData.length > 0) {
+                        gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
+                    }
+
+                    if (bounds.length > 0) {
+                        map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
+                    } else {
+                        map.setView(mapCenter, mapZoom);
+                    }
+
+                    var siteLayerGroup = L.layerGroup().addTo(map);
+                    var sectorLayerGroup = L.layerGroup().addTo(map);
+                    var itsLayerGroup = L.layerGroup().addTo(map);
+                    var cellLookup = {};
                     var renderedSites = {};
 
                     var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
@@ -821,21 +836,25 @@ CONTENT_TEMPLATE = """
                         drawITSData();
                     }
 
-                    // Vẽ các điểm ITS Log
+                    // Vẽ các điểm ITS Log nếu có
                     function getSignalColor(tech, level) {
                         var t = (tech || '').toUpperCase();
                         if (t.includes('4G') || t.includes('LTE')) {
-                            if (level >= -80) return '#00FF00'; // Green
-                            if (level >= -90) return '#0000FF'; // Blue
-                            if (level >= -100) return '#FFFF00'; // Yellow
-                            if (level >= -110) return '#FFA500'; // Orange
-                            return '#FF0000'; // Red
-                        } else { // 3G/WCDMA
-                            if (level >= -75) return '#00FF00';
-                            if (level >= -85) return '#0000FF';
-                            if (level >= -95) return '#FFFF00';
-                            if (level >= -105) return '#FFA500';
-                            return '#FF0000';
+                            // 4G RSRP Colors
+                            if (level >= -65) return '#4A4DFF';  // Blue
+                            if (level >= -85) return '#4CAF50';  // Dark Green
+                            if (level >= -95) return '#5EFC54';  // Light Green
+                            if (level >= -105) return '#FFFF4D'; // Yellow
+                            if (level >= -110) return '#FF4D4D'; // Red
+                            return '#555555';                    // Grey
+                        } else { 
+                            // 3G RSCP Colors
+                            if (level >= -65) return '#4A4DFF';  // Blue
+                            if (level >= -75) return '#4CAF50';  // Dark Green
+                            if (level >= -85) return '#5EFC54';  // Light Green
+                            if (level >= -95) return '#FFFF4D';  // Yellow
+                            if (level >= -105) return '#FF4D4D'; // Red
+                            return '#555555';                    // Grey
                         }
                     }
 
@@ -1612,6 +1631,14 @@ def gis():
                 query = query.filter(text("1=0")) # Empty result
         else:
             # Lọc theo tìm kiếm thông thường. Nếu để trống thì giới hạn 2000 trạm để tránh OOM bộ nhớ
+            if site_code_input:
+                query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
+            if cell_name_input:
+                filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
+                if hasattr(Model, 'cell_name'):
+                    filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
+                query = query.filter(or_(*filters))
+                
             if not site_code_input and not cell_name_input:
                 query = query.limit(2000)
 
