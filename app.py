@@ -559,37 +559,42 @@ CONTENT_TEMPLATE = """
                 <script>
                     document.addEventListener('DOMContentLoaded', function() {
                         const labels = {{ dashboard_data.labels | tojson }};
-                        const config = { 
-                            responsive: true, 
-                            maintainAspectRatio: false, 
-                            plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, 
-                            interaction: { mode: 'nearest', axis: 'x', intersect: false },
-                            elements: { point: { radius: 3, hoverRadius: 6 } }
-                        };
                         
-                        new Chart(document.getElementById('chartTraffic').getContext('2d'), { 
-                            type: 'line', 
-                            data: { labels: labels, datasets: [{ label: 'Total Traffic (GB)', data: {{ dashboard_data.traffic | tojson }}, borderColor: '#0078d4', backgroundColor: 'rgba(0,120,212,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
-                            options: config 
-                        });
-                        
-                        new Chart(document.getElementById('chartThput').getContext('2d'), { 
-                            type: 'line', 
-                            data: { labels: labels, datasets: [{ label: 'Avg Thput (Mbps)', data: {{ dashboard_data.thput | tojson }}, borderColor: '#107c10', backgroundColor: 'rgba(16,124,16,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
-                            options: config 
-                        });
-                        
-                        new Chart(document.getElementById('chartPrb').getContext('2d'), { 
-                            type: 'line', 
-                            data: { labels: labels, datasets: [{ label: 'Avg PRB (%)', data: {{ dashboard_data.prb | tojson }}, borderColor: '#ffaa44', backgroundColor: 'rgba(255,170,68,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
-                            options: config 
-                        });
-                        
-                        new Chart(document.getElementById('chartCqi').getContext('2d'), { 
-                            type: 'line', 
-                            data: { labels: labels, datasets: [{ label: 'Avg CQI', data: {{ dashboard_data.cqi | tojson }}, borderColor: '#00bcf2', backgroundColor: 'rgba(0,188,242,0.1)', fill: true, tension: 0.3, borderWidth: 2 }] }, 
-                            options: config 
-                        });
+                        function createDashChart(canvasId, dataLabel, color, bgColor, dataArr, titleStr) {
+                            const ds = [{ 
+                                label: dataLabel, 
+                                data: dataArr, 
+                                borderColor: color, 
+                                backgroundColor: bgColor, 
+                                fill: true, 
+                                tension: 0.3, 
+                                borderWidth: 2 
+                            }];
+                            
+                            new Chart(document.getElementById(canvasId).getContext('2d'), {
+                                type: 'line',
+                                data: { labels: labels, datasets: ds },
+                                options: {
+                                    responsive: true, 
+                                    maintainAspectRatio: false, 
+                                    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, 
+                                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                                    elements: { point: { radius: 3, hoverRadius: 6 } },
+                                    onClick: (e, el) => {
+                                        if (el.length > 0) {
+                                            const i = el[0].index;
+                                            // Gọi hàm popup zoom to dùng chung
+                                            showDetailModal(ds[0].label, labels[i], ds[0].data[i], titleStr, ds, labels);
+                                        }
+                                    }
+                                }
+                            });
+                        }
+
+                        createDashChart('chartTraffic', 'Total Traffic (GB)', '#0078d4', 'rgba(0,120,212,0.1)', {{ dashboard_data.traffic | tojson }}, 'Tổng Traffic 4G (GB)');
+                        createDashChart('chartThput', 'Avg Thput (Mbps)', '#107c10', 'rgba(16,124,16,0.1)', {{ dashboard_data.thput | tojson }}, 'Trung bình User DL Thput (Mbps)');
+                        createDashChart('chartPrb', 'Avg PRB (%)', '#ffaa44', 'rgba(255,170,68,0.1)', {{ dashboard_data.prb | tojson }}, 'Trung bình Tài nguyên PRB DL (%)');
+                        createDashChart('chartCqi', 'Avg CQI', '#00bcf2', 'rgba(0,188,242,0.1)', {{ dashboard_data.cqi | tojson }}, 'Trung bình Chất lượng Vô tuyến (CQI 4G)');
                     });
                 </script>
             {% else %}
