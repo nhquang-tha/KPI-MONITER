@@ -1521,47 +1521,61 @@ def process_bot_command(text):
             records.reverse()
             labels = [r.thoi_gian for r in records if r.thoi_gian]
             
+            charts_to_send = []
+            
+            # Hàm phụ trợ để tạo URL ảnh biểu đồ cho từng KPI
+            def create_chart_url(label, data, color, title):
+                chart_config = {
+                    "type": "line",
+                    "data": {
+                        "labels": labels,
+                        "datasets": [
+                            {"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}
+                        ]
+                    },
+                    "options": {
+                        "title": {"display": True, "text": title, "fontSize": 16},
+                        "elements": {"line": {"tension": 0.3}} 
+                    }
+                }
+                encoded_config = urllib.parse.quote(json.dumps(chart_config))
+                return f"https://quickchart.io/chart?c={encoded_config}&w=600&h=350&bkg=white"
+
+            cell_name = records[0].ten_cell
+
             # Khởi tạo dữ liệu vẽ dựa theo công nghệ
             if tech == '4g':
-                data1 = [r.traffic or 0 for r in records]
-                data2 = [r.user_dl_avg_thput or 0 for r in records]
-                label1, label2 = "Traffic (GB)", "Avg Thput (Mbps)"
+                kpis = [
+                    ("Traffic (GB)", [r.traffic or 0 for r in records], "#0078d4"),
+                    ("Avg Thput (Mbps)", [r.user_dl_avg_thput or 0 for r in records], "#107c10"),
+                    ("PRB DL (%)", [r.res_blk_dl or 0 for r in records], "#ffaa44"),
+                    ("CQI", [r.cqi_4g or 0 for r in records], "#00bcf2")
+                ]
             elif tech == '3g':
-                data1 = [r.traffic or 0 for r in records]
-                data2 = [r.pstraffic or 0 for r in records]
-                label1, label2 = "CS Traffic (Erl)", "PS Traffic (GB)"
+                kpis = [
+                    ("CS Traffic (Erl)", [r.traffic or 0 for r in records], "#0078d4"),
+                    ("PS Traffic (GB)", [r.pstraffic or 0 for r in records], "#107c10"),
+                    ("CS Congestion (%)", [r.csconges or 0 for r in records], "#d13438"),
+                    ("PS Congestion (%)", [r.psconges or 0 for r in records], "#e3008c")
+                ]
             else: # 5G
-                data1 = [r.traffic or 0 for r in records]
-                data2 = [r.user_dl_avg_throughput or 0 for r in records]
-                label1, label2 = "Traffic (GB)", "Avg Thput (Mbps)"
+                kpis = [
+                    ("Traffic (GB)", [r.traffic or 0 for r in records], "#0078d4"),
+                    ("Avg Thput (Mbps)", [r.user_dl_avg_throughput or 0 for r in records], "#107c10"),
+                    ("CQI 5G", [r.cqi_5g or 0 for r in records], "#00bcf2")
+                ]
                 
-            # Đóng gói cấu hình biểu đồ lượn sóng mượt mà (tension: 0.3) y hệt trên Web
-            chart_config = {
-                "type": "line",
-                "data": {
-                    "labels": labels,
-                    "datasets": [
-                        {"label": label1, "data": data1, "borderColor": "#0078d4", "backgroundColor": "transparent", "borderWidth": 3},
-                        {"label": label2, "data": data2, "borderColor": "#107c10", "backgroundColor": "transparent", "borderWidth": 3}
-                    ]
-                },
-                "options": {
-                    "title": {"display": True, "text": f"Biểu đồ Xu hướng KPI 7 Ngày - {records[0].ten_cell}", "fontSize": 16},
-                    "elements": {"line": {"tension": 0.3}} 
-                }
-            }
-            
-            # Mã hóa cấu hình thành dạng URL an toàn
-            encoded_config = urllib.parse.quote(json.dumps(chart_config))
-            # Gọi API vẽ ảnh của QuickChart (Miễn phí, nhanh, không tốn RAM Server)
-            chart_url = f"https://quickchart.io/chart?c={encoded_config}&w=600&h=350&bkg=white"
-            
-            # Trả về Dictionary để hàm webhook biết đây là tin nhắn dạng ẢNH
-            return {
-                "type": "photo",
-                "url": chart_url,
-                "caption": f"📈 Biểu đồ xu hướng KPI 7 ngày gần nhất của <b>{records[0].ten_cell}</b>"
-            }
+            # Tạo danh sách các tin nhắn ảnh riêng biệt
+            for label, data, color in kpis:
+                url = create_chart_url(label, data, color, f"Biểu đồ {label} 7 Ngày - {cell_name}")
+                charts_to_send.append({
+                    "type": "photo",
+                    "url": url,
+                    "caption": f"📈 <b>{label}</b> của {cell_name}"
+                })
+                
+            # Trả về mảng chứa danh sách các chart
+            return charts_to_send
 
     return "🤖 Cú pháp không được hỗ trợ. Gõ <code>HELP</code> để xem hướng dẫn."
 
@@ -1577,10 +1591,15 @@ def telegram_webhook():
             reply_data = process_bot_command(text)
             
             # Phân loại và phản hồi hình ảnh hoặc văn bản
-            if isinstance(reply_data, dict) and reply_data.get('type') == 'photo':
+            if isinstance(reply_data, list):
+                # Gửi từng ảnh nếu đó là một mảng nhiều biểu đồ
+                for item in reply_data:
+                    if isinstance(item, dict) and item.get('type') == 'photo':
+                        send_telegram_photo(chat_id, item['url'], item.get('caption', ''))
+            elif isinstance(reply_data, dict) and reply_data.get('type') == 'photo':
                 send_telegram_photo(chat_id, reply_data['url'], reply_data.get('caption', ''))
             else:
-                send_telegram_message(chat_id, reply_data)
+                send_telegram_message(chat_id, str(reply_data))
             
     return jsonify({"status": "success"}), 200
 
