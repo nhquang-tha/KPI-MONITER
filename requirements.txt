@@ -1,8 +1,10 @@
 Flask==3.0.0
 Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.3
 pymysql==1.1.0
 cryptography==41.0.7
-Flask-Login
 gunicorn==21.2.0
-pandas
-openpyxl
+werkzeug>=3.0.0
+pandas==2.1.4
+openpyxl==3.1.2
+requests==2.31.0
