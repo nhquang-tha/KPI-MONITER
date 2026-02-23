@@ -9,6 +9,7 @@ import unicodedata
 import random
 import math
 import requests # Thêm thư viện requests để gọi Zalo API
+import urllib.parse # Thêm thư viện để mã hóa URL biểu đồ
 from io import BytesIO, StringIO
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
@@ -1455,12 +1456,27 @@ def send_telegram_message(chat_id, text_content):
     except Exception as e:
         print(f"Telegram send error: {e}")
 
+def send_telegram_photo(chat_id, photo_url, caption=""):
+    """Gửi hình ảnh biểu đồ qua Telegram"""
+    if not TELEGRAM_BOT_TOKEN: return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto"
+    payload = {
+        "chat_id": chat_id,
+        "photo": photo_url,
+        "caption": caption,
+        "parse_mode": "HTML"
+    }
+    try:
+        requests.post(url, json=payload)
+    except Exception as e:
+        print(f"Telegram send photo error: {e}")
+
 def process_bot_command(text):
     text = str(text).strip().upper()
     parts = text.split()
     
     if len(parts) < 3:
-        return "🤖 <b>Lỗi cú pháp!</b>\nVui lòng soạn theo mẫu:\n👉 <code>KPI 4G [Mã_Cell]</code>\n👉 <code>RF 4G [Mã_Cell]</code>"
+        return "🤖 <b>Lỗi cú pháp!</b>\nVui lòng soạn theo mẫu:\n👉 <code>KPI 4G [Mã_Cell]</code>\n👉 <code>RF 4G [Mã_Cell]</code>\n👉 <code>CHART 4G [Mã_Cell]</code>"
         
     cmd = parts[0]
     tech = parts[1].lower()
@@ -1492,6 +1508,61 @@ def process_bot_command(text):
                     return f"📡 <b>RF 3G - {record.cell_code}</b>\n📍 Trạm: {record.site_code}\n- Tọa độ: {record.latitude}, {record.longitude}\n- Azimuth: {record.azimuth}\n- Tần số: {record.frequency}\n- BSC_LAC: {record.bsc_lac}\n- CI: {record.ci}"
             return f"❌ Không tìm thấy cấu hình RF cho Cell: <b>{target}</b>"
             
+        elif cmd in ['CHART', 'BIEUDO']:
+            Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
+            if not Model: return "❌ Công nghệ không hợp lệ"
+            
+            # Lấy 7 ngày gần nhất của cell (Limit 7 để tránh vượt quá bộ nhớ)
+            records = db.session.query(Model).filter(Model.ten_cell.ilike(f"%{target}%")).order_by(Model.id.desc()).limit(7).all()
+            if not records:
+                return f"❌ Không tìm thấy dữ liệu KPI cho Cell: <b>{target}</b>"
+            
+            # Đảo ngược mảng để vẽ biểu đồ từ cũ đến mới (từ trái qua phải)
+            records.reverse()
+            labels = [r.thoi_gian for r in records if r.thoi_gian]
+            
+            # Khởi tạo dữ liệu vẽ dựa theo công nghệ
+            if tech == '4g':
+                data1 = [r.traffic or 0 for r in records]
+                data2 = [r.user_dl_avg_thput or 0 for r in records]
+                label1, label2 = "Traffic (GB)", "Avg Thput (Mbps)"
+            elif tech == '3g':
+                data1 = [r.traffic or 0 for r in records]
+                data2 = [r.pstraffic or 0 for r in records]
+                label1, label2 = "CS Traffic (Erl)", "PS Traffic (GB)"
+            else: # 5G
+                data1 = [r.traffic or 0 for r in records]
+                data2 = [r.user_dl_avg_throughput or 0 for r in records]
+                label1, label2 = "Traffic (GB)", "Avg Thput (Mbps)"
+                
+            # Đóng gói cấu hình biểu đồ lượn sóng mượt mà (tension: 0.3) y hệt trên Web
+            chart_config = {
+                "type": "line",
+                "data": {
+                    "labels": labels,
+                    "datasets": [
+                        {"label": label1, "data": data1, "borderColor": "#0078d4", "backgroundColor": "transparent", "borderWidth": 3},
+                        {"label": label2, "data": data2, "borderColor": "#107c10", "backgroundColor": "transparent", "borderWidth": 3}
+                    ]
+                },
+                "options": {
+                    "title": {"display": True, "text": f"Biểu đồ Xu hướng KPI 7 Ngày - {records[0].ten_cell}", "fontSize": 16},
+                    "elements": {"line": {"tension": 0.3}} 
+                }
+            }
+            
+            # Mã hóa cấu hình thành dạng URL an toàn
+            encoded_config = urllib.parse.quote(json.dumps(chart_config))
+            # Gọi API vẽ ảnh của QuickChart (Miễn phí, nhanh, không tốn RAM Server)
+            chart_url = f"https://quickchart.io/chart?c={encoded_config}&w=600&h=350&bkg=white"
+            
+            # Trả về Dictionary để hàm webhook biết đây là tin nhắn dạng ẢNH
+            return {
+                "type": "photo",
+                "url": chart_url,
+                "caption": f"📈 Biểu đồ xu hướng KPI 7 ngày gần nhất của <b>{records[0].ten_cell}</b>"
+            }
+
     return "🤖 Cú pháp không được hỗ trợ. Gõ <code>HELP</code> để xem hướng dẫn."
 
 @app.route('/telegram/webhook', methods=['POST'])
@@ -1503,8 +1574,13 @@ def telegram_webhook():
         text = data['message'].get('text', '')
         
         if text:
-            reply_text = process_bot_command(text)
-            send_telegram_message(chat_id, reply_text)
+            reply_data = process_bot_command(text)
+            
+            # Phân loại và phản hồi hình ảnh hoặc văn bản
+            if isinstance(reply_data, dict) and reply_data.get('type') == 'photo':
+                send_telegram_photo(chat_id, reply_data['url'], reply_data.get('caption', ''))
+            else:
+                send_telegram_message(chat_id, reply_data)
             
     return jsonify({"status": "success"}), 200
 
