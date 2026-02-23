@@ -325,8 +325,8 @@ BASE_LAYOUT = """
     <!-- Leaflet GIS Map resources -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <link href='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/leaflet.fullscreen.css' rel='stylesheet' />
-    <script src='https://api.mapbox.com/mapbox.js/plugins/leaflet-fullscreen/v1.0.1/Leaflet.fullscreen.min.js'></script>
+    <link href='https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/3.0.0/Control.FullScreen.min.css' rel='stylesheet' />
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/3.0.0/Control.FullScreen.min.js'></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --acrylic-bg: rgba(255, 255, 255, 0.6); --acrylic-blur: blur(20px); --sidebar-bg: rgba(240, 240, 245, 0.85); --primary-color: #0078d4; --text-color: #212529; --shadow-soft: 0 4px 12px rgba(0, 0, 0, 0.05); --shadow-hover: 0 8px 16px rgba(0, 0, 0, 0.1); --border-radius: 12px; }
@@ -679,30 +679,30 @@ CONTENT_TEMPLATE = """
                         attribution: '© OpenStreetMap'
                     });
 
-                    // Vẽ các điểm ITS Log nếu có
-                    function getSignalColor(tech, level) {
-                        var t = (tech || '').toUpperCase();
-                        if (t.includes('4G') || t.includes('LTE')) {
-                            // 4G RSRP Colors
-                            if (level >= -65) return '#4A4DFF';  // Blue
-                            if (level >= -85) return '#4CAF50';  // Dark Green
-                            if (level >= -95) return '#5EFC54';  // Light Green
-                            if (level >= -105) return '#FFFF4D'; // Yellow
-                            if (level >= -110) return '#FF4D4D'; // Red
-                            return '#555555';                    // Grey
-                        } else { 
-                            // 3G RSCP Colors
-                            if (level >= -65) return '#4A4DFF';  // Blue
-                            if (level >= -75) return '#4CAF50';  // Dark Green
-                            if (level >= -85) return '#5EFC54';  // Light Green
-                            if (level >= -95) return '#FFFF4D';  // Yellow
-                            if (level >= -105) return '#FF4D4D'; // Red
-                            return '#555555';                    // Grey
-                        }
-                    }
+                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19,
+                        attribution: 'Tiles &copy; Esri'
+                    });
 
-                    var itsLayerGroup = L.layerGroup().addTo(map);
-                    var cellLookup = {};
+                    var map = L.map('gisMap', {
+                        center: mapCenter,     // FIX LỖI: Bắt buộc phải có tọa độ tâm
+                        zoom: mapZoom,         // FIX LỖI: Bắt buộc phải có độ zoom
+                        layers: [osmLayer],    // Mặc định hiển thị OSM
+                        fullscreenControl: true, // Bật chế độ toàn màn hình
+                        fullscreenControlOptions: {
+                            position: 'topleft'
+                        }
+                    });
+
+                    // Thêm nút Control để chuyển đổi Map
+                    var baseMaps = {
+                        "Bản đồ chuẩn (OSM)": osmLayer,
+                        "Vệ tinh (Satellite)": satelliteLayer
+                    };
+                    L.control.layers(baseMaps).addTo(map);
+
+                    // Xử lý zoom/bounds thông minh
+                    var bounds = [];
                     var renderedSites = {};
 
                     var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
