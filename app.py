@@ -422,7 +422,8 @@ BASE_LAYOUT = """
     <script>
         let modalChartInstance = null;
         function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
-            document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel + ' (' + date + ')';
+            // Bỏ hiển thị ngày tháng trên tiêu đề popup theo yêu cầu
+            document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel;
             const ctx = document.getElementById('modalChart').getContext('2d');
             if (modalChartInstance) modalChartInstance.destroy();
             modalChartInstance = new Chart(ctx, {
@@ -678,62 +679,28 @@ CONTENT_TEMPLATE = """
                         attribution: '© OpenStreetMap'
                     });
 
-                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                        maxZoom: 19,
-                        attribution: 'Tiles &copy; Esri'
-                    });
-
-                    var map = L.map('gisMap', {
-                        layers: [osmLayer], // Mặc định hiển thị OSM
-                        fullscreenControl: true, // Bật chế độ toàn màn hình
-                        fullscreenControlOptions: {
-                            position: 'topleft'
+                    // Vẽ các điểm ITS Log nếu có
+                    function getSignalColor(tech, level) {
+                        var t = (tech || '').toUpperCase();
+                        if (t.includes('4G') || t.includes('LTE')) {
+                            // 4G RSRP Colors
+                            if (level >= -65) return '#4A4DFF';  // Blue
+                            if (level >= -85) return '#4CAF50';  // Dark Green
+                            if (level >= -95) return '#5EFC54';  // Light Green
+                            if (level >= -105) return '#FFFF4D'; // Yellow
+                            if (level >= -110) return '#FF4D4D'; // Red
+                            return '#555555';                    // Grey
+                        } else { 
+                            // 3G RSCP Colors
+                            if (level >= -65) return '#4A4DFF';  // Blue
+                            if (level >= -75) return '#4CAF50';  // Dark Green
+                            if (level >= -85) return '#5EFC54';  // Light Green
+                            if (level >= -95) return '#FFFF4D';  // Yellow
+                            if (level >= -105) return '#FF4D4D'; // Red
+                            return '#555555';                    // Grey
                         }
-                    });
-
-                    // Thêm nút Control để chuyển đổi Map
-                    var baseMaps = {
-                        "Bản đồ chuẩn (OSM)": osmLayer,
-                        "Vệ tinh (Satellite)": satelliteLayer
-                    };
-                    L.control.layers(baseMaps).addTo(map);
-
-                    // Xử lý zoom/bounds thông minh
-                    var bounds = [];
-                    if (isShowIts && itsData.length > 0) {
-                        itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
-                    }
-                    if (actionType === 'show_log' && gisData.length > 0) {
-                        gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
                     }
 
-                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
-                        var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
-                        // Tìm chính xác cell/site khớp
-                        for (var i = 0; i < gisData.length; i++) {
-                            var sCode = (gisData[i].site_code || "").toLowerCase();
-                            var cName = (gisData[i].cell_name || "").toLowerCase();
-                            var sInput = searchSite.toLowerCase();
-                            var cInput = searchCell.toLowerCase();
-                            
-                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) {
-                                targetCell = gisData[i];
-                                break;
-                            }
-                        }
-                        if (targetCell.lat && targetCell.lon) {
-                            map.setView([targetCell.lat, targetCell.lon], 15);
-                        } else {
-                            map.setView(mapCenter, mapZoom);
-                        }
-                    } else if (bounds.length > 0) {
-                        map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
-                    } else {
-                        map.setView(mapCenter, mapZoom);
-                    }
-
-                    var siteLayerGroup = L.layerGroup().addTo(map);
-                    var sectorLayerGroup = L.layerGroup().addTo(map);
                     var itsLayerGroup = L.layerGroup().addTo(map);
                     var cellLookup = {};
                     var renderedSites = {};
@@ -942,21 +909,34 @@ CONTENT_TEMPLATE = """
                             div.style.padding = '10px';
                             div.style.borderRadius = '5px';
                             div.style.fontSize = '0.85rem';
+                            div.style.lineHeight = '1.5';
                             
-                            var html = '<strong class="text-primary">Mức thu tín hiệu (dBm)</strong><hr class="my-1">';
-                            html += '<small class="fw-bold d-block text-success">4G (RSRP)</small>';
-                            html += '<i style="background:#00FF00;"></i> &ge; -80 (Tốt)<br>';
-                            html += '<i style="background:#0000FF;"></i> -80 ~ -90 (Khá)<br>';
-                            html += '<i style="background:#FFFF00;"></i> -90 ~ -100 (TB)<br>';
-                            html += '<i style="background:#FFA500;"></i> -100 ~ -110 (Yếu)<br>';
-                            html += '<i style="background:#FF0000;"></i> &lt; -110 (Kém)<br>';
+                            var html = '';
                             
-                            html += '<small class="fw-bold d-block text-success mt-2">3G (RSCP)</small>';
-                            html += '<i style="background:#00FF00;"></i> &ge; -75 (Tốt)<br>';
-                            html += '<i style="background:#0000FF;"></i> -75 ~ -85 (Khá)<br>';
-                            html += '<i style="background:#FFFF00;"></i> -85 ~ -95 (TB)<br>';
-                            html += '<i style="background:#FFA500;"></i> -95 ~ -105 (Yếu)<br>';
-                            html += '<i style="background:#FF0000;"></i> &lt; -105 (Kém)<br>';
+                            // Kiểm tra xem log có công nghệ nào để render legend tương ứng
+                            var has4G = itsData.some(pt => (pt.tech || '').toUpperCase().includes('4G') || (pt.tech || '').toUpperCase().includes('LTE'));
+                            var has3G = itsData.some(pt => !(pt.tech || '').toUpperCase().includes('4G') && !(pt.tech || '').toUpperCase().includes('LTE'));
+
+                            if (has4G) {
+                                html += '<strong class="text-dark fs-6 d-block mb-1">4G RSRP Legend</strong><hr class="my-1">';
+                                html += '<i style="background:#555555; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> x &lt; -110<br>';
+                                html += '<i style="background:#FF4D4D; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -110 &le; x &lt; -105<br>';
+                                html += '<i style="background:#FFFF4D; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -105 &le; x &lt; -95<br>';
+                                html += '<i style="background:#5EFC54; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -95 &le; x &lt; -85<br>';
+                                html += '<i style="background:#4CAF50; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -85 &le; x &lt; -65<br>';
+                                html += '<i style="background:#4A4DFF; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -65 &le; x &lt; max<br>';
+                            }
+                            
+                            if (has3G) {
+                                if (has4G) html += '<div class="mt-3"></div>'; // Khoảng cách nếu có cả 2
+                                html += '<strong class="text-dark fs-6 d-block mb-1">3G RSCP Legend</strong><hr class="my-1">';
+                                html += '<i style="background:#555555; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> x &lt; -105<br>';
+                                html += '<i style="background:#FF4D4D; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -105 &le; x &lt; -95<br>';
+                                html += '<i style="background:#FFFF4D; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -95 &le; x &lt; -85<br>';
+                                html += '<i style="background:#5EFC54; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -85 &le; x &lt; -75<br>';
+                                html += '<i style="background:#4CAF50; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -75 &le; x &lt; -65<br>';
+                                html += '<i style="background:#4A4DFF; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -65 &le; x &lt; max<br>';
+                            }
                             
                             div.innerHTML = html;
                             return div;
