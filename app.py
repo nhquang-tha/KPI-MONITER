@@ -8,7 +8,7 @@ import zipfile
 import unicodedata
 import random
 import math
-import requests # Thêm thư viện requests để gọi Zalo API
+import requests # Thêm thư viện requests để gọi Zalo/Telegram API
 import urllib.parse # Thêm thư viện để mã hóa URL biểu đồ
 from io import BytesIO, StringIO
 from datetime import datetime, timedelta
@@ -77,10 +77,7 @@ def clean_header(col_name):
         'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac', 'CI': 'ci',
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
-        'CellID': 'cellid', 'NetworkTech': 'networktech',
-        'Điểm QoE': 'qoe_score', '% QoE': 'qoe_percent', 
-        'Điểm QoS': 'qos_score', '% QoS': 'qos_percent',
-        'Tuần': 'week_name', 'Week': 'week_name'
+        'CellID': 'cellid', 'NetworkTech': 'networktech'
     }
     
     col_upper = col_name.upper()
@@ -99,9 +96,7 @@ def clean_header(col_name):
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
         'cs_so_att': 'cs_so_att', 'ps_so_att': 'ps_so_att',
         'service_drop_all': 'service_drop_all', 'user_dl_avg_thput': 'user_dl_avg_thput',
-        'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code',
-        'diem_qoe': 'qoe_score', '_qoe': 'qoe_percent',
-        'diem_qos': 'qos_score', '_qos': 'qos_percent', 'tuan': 'week_name'
+        'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
     }
     return common_map.get(clean, clean)
 
@@ -295,15 +290,23 @@ class KPI5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
 
-class QoEQoS4G(db.Model):
-    __tablename__ = 'qoe_qos_4g'
+class QoE4G(db.Model):
+    __tablename__ = 'qoe_4g'
     id = db.Column(db.Integer, primary_key=True)
     cell_name = db.Column(db.String(100), index=True)
     week_name = db.Column(db.String(100))
     qoe_score = db.Column(db.Float)
     qoe_percent = db.Column(db.Float)
+    details = db.Column(db.Text)  # Lưu JSON toàn bộ các cột gốc
+
+class QoS4G(db.Model):
+    __tablename__ = 'qos_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_name = db.Column(db.String(100), index=True)
+    week_name = db.Column(db.String(100))
     qos_score = db.Column(db.Float)
     qos_percent = db.Column(db.Float)
+    details = db.Column(db.Text)  # Lưu JSON toàn bộ các cột gốc
 
 class ITSLog(db.Model):
     __tablename__ = 'its_log'
@@ -374,6 +377,12 @@ BASE_LAYOUT = """
         @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
         .legend { line-height: 18px; color: #333; }
         .legend i { width: 14px; height: 14px; float: left; margin-right: 8px; opacity: 0.8; border: 1px solid #999; }
+        
+        /* Custom scrollbar for data tables */
+        .table-responsive::-webkit-scrollbar { height: 8px; width: 8px; }
+        .table-responsive::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .table-responsive::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        .table-responsive::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
     </style>
 </head>
 <body>
@@ -1075,6 +1084,7 @@ CONTENT_TEMPLATE = """
                     </form>
                 </div>
             </div>
+            
             {% if charts %}
                 <div class="row">
                     {% for chart_id, chart_config in charts.items() %}
@@ -1090,6 +1100,56 @@ CONTENT_TEMPLATE = """
                     </div>
                     {% endfor %}
                 </div>
+                
+                <!-- Hiển thị Bảng Dữ liệu gốc (All Fields) -->
+                {% if qoe_details %}
+                <div class="card mt-2 shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white fw-bold text-primary">Dữ liệu gốc QoE Hàng tuần</div>
+                    <div class="card-body p-0 table-responsive">
+                        <table class="table table-bordered table-striped table-hover mb-0 text-nowrap" style="font-size: 0.8rem;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tuần</th>
+                                    {% for key in qoe_headers %}<th>{{ key }}</th>{% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in qoe_details %}
+                                <tr>
+                                    <td class="fw-bold text-primary">{{ row.week }}</td>
+                                    {% for key in qoe_headers %}<td>{{ row.data.get(key, '-') }}</td>{% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if qos_details %}
+                <div class="card shadow-sm border-0 mb-4">
+                    <div class="card-header bg-white fw-bold text-success">Dữ liệu gốc QoS Hàng tuần</div>
+                    <div class="card-body p-0 table-responsive">
+                        <table class="table table-bordered table-striped table-hover mb-0 text-nowrap" style="font-size: 0.8rem;">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Tuần</th>
+                                    {% for key in qos_headers %}<th>{{ key }}</th>{% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in qos_details %}
+                                <tr>
+                                    <td class="fw-bold text-success">{{ row.week }}</td>
+                                    {% for key in qos_headers %}<td>{{ row.data.get(key, '-') }}</td>{% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+                
                 <script>
                     {% for chart_id, chart_data in charts.items() %}
                     (function(){
@@ -1298,14 +1358,19 @@ CONTENT_TEMPLATE = """
                                      <div class="mb-3">
                                          <label class="form-label fw-bold text-primary">Chọn Loại Dữ Liệu QoE/QoS</label>
                                          <select name="type" class="form-select border-primary">
-                                             <option value="qoe_qos_4g">QoE/QoS 4G (Hàng Tuần)</option>
+                                             <option value="qoe4g">QoE 4G (Hàng Tuần)</option>
+                                             <option value="qos4g">QoS 4G (Hàng Tuần)</option>
                                          </select>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Tên Tuần (Quan trọng)</label>
+                                         <input type="text" name="week_name" class="form-control" placeholder="VD: Tuần 1 (29/12-04/01)" required>
                                      </div>
                                      <div class="mb-3">
                                          <label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label>
                                          <input type="file" name="file" class="form-control" multiple required>
                                      </div>
-                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload QoE/QoS Data</button>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload Data</button>
                                  </form>
                              </div>
                          </div>
@@ -1460,7 +1525,8 @@ BACKUP_RESTORE_TEMPLATE = """
                                 <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G</div>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G</div>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G</div>
-                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qoe_qos_4g.csv"> QoE/QoS 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qoe_4g.csv"> QoE 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qos_4g.csv"> QoS 4G</div>
                             </div>
                         </div></div>
                         <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-file-zipper me-2"></i>Download Selected</button>
@@ -2103,43 +2169,83 @@ def qoe_qos():
     charts = {}
     has_data = False
     
+    qoe_details = []
+    qoe_headers = []
+    qos_details = []
+    qos_headers = []
+    
     if cell_name_input:
-        # Lấy dữ liệu và sắp xếp theo ID để đảm bảo thứ tự các tuần import (hoặc bạn có thể sort theo tên tuần)
-        records = QoEQoS4G.query.filter(QoEQoS4G.cell_name.ilike(f"%{cell_name_input}%")).order_by(QoEQoS4G.id.asc()).all()
+        # Lấy dữ liệu QoE
+        qoe_records = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{cell_name_input}%")).order_by(QoE4G.id.asc()).all()
+        # Lấy dữ liệu QoS
+        qos_records = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{cell_name_input}%")).order_by(QoS4G.id.asc()).all()
         
-        if records:
+        if qoe_records or qos_records:
             has_data = True
-            labels = [r.week_name for r in records]
             
-            # Khởi tạo data cho 4 biểu đồ
-            qoe_scores = [r.qoe_score or 0 for r in records]
-            qoe_percents = [r.qoe_percent or 0 for r in records]
-            qos_scores = [r.qos_score or 0 for r in records]
-            qos_percents = [r.qos_percent or 0 for r in records]
+            # Đồng bộ nhãn (Tuần) từ cả 2 bảng
+            all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
             
-            charts['qoe_score_chart'] = {
-                'title': 'Điểm QoE',
-                'labels': labels,
-                'datasets': [{'label': 'Điểm QoE', 'data': qoe_scores, 'borderColor': '#0078d4', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
-            }
-            charts['qoe_percent_chart'] = {
-                'title': '% QoE',
-                'labels': labels,
-                'datasets': [{'label': '% QoE', 'data': qoe_percents, 'borderColor': '#107c10', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
-            }
-            charts['qos_score_chart'] = {
-                'title': 'Điểm QoS',
-                'labels': labels,
-                'datasets': [{'label': 'Điểm QoS', 'data': qos_scores, 'borderColor': '#ffaa44', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
-            }
-            charts['qos_percent_chart'] = {
-                'title': '% QoS',
-                'labels': labels,
-                'datasets': [{'label': '% QoS', 'data': qos_percents, 'borderColor': '#e3008c', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
-            }
+            # Xử lý Map dữ liệu cho Biểu đồ
+            qoe_score_map = {r.week_name: (r.qoe_score or 0) for r in qoe_records}
+            qoe_percent_map = {r.week_name: (r.qoe_percent or 0) for r in qoe_records}
+            qos_score_map = {r.week_name: (r.qos_score or 0) for r in qos_records}
+            qos_percent_map = {r.week_name: (r.qos_percent or 0) for r in qos_records}
+            
+            qoe_scores = [qoe_score_map.get(w, None) for w in all_weeks]
+            qoe_percents = [qoe_percent_map.get(w, None) for w in all_weeks]
+            qos_scores = [qos_score_map.get(w, None) for w in all_weeks]
+            qos_percents = [qos_percent_map.get(w, None) for w in all_weeks]
+            
+            # Cấu hình 4 biểu đồ
+            if qoe_records:
+                charts['qoe_score_chart'] = {
+                    'title': 'Biểu đồ Điểm QoE',
+                    'labels': all_weeks,
+                    'datasets': [{'label': 'Điểm QoE (1-5)', 'data': qoe_scores, 'borderColor': '#0078d4', 'fill': False, 'borderWidth': 3, 'tension': 0.3}]
+                }
+                charts['qoe_percent_chart'] = {
+                    'title': 'Biểu đồ Tỷ lệ QoE (%)',
+                    'labels': all_weeks,
+                    'datasets': [{'label': '% QoE', 'data': qoe_percents, 'borderColor': '#107c10', 'fill': False, 'borderWidth': 3, 'tension': 0.3}]
+                }
+            
+            if qos_records:
+                charts['qos_score_chart'] = {
+                    'title': 'Biểu đồ Điểm QoS',
+                    'labels': all_weeks,
+                    'datasets': [{'label': 'Điểm QoS (1-5)', 'data': qos_scores, 'borderColor': '#ffaa44', 'fill': False, 'borderWidth': 3, 'tension': 0.3}]
+                }
+                charts['qos_percent_chart'] = {
+                    'title': 'Biểu đồ Tỷ lệ QoS (%)',
+                    'labels': all_weeks,
+                    'datasets': [{'label': '% QoS', 'data': qos_percents, 'borderColor': '#e3008c', 'fill': False, 'borderWidth': 3, 'tension': 0.3}]
+                }
+
+            # Xử lý giải mã JSON để hiển thị ra Bảng Dữ Liệu Gốc (Raw Details)
+            if qoe_records:
+                for r in qoe_records:
+                    if r.details:
+                        try:
+                            data_dict = json.loads(r.details)
+                            if not qoe_headers: qoe_headers = list(data_dict.keys())
+                            qoe_details.append({'week': r.week_name, 'data': data_dict})
+                        except: pass
+            
+            if qos_records:
+                for r in qos_records:
+                    if r.details:
+                        try:
+                            data_dict = json.loads(r.details)
+                            if not qos_headers: qos_headers = list(data_dict.keys())
+                            qos_details.append({'week': r.week_name, 'data': data_dict})
+                        except: pass
 
     gc.collect()
-    return render_page(CONTENT_TEMPLATE, title="QoE & QoS Analytics", active_page='qoe_qos', cell_name_input=cell_name_input, charts=charts, has_data=has_data)
+    return render_page(CONTENT_TEMPLATE, title="QoE & QoS Analytics", active_page='qoe_qos', 
+                       cell_name_input=cell_name_input, charts=charts, has_data=has_data,
+                       qoe_headers=qoe_headers, qoe_details=qoe_details, 
+                       qos_headers=qos_headers, qos_details=qos_details)
 
 @app.route('/poi')
 @login_required
@@ -2466,27 +2572,105 @@ def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type') or request.args.get('type')
-        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G, 'qoe_qos_4g': QoEQoS4G}
-        Model = cfg.get(itype)
         
-        if Model:
-            valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+        # Xử lý đặc biệt cho QoE và QoS (do format file header phức tạp nhiều dòng)
+        if itype in ['qoe4g', 'qos4g']:
+            week_name = request.form.get('week_name', f'Tuần {datetime.now().isocalendar()[1]}')
+            TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
+            
             for file in files:
                 try:
-                    if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
-                    else: chunks = [pd.read_excel(file)]
+                    # Đọc file không Header để tìm chính xác dòng chứa tên cột
+                    if file.filename.endswith('.csv'): df = pd.read_csv(file, header=None, encoding='utf-8-sig', on_bad_lines='skip')
+                    else: df = pd.read_excel(file, header=None)
                     
-                    for df in chunks:
-                        df.columns = [clean_header(c) for c in df.columns]
+                    header_row_idx = -1
+                    cell_col_idx = -1
+                    for i, row in df.iterrows():
+                        for j, val in enumerate(row):
+                            v_str = str(val).lower().strip()
+                            if v_str in ['cell name', 'tên cell', 'cell_name']:
+                                header_row_idx = i
+                                cell_col_idx = j
+                                break
+                        if header_row_idx != -1: break
+                        
+                    if header_row_idx != -1 and cell_col_idx != -1:
+                        # Ghép tất cả các dòng header lại thành 1 Header chuẩn để lưu JSON
+                        headers = []
+                        for j in range(len(df.columns)):
+                            parts = []
+                            for i in range(header_row_idx + 1):
+                                val = str(df.iloc[i, j]).strip()
+                                if val != 'nan' and val != 'None' and val != '':
+                                    parts.append(val)
+                            headers.append(" - ".join(parts) if parts else f"Cột_Trống_{j}")
+                            
+                        # Quét các dòng dữ liệu bên dưới Header
                         records = []
-                        for row in df.to_dict('records'):
-                            clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
-                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
-                                clean_row['traffic'] = clean_row['traffic_vol_dl']
-                            records.append(clean_row)
-                        if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
-                    flash(f'Imported {file.filename}', 'success')
-                except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
+                        for i in range(header_row_idx + 1, len(df)):
+                            row_data = df.iloc[i]
+                            c_name = str(row_data[cell_col_idx]).strip()
+                            
+                            if not c_name or c_name == 'nan' or c_name == 'None': continue
+                            
+                            # Mẹo bắt chuẩn Điểm (nhỏ, < 10) và % (lớn, ~90-100) 
+                            # Nằm ở 2 cột ngay sau cột Cell_ID (Cell ID là cell_col_idx + 1)
+                            try: val1 = float(row_data[cell_col_idx + 2])
+                            except: val1 = 0.0
+                            try: val2 = float(row_data[cell_col_idx + 3])
+                            except: val2 = 0.0
+                            
+                            percent = max(val1, val2)
+                            score = min(val1, val2)
+                            
+                            # Đóng gói toàn bộ các cột còn lại vào chuỗi JSON
+                            details_dict = {}
+                            for j in range(len(headers)):
+                                val_str = str(row_data[j])
+                                if val_str != 'nan':
+                                    details_dict[headers[j]] = val_str
+                                
+                            details_json = json.dumps(details_dict, ensure_ascii=False)
+                            
+                            if itype == 'qoe4g':
+                                records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score': score, 'qoe_percent': percent, 'details': details_json})
+                            else:
+                                records.append({'cell_name': c_name, 'week_name': week_name, 'qos_score': score, 'qos_percent': percent, 'details': details_json})
+                        
+                        if records:
+                            db.session.bulk_insert_mappings(TargetModel, records)
+                            db.session.commit()
+                            flash(f'Đã Import thành công {len(records)} cells từ {file.filename}', 'success')
+                    else:
+                        flash(f'Lỗi file {file.filename}: Không tìm thấy cột "Cell Name" hoặc "Tên cell"', 'danger')
+                except Exception as e:
+                    flash(f'Lỗi {file.filename}: {e}', 'danger')
+                    
+        # Xử lý Import bình thường cho KPI, RF, POI
+        else:
+            cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+            Model = cfg.get(itype)
+            
+            if Model:
+                valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+                for file in files:
+                    try:
+                        if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
+                        else: chunks = [pd.read_excel(file)]
+                        
+                        for df in chunks:
+                            df.columns = [clean_header(c) for c in df.columns]
+                            records = []
+                            for row in df.to_dict('records'):
+                                clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
+                                if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
+                                    clean_row['traffic'] = clean_row['traffic_vol_dl']
+                                records.append(clean_row)
+                            if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
+                        flash(f'Imported {file.filename}', 'success')
+                    except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
+                    
         return redirect(url_for('import_data'))
 
     # History
@@ -2507,7 +2691,7 @@ def backup_db():
         return redirect(url_for('backup_restore'))
         
     stream = BytesIO()
-    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_qos_4g.csv': QoEQoS4G}
+    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
     
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
         for fname in selected_tables:
@@ -2532,7 +2716,7 @@ def restore_db():
         try:
             file_bytes = BytesIO(file.read())
             with zipfile.ZipFile(file_bytes) as zf:
-                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_qos_4g.csv': QoEQoS4G}
+                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
                 for fname in zf.namelist():
                     if fname in models:
                         Model = models[fname]
