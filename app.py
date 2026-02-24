@@ -8,8 +8,8 @@ import zipfile
 import unicodedata
 import random
 import math
-import requests # Thêm thư viện requests để gọi Zalo/Telegram API
-import urllib.parse # Thêm thư viện để mã hóa URL biểu đồ
+import requests
+import urllib.parse
 from io import BytesIO, StringIO
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
@@ -297,7 +297,7 @@ class QoE4G(db.Model):
     week_name = db.Column(db.String(100))
     qoe_score = db.Column(db.Float)
     qoe_percent = db.Column(db.Float)
-    details = db.Column(db.Text)  # Lưu JSON toàn bộ các cột gốc
+    details = db.Column(db.Text)
 
 class QoS4G(db.Model):
     __tablename__ = 'qos_4g'
@@ -306,7 +306,7 @@ class QoS4G(db.Model):
     week_name = db.Column(db.String(100))
     qos_score = db.Column(db.Float)
     qos_percent = db.Column(db.Float)
-    details = db.Column(db.Text)  # Lưu JSON toàn bộ các cột gốc
+    details = db.Column(db.Text)
 
 class ITSLog(db.Model):
     __tablename__ = 'its_log'
@@ -329,7 +329,8 @@ def init_database():
         if not User.query.filter_by(username='admin').first():
             u = User(username='admin', role='admin')
             u.set_password('admin123')
-            db.session.add(u); db.session.commit()
+            db.session.add(u)
+            db.session.commit()
 init_database()
 
 # ==============================================================================
@@ -452,7 +453,6 @@ BASE_LAYOUT = """
     <script>
         let modalChartInstance = null;
         function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
-            // Bỏ hiển thị ngày tháng trên tiêu đề popup theo yêu cầu
             document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel;
             const ctx = document.getElementById('modalChart').getContext('2d');
             if (modalChartInstance) modalChartInstance.destroy();
@@ -613,7 +613,6 @@ CONTENT_TEMPLATE = """
                                     onClick: (e, el) => {
                                         if (el.length > 0) {
                                             const i = el[0].index;
-                                            // Gọi hàm popup zoom to dùng chung
                                             showDetailModal(ds[0].label, labels[i], ds[0].data[i], titleStr, ds, labels);
                                         }
                                     }
@@ -683,10 +682,9 @@ CONTENT_TEMPLATE = """
                     var mapContainer = document.getElementById('gisMap');
                     if (!mapContainer) return;
 
-                    var mapCenter = [19.807, 105.776]; // Default to Thanh Hoa region approx
+                    var mapCenter = [19.807, 105.776];
                     var mapZoom = 9;
 
-                    // Tùy chọn 2 lớp bản đồ (Bản đồ đường phố và Vệ tinh)
                     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '© OpenStreetMap'
@@ -698,23 +696,19 @@ CONTENT_TEMPLATE = """
                     });
 
                     var map = L.map('gisMap', {
-                        center: mapCenter,     // FIX LỖI: Bắt buộc phải có tọa độ tâm
-                        zoom: mapZoom,         // FIX LỖI: Bắt buộc phải có độ zoom
-                        layers: [osmLayer],    // Mặc định hiển thị OSM
-                        fullscreenControl: true, // Bật chế độ toàn màn hình
-                        fullscreenControlOptions: {
-                            position: 'topleft'
-                        }
+                        center: mapCenter,
+                        zoom: mapZoom,
+                        layers: [osmLayer],
+                        fullscreenControl: true,
+                        fullscreenControlOptions: { position: 'topleft' }
                     });
 
-                    // Thêm nút Control để chuyển đổi Map
                     var baseMaps = {
                         "Bản đồ chuẩn (OSM)": osmLayer,
                         "Vệ tinh (Satellite)": satelliteLayer
                     };
                     L.control.layers(baseMaps).addTo(map);
 
-                    // Thêm Custom Control để chứa thanh trượt và toggle (Nổi trên Map)
                     if (hasGisData || hasItsData) {
                         var settingsControl = L.control({position: 'topright'});
                         settingsControl.onAdd = function (map) {
@@ -724,7 +718,6 @@ CONTENT_TEMPLATE = """
                             div.style.borderRadius = '8px';
                             div.style.border = '1px solid #ccc';
                             
-                            // Ngăn chặn sự kiện click/drag lên map khi đang kéo thanh trượt
                             L.DomEvent.disableClickPropagation(div);
 
                             var html = '<div class="d-flex flex-column gap-2">';
@@ -758,7 +751,6 @@ CONTENT_TEMPLATE = """
                         settingsControl.addTo(map);
                     }
 
-                    // Xử lý zoom/bounds thông minh
                     var bounds = [];
                     if (isShowIts && itsData.length > 0) {
                         itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
@@ -768,8 +760,7 @@ CONTENT_TEMPLATE = """
                     }
 
                     if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
-                        var targetCell = gisData[0]; // Mặc định lấy phần tử đầu tiên
-                        // Tìm chính xác cell/site khớp
+                        var targetCell = gisData[0];
                         for (var i = 0; i < gisData.length; i++) {
                             var sCode = (gisData[i].site_code || "").toLowerCase();
                             var cName = (gisData[i].cell_name || "").toLowerCase();
@@ -800,17 +791,15 @@ CONTENT_TEMPLATE = """
 
                     var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
 
-                    // Hàm tính toán điểm nằm giữa cánh sóng (quạt) theo hướng azimuth
                     function getSectorMidPoint(lat, lon, azimuth, distanceMeters) {
                         var latFactor = 111320;
                         var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
                         var radMap = (azimuth || 0) * Math.PI / 180;
-                        var dx = (distanceMeters * Math.sin(radMap)) / lonFactor; // East-West
-                        var dy = (distanceMeters * Math.cos(radMap)) / latFactor; // North-South
+                        var dx = (distanceMeters * Math.sin(radMap)) / lonFactor;
+                        var dy = (distanceMeters * Math.cos(radMap)) / latFactor;
                         return [lat + dy, lon + dx];
                     }
 
-                    // Function to calculate sector polygon points
                     function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
                         var center = [lat, lon];
                         var points = [center];
@@ -830,7 +819,6 @@ CONTENT_TEMPLATE = """
                         return points;
                     }
 
-                    // Vẽ center của Site 1 lần
                     gisData.forEach(function(cell) {
                         if(!cell.lat || !cell.lon) return;
                         if (!renderedSites[cell.site_code]) {
@@ -879,7 +867,6 @@ CONTENT_TEMPLATE = """
                             }
 
                             if (key) {
-                                // Nối thẳng về điểm giữa của quạt (chiếm khoảng 65% bán kính vẽ ra)
                                 cellLookup[key] = getSectorMidPoint(cell.lat, cell.lon, cell.azi, sectorRadius * 0.65);
                             }
 
@@ -910,29 +897,25 @@ CONTENT_TEMPLATE = """
                             );
                         });
 
-                        // Khi vẽ lại quạt thì cập nhật lại các đường thẳng luôn vì toạ độ bụng quạt thay đổi
                         drawITSData();
                     }
 
-                    // Vẽ các điểm ITS Log nếu có
                     function getSignalColor(tech, level) {
                         var t = (tech || '').toUpperCase();
                         if (t.includes('4G') || t.includes('LTE')) {
-                            // 4G RSRP Colors
-                            if (level >= -65) return '#4A4DFF';  // Blue
-                            if (level >= -85) return '#4CAF50';  // Dark Green
-                            if (level >= -95) return '#5EFC54';  // Light Green
-                            if (level >= -105) return '#FFFF4D'; // Yellow
-                            if (level >= -110) return '#FF4D4D'; // Red
-                            return '#555555';                    // Grey
+                            if (level >= -65) return '#4A4DFF';
+                            if (level >= -85) return '#4CAF50';
+                            if (level >= -95) return '#5EFC54';
+                            if (level >= -105) return '#FFFF4D';
+                            if (level >= -110) return '#FF4D4D';
+                            return '#555555';
                         } else { 
-                            // 3G RSCP Colors
-                            if (level >= -65) return '#4A4DFF';  // Blue
-                            if (level >= -75) return '#4CAF50';  // Dark Green
-                            if (level >= -85) return '#5EFC54';  // Light Green
-                            if (level >= -95) return '#FFFF4D';  // Yellow
-                            if (level >= -105) return '#FF4D4D'; // Red
-                            return '#555555';                    // Grey
+                            if (level >= -65) return '#4A4DFF';
+                            if (level >= -75) return '#4CAF50';
+                            if (level >= -85) return '#5EFC54';
+                            if (level >= -95) return '#FFFF4D';
+                            if (level >= -105) return '#FF4D4D';
+                            return '#555555';
                         }
                     }
 
@@ -984,10 +967,8 @@ CONTENT_TEMPLATE = """
                         });
                     }
 
-                    // Render lần đầu
                     buildLookupAndDrawSectors();
 
-                    // Bắt sự kiện LẠI cho các thẻ input vừa được tạo bên trong custom control
                     var radSliderEl = document.getElementById('sectorRadiusSlider');
                     if (radSliderEl) radSliderEl.addEventListener('input', buildLookupAndDrawSectors);
 
@@ -997,7 +978,6 @@ CONTENT_TEMPLATE = """
                     var toggleEl = document.getElementById('showLinesToggle');
                     if (toggleEl) toggleEl.addEventListener('change', drawITSData);
 
-                    // Thêm Legend control
                     if (isShowIts && itsData.length > 0) {
                         var legend = L.control({position: 'bottomright'});
                         legend.onAdd = function (map) {
@@ -1010,7 +990,6 @@ CONTENT_TEMPLATE = """
                             
                             var html = '';
                             
-                            // Kiểm tra xem log có công nghệ nào để render legend tương ứng
                             var has4G = itsData.some(pt => (pt.tech || '').toUpperCase().includes('4G') || (pt.tech || '').toUpperCase().includes('LTE'));
                             var has3G = itsData.some(pt => !(pt.tech || '').toUpperCase().includes('4G') && !(pt.tech || '').toUpperCase().includes('LTE'));
 
@@ -1025,7 +1004,7 @@ CONTENT_TEMPLATE = """
                             }
                             
                             if (has3G) {
-                                if (has4G) html += '<div class="mt-3"></div>'; // Khoảng cách nếu có cả 2
+                                if (has4G) html += '<div class="mt-3"></div>';
                                 html += '<strong class="text-dark fs-6 d-block mb-1">3G RSCP Legend</strong><hr class="my-1">';
                                 html += '<i style="background:#555555; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> x &lt; -105<br>';
                                 html += '<i style="background:#FF4D4D; width:14px; height:14px; display:inline-block; margin-right:8px; border:1px solid #999;"></i> -105 &le; x &lt; -95<br>';
@@ -1216,7 +1195,6 @@ CONTENT_TEMPLATE = """
                                     if(el.length>0){
                                         const i=el[0].index;
                                         const di=el[0].datasetIndex;
-                                        // For POI, show only aggregate data in zoom
                                         showDetailModal(cd.datasets[di].label, cd.labels[i], cd.datasets[di].data[i], '{{ chart_data.title }}', [cd.datasets[di]], cd.labels);
                                     }
                                 },
@@ -2824,5 +2802,5 @@ CONTENT_TEMPLATE = """
             flash(f'Đã xóa toàn bộ dữ liệu RF {tech.upper()}', 'success')
         return redirect(url_for('import_data'))
 
-    if __name__ == '__main__':
-        app.run(debug=True)
+if __name__ == '__main__':
+    app.run(debug=True)
