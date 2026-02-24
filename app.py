@@ -1231,6 +1231,7 @@ CONTENT_TEMPLATE = """
                              <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF" type="button">Import RF</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li>
+                             <li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#tabQoE" type="button">Import QoE/QoS</button></li>
                          </ul>
                          
                          <!-- Tabs Content -->
@@ -1239,12 +1240,11 @@ CONTENT_TEMPLATE = """
                              <div class="tab-pane fade show active" id="tabRF">
                                  <form action="/import" method="POST" enctype="multipart/form-data">
                                      <div class="mb-3">
-                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu KPI / QoE</label>
+                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label>
                                          <select name="type" class="form-select">
-                                             <option value="kpi3g">KPI 3G</option>
-                                             <option value="kpi4g">KPI 4G</option>
-                                             <option value="kpi5g">KPI 5G</option>
-                                             <option value="qoe_qos_4g">QoE/QoS 4G (Hàng Tuần)</option>
+                                             <option value="3g">RF 3G</option>
+                                             <option value="4g">RF 4G</option>
+                                             <option value="5g">RF 5G</option>
                                          </select>
                                      </div>
                                      <div class="mb-3">
@@ -1289,6 +1289,23 @@ CONTENT_TEMPLATE = """
                                          <input type="file" name="file" class="form-control" multiple required>
                                      </div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload KPI Data</button>
+                                 </form>
+                             </div>
+
+                             <!-- QoE QoS Tab -->
+                             <div class="tab-pane fade" id="tabQoE">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold text-primary">Chọn Loại Dữ Liệu QoE/QoS</label>
+                                         <select name="type" class="form-select border-primary">
+                                             <option value="qoe_qos_4g">QoE/QoS 4G (Hàng Tuần)</option>
+                                         </select>
+                                     </div>
+                                     <div class="mb-3">
+                                         <label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label>
+                                         <input type="file" name="file" class="form-control" multiple required>
+                                     </div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload QoE/QoS Data</button>
                                  </form>
                              </div>
                          </div>
