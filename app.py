@@ -2612,24 +2612,33 @@ def import_data():
                             row_data = df.iloc[i]
                             c_name = str(row_data[cell_col_idx]).strip()
                             
-                            if not c_name or c_name == 'nan' or c_name == 'None': continue
+                            # Khử các dòng rác: Tên cell bị rỗng, là nan, hoặc chỉ là số thứ tự cột (VD: '5')
+                            if not c_name or c_name == 'nan' or c_name == 'None' or len(c_name) < 3 or c_name.isdigit(): 
+                                continue
                             
                             # Mẹo bắt chuẩn Điểm (nhỏ, < 10) và % (lớn, ~90-100) 
                             # Nằm ở 2 cột ngay sau cột Cell_ID (Cell ID là cell_col_idx + 1)
-                            try: val1 = float(row_data[cell_col_idx + 2])
+                            try: 
+                                val1 = float(row_data[cell_col_idx + 2])
+                                if math.isnan(val1): val1 = 0.0
                             except: val1 = 0.0
-                            try: val2 = float(row_data[cell_col_idx + 3])
+                            
+                            try: 
+                                val2 = float(row_data[cell_col_idx + 3])
+                                if math.isnan(val2): val2 = 0.0
                             except: val2 = 0.0
                             
                             percent = max(val1, val2)
                             score = min(val1, val2)
                             
-                            # Đóng gói toàn bộ các cột còn lại vào chuỗi JSON
+                            # Đóng gói toàn bộ các cột còn lại vào chuỗi JSON (Khử sạch NaN)
                             details_dict = {}
                             for j in range(len(headers)):
-                                val_str = str(row_data[j])
-                                if val_str != 'nan':
-                                    details_dict[headers[j]] = val_str
+                                val = row_data[j]
+                                if pd.notna(val):  # Chỉ lấy nếu dữ liệu không phải là NaN/NaT
+                                    val_str = str(val).strip()
+                                    if val_str != 'nan':
+                                        details_dict[headers[j]] = val_str
                                 
                             details_json = json.dumps(details_dict, ensure_ascii=False)
                             
