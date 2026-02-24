@@ -77,7 +77,10 @@ def clean_header(col_name):
         'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac', 'CI': 'ci',
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
-        'CellID': 'cellid', 'NetworkTech': 'networktech'
+        'CellID': 'cellid', 'NetworkTech': 'networktech',
+        'Điểm QoE': 'qoe_score', '% QoE': 'qoe_percent', 
+        'Điểm QoS': 'qos_score', '% QoS': 'qos_percent',
+        'Tuần': 'week_name', 'Week': 'week_name'
     }
     
     col_upper = col_name.upper()
@@ -96,7 +99,9 @@ def clean_header(col_name):
         'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
         'cs_so_att': 'cs_so_att', 'ps_so_att': 'ps_so_att',
         'service_drop_all': 'service_drop_all', 'user_dl_avg_thput': 'user_dl_avg_thput',
-        'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
+        'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code',
+        'diem_qoe': 'qoe_score', '_qoe': 'qoe_percent',
+        'diem_qos': 'qos_score', '_qos': 'qos_percent', 'tuan': 'week_name'
     }
     return common_map.get(clean, clean)
 
@@ -290,6 +295,16 @@ class KPI5G(db.Model):
     gnodeb_id = db.Column(db.String(50))
     cell_id = db.Column(db.String(50))
 
+class QoEQoS4G(db.Model):
+    __tablename__ = 'qoe_qos_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_name = db.Column(db.String(100), index=True)
+    week_name = db.Column(db.String(100))
+    qoe_score = db.Column(db.Float)
+    qoe_percent = db.Column(db.Float)
+    qos_score = db.Column(db.Float)
+    qos_percent = db.Column(db.Float)
+
 class ITSLog(db.Model):
     __tablename__ = 'its_log'
     id = db.Column(db.Integer, primary_key=True)
@@ -368,6 +383,7 @@ BASE_LAYOUT = """
             <li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li>
             <li><a href="/gis" class="{{ 'active' if active_page == 'gis' else '' }}"><i class="fa-solid fa-map-location-dot"></i> Bản đồ GIS</a></li>
             <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li>
+            <li><a href="/qoe-qos" class="{{ 'active' if active_page == 'qoe_qos' else '' }}"><i class="fa-solid fa-star-half-stroke"></i> QoE QoS Analytics</a></li>
             <li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF Database</a></li>
             <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-pin"></i> POI Report</a></li>
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
@@ -1039,6 +1055,66 @@ CONTENT_TEMPLATE = """
             {% else %}
                 <div class="text-center text-muted py-5 opacity-50"><i class="fa-solid fa-chart-line fa-4x mb-3"></i><p class="fs-5">Vui lòng chọn tiêu chí để xem báo cáo.</p></div>
             {% endif %}
+
+        {% elif active_page == 'qoe_qos' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/qoe-qos" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold small text-muted">NHẬP CELL NAME 4G</label>
+                            <input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}" required>
+                        </div>
+                        <div class="col-md-2 align-self-end">
+                            <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-search me-2"></i>Tra cứu</button>
+                        </div>
+                        {% if cell_name_input and has_data %}
+                        <div class="col-md-3 align-self-end">
+                            <a href="/kpi?tech=4g&cell_name={{ cell_name_input }}" class="btn btn-success w-100 shadow-sm"><i class="fa-solid fa-link me-2"></i>Link tới KPI Cell</a>
+                        </div>
+                        {% endif %}
+                    </form>
+                </div>
+            </div>
+            {% if charts %}
+                <div class="row">
+                    {% for chart_id, chart_config in charts.items() %}
+                    <div class="col-md-6 mb-4">
+                        <div class="card h-100 border-0 shadow-sm">
+                            <div class="card-body p-4">
+                                <h6 class="card-title text-secondary fw-bold mb-3">{{ chart_config.title }}</h6>
+                                <div class="chart-container" style="position: relative; height:35vh; width:100%">
+                                    <canvas id="{{ chart_id }}"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <script>
+                    {% for chart_id, chart_data in charts.items() %}
+                    (function(){
+                        const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); 
+                        const cd={{ chart_data | tojson }};
+                        new Chart(ctx,{
+                            type:'line',
+                            data: cd,
+                            options:{
+                                responsive:true,
+                                maintainAspectRatio:false,
+                                spanGaps: true,
+                                elements: { line: { tension: 0.3 } },
+                                interaction:{mode:'nearest',intersect:false,axis:'x'},
+                                plugins:{legend:{position:'bottom'}}
+                            }
+                        });
+                    })();
+                    {% endfor %}
+                </script>
+            {% elif cell_name_input %}
+                <div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu QoE/QoS cho Cell: <strong>{{ cell_name_input }}</strong>. Vui lòng kiểm tra lại.</div>
+            {% else %}
+                <div class="text-center text-muted py-5"><i class="fa-solid fa-star-half-stroke fa-3x mb-3 opacity-50"></i><p>Nhập mã Cell 4G để xem biểu đồ xu hướng QoE, QoS hàng tuần.</p></div>
+            {% endif %}
             
         {% elif active_page == 'poi' %}
             <div class="row mb-4">
@@ -1163,11 +1239,12 @@ CONTENT_TEMPLATE = """
                              <div class="tab-pane fade show active" id="tabRF">
                                  <form action="/import" method="POST" enctype="multipart/form-data">
                                      <div class="mb-3">
-                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label>
+                                         <label class="form-label fw-bold">Chọn Loại Dữ Liệu KPI / QoE</label>
                                          <select name="type" class="form-select">
-                                             <option value="3g">RF 3G</option>
-                                             <option value="4g">RF 4G</option>
-                                             <option value="5g">RF 5G</option>
+                                             <option value="kpi3g">KPI 3G</option>
+                                             <option value="kpi4g">KPI 4G</option>
+                                             <option value="kpi5g">KPI 5G</option>
+                                             <option value="qoe_qos_4g">QoE/QoS 4G (Hàng Tuần)</option>
                                          </select>
                                      </div>
                                      <div class="mb-3">
@@ -1366,6 +1443,7 @@ BACKUP_RESTORE_TEMPLATE = """
                                 <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G</div>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G</div>
                                 <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qoe_qos_4g.csv"> QoE/QoS 4G</div>
                             </div>
                         </div></div>
                         <button type="submit" class="btn btn-primary w-100"><i class="fa-solid fa-file-zipper me-2"></i>Download Selected</button>
@@ -2001,6 +2079,51 @@ def kpi():
                        selected_tech=selected_tech, cell_name_input=cell_name_input, 
                        selected_poi=poi_input, poi_list=poi_list, charts=charts)
 
+@app.route('/qoe-qos')
+@login_required
+def qoe_qos():
+    cell_name_input = request.args.get('cell_name', '').strip()
+    charts = {}
+    has_data = False
+    
+    if cell_name_input:
+        # Lấy dữ liệu và sắp xếp theo ID để đảm bảo thứ tự các tuần import (hoặc bạn có thể sort theo tên tuần)
+        records = QoEQoS4G.query.filter(QoEQoS4G.cell_name.ilike(f"%{cell_name_input}%")).order_by(QoEQoS4G.id.asc()).all()
+        
+        if records:
+            has_data = True
+            labels = [r.week_name for r in records]
+            
+            # Khởi tạo data cho 4 biểu đồ
+            qoe_scores = [r.qoe_score or 0 for r in records]
+            qoe_percents = [r.qoe_percent or 0 for r in records]
+            qos_scores = [r.qos_score or 0 for r in records]
+            qos_percents = [r.qos_percent or 0 for r in records]
+            
+            charts['qoe_score_chart'] = {
+                'title': 'Điểm QoE',
+                'labels': labels,
+                'datasets': [{'label': 'Điểm QoE', 'data': qoe_scores, 'borderColor': '#0078d4', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
+            }
+            charts['qoe_percent_chart'] = {
+                'title': '% QoE',
+                'labels': labels,
+                'datasets': [{'label': '% QoE', 'data': qoe_percents, 'borderColor': '#107c10', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
+            }
+            charts['qos_score_chart'] = {
+                'title': 'Điểm QoS',
+                'labels': labels,
+                'datasets': [{'label': 'Điểm QoS', 'data': qos_scores, 'borderColor': '#ffaa44', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
+            }
+            charts['qos_percent_chart'] = {
+                'title': '% QoS',
+                'labels': labels,
+                'datasets': [{'label': '% QoS', 'data': qos_percents, 'borderColor': '#e3008c', 'fill': False, 'borderWidth': 2, 'tension': 0.3}]
+            }
+
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="QoE & QoS Analytics", active_page='qoe_qos', cell_name_input=cell_name_input, charts=charts, has_data=has_data)
+
 @app.route('/poi')
 @login_required
 def poi():
@@ -2326,7 +2449,7 @@ def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type') or request.args.get('type')
-        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G, 'qoe_qos_4g': QoEQoS4G}
         Model = cfg.get(itype)
         
         if Model:
@@ -2367,7 +2490,7 @@ def backup_db():
         return redirect(url_for('backup_restore'))
         
     stream = BytesIO()
-    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
+    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_qos_4g.csv': QoEQoS4G}
     
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
         for fname in selected_tables:
@@ -2392,7 +2515,7 @@ def restore_db():
         try:
             file_bytes = BytesIO(file.read())
             with zipfile.ZipFile(file_bytes) as zf:
-                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G}
+                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_qos_4g.csv': QoEQoS4G}
                 for fname in zf.namelist():
                     if fname in models:
                         Model = models[fname]
