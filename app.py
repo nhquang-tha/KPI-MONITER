@@ -1031,7 +1031,7 @@ CONTENT_TEMPLATE = """
                              <div class="tab-pane fade" id="tabQoE">
                                  <form action="/import" method="POST" enctype="multipart/form-data">
                                      <div class="mb-3"><label class="form-label fw-bold text-primary">Chọn Loại Dữ Liệu QoE/QoS</label><select name="type" class="form-select border-primary"><option value="qoe4g">QoE 4G (Hàng Tuần)</option><option value="qos4g">QoS 4G (Hàng Tuần)</option></select></div>
-                                     <div class="mb-3"><label class="form-label fw-bold">Tên Tuần (Quan trọng)</label><input type="text" name="week_name" class="form-control" placeholder="VD: Tuần 1 (29/12-04/01)" required></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Tên Tuần (Quan trọng)</label><input type="text" name="week_name" class="form-control" value="{{ default_week_name }}" required></div>
                                      <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload Data</button>
                                  </form>
@@ -1941,7 +1941,15 @@ def import_data():
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)))
+    
+    # Tính toán tự động Tên Tuần hiện tại
+    today = datetime.now()
+    year, week_num, weekday = today.isocalendar()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
+    
+    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
 
 @app.route('/backup', methods=['POST'])
 @login_required
