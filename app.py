@@ -385,6 +385,7 @@ BASE_LAYOUT = """
             <li><a href="/gis" class="{{ 'active' if active_page == 'gis' else '' }}"><i class="fa-solid fa-map-location-dot"></i> Bản đồ GIS</a></li>
             <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li>
             <li><a href="/qoe-qos" class="{{ 'active' if active_page == 'qoe_qos' else '' }}"><i class="fa-solid fa-star-half-stroke"></i> QoE QoS Analytics</a></li>
+            <li><a href="/qoe-qos-opt" class="{{ 'active' if active_page == 'qoe_qos_opt' else '' }}"><i class="fa-solid fa-stethoscope"></i> Tối ưu QoE/QoS</a></li>
             <li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF Database</a></li>
             <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-pin"></i> POI Report</a></li>
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
@@ -923,6 +924,87 @@ CONTENT_TEMPLATE = """
                 <div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu QoE/QoS cho Cell: <strong>{{ cell_name_input }}</strong>.</div>
             {% else %}
                 <div class="text-center text-muted py-5"><i class="fa-solid fa-star-half-stroke fa-3x mb-3 opacity-50"></i><p>Nhập mã Cell 4G để xem biểu đồ xu hướng QoE, QoS.</p></div>
+            {% endif %}
+
+        {% elif active_page == 'qoe_qos_opt' %}
+            <div class="card border-0 shadow-sm mb-4 bg-light">
+                <div class="card-body">
+                    <h6 class="fw-bold text-primary mb-3"><i class="fa-solid fa-book-open-reader me-2"></i>Quy trình Tối ưu 5 Bước (Closed Loop)</h6>
+                    <div class="row small text-muted">
+                        <div class="col-md-4"><b>B1. Vĩ mô (Tuần):</b> Lọc Cell tệ QoE (≤2 sao, <80%) hoặc QoS (≤3 sao, <90%).</div>
+                        <div class="col-md-4"><b>B2. Vi mô (Ngày):</b> Map KPI tìm nguyên nhân (Nghẽn / Vô tuyến / Lỗi phần cứng).</div>
+                        <div class="col-md-4"><b>B3. Action:</b> LB/Thêm tài nguyên, Chỉnh Tilt/Công suất, Đo kiểm UCTT.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/qoe-qos-opt" class="row g-3 align-items-center bg-white p-3 rounded-3 border shadow-sm">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">CHỌN TUẦN PHÂN TÍCH (BƯỚC 1)</label>
+                            <select name="week_name" class="form-select border-0 shadow-sm bg-light">
+                                {% for w in all_weeks %}
+                                <option value="{{ w }}" {% if w == selected_week %}selected{% endif %}>{{ w }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 align-self-end">
+                            <button type="submit" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-2"></i>Chạy Bộ Lọc & Chẩn Đoán</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            {% if selected_week %}
+            <div class="row g-3 mb-4">
+                <div class="col-md-3"><div class="card bg-primary text-white border-0 shadow-sm"><div class="card-body p-3 text-center"><h6 class="mb-1">Tổng Cell Tệ</h6><h3 class="mb-0 fw-bold">{{ summary.total }}</h3></div></div></div>
+                <div class="col-md-3"><div class="card bg-warning text-dark border-0 shadow-sm"><div class="card-body p-3 text-center"><h6 class="mb-1">Cảnh báo Nghẽn</h6><h3 class="mb-0 fw-bold">{{ summary.nghen }}</h3></div></div></div>
+                <div class="col-md-3"><div class="card bg-info text-white border-0 shadow-sm"><div class="card-body p-3 text-center"><h6 class="mb-1">Lỗi Vô tuyến</h6><h3 class="mb-0 fw-bold">{{ summary.rf }}</h3></div></div></div>
+                <div class="col-md-3"><div class="card bg-danger text-white border-0 shadow-sm"><div class="card-body p-3 text-center"><h6 class="mb-1">Lỗi Thiết bị</h6><h3 class="mb-0 fw-bold">{{ summary.hw }}</h3></div></div></div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white fw-bold text-danger border-bottom"><i class="fa-solid fa-list-check me-2"></i>Danh sách Trạm cần cấp cứu (B2 & B3)</div>
+                <div class="table-responsive" style="max-height: 65vh;">
+                    <table class="table table-hover table-bordered mb-0 align-middle" style="font-size: 0.85rem;">
+                        <thead class="table-light position-sticky top-0" style="z-index: 10;">
+                            <tr class="text-center">
+                                <th>Cell Name</th>
+                                <th style="width:12%">QoE/QoS Tuần<br><span class="fw-normal text-muted">(B1)</span></th>
+                                <th style="width:18%">KPI TB 3 Ngày<br><span class="fw-normal text-muted">(B2)</span></th>
+                                <th style="width:18%">Chẩn Đoán Bệnh<br><span class="fw-normal text-muted">(B2)</span></th>
+                                <th style="width:30%">Giải pháp Tối ưu<br><span class="fw-normal text-muted">(B3)</span></th>
+                                <th>Hành động<br><span class="fw-normal text-muted">(B4&5)</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in results %}
+                            <tr>
+                                <td class="fw-bold text-primary">{{ r.cell_name }}</td>
+                                <td>
+                                    <div class="small">QoE: <span class="text-danger fw-bold">{{ r.qoe_score }}⭐ / {{ r.qoe_percent }}%</span></div>
+                                    <div class="small">QoS: <span class="text-danger fw-bold">{{ r.qos_score }}⭐ / {{ r.qos_percent }}%</span></div>
+                                </td>
+                                <td>
+                                    <div class="small">PRB: <b>{{ r.prb }}%</b></div>
+                                    <div class="small">Thput: <b>{{ r.thput }} Mbps</b></div>
+                                    <div class="small">CQI: <b>{{ r.cqi }}</b></div>
+                                    <div class="small">Drop: <b>{{ r.drop }}%</b></div>
+                                </td>
+                                <td class="fw-bold">{{ r.diagnosis | safe }}</td>
+                                <td class="text-muted">{{ r.actions | safe }}</td>
+                                <td class="text-center">
+                                    <a href="/kpi?tech=4g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success shadow-sm d-block mb-1" target="_blank">Giám sát B4</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="6" class="text-center py-5 text-success fw-bold"><i class="fa-solid fa-check-circle fa-2x mb-2"></i><br>Không phát hiện Cell vi phạm trong tuần này!</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
             {% endif %}
 
         {% elif active_page == 'poi' %}
@@ -1563,6 +1645,119 @@ def qoe_qos():
                         except: pass
     gc.collect()
     return render_page(CONTENT_TEMPLATE, title="QoE & QoS Analytics", active_page='qoe_qos', cell_name_input=cell_name_input, charts=charts, has_data=has_data, qoe_details=qoe_details, qos_details=qos_details, qoe_headers=qoe_headers, qos_headers=qos_headers)
+
+@app.route('/qoe-qos-opt')
+@login_required
+def qoe_qos_opt():
+    qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
+    qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
+    
+    # Extract unique weeks and sort reverse alphabetically (latest first)
+    all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
+    
+    selected_week = request.args.get('week_name')
+    if not selected_week and all_weeks:
+        selected_week = all_weeks[0]
+
+    bad_cells_dict = {}
+    summary = {'total': 0, 'nghen': 0, 'rf': 0, 'hw': 0}
+    results = []
+
+    if selected_week:
+        # Bước 1: Lọc QoE (UXI <= 2 hoặc < 80%)
+        bad_qoe = QoE4G.query.filter(
+            QoE4G.week_name == selected_week,
+            or_(QoE4G.qoe_score <= 2, QoE4G.qoe_percent < 80)
+        ).all()
+
+        for r in bad_qoe:
+            bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
+
+        # Bước 1: Lọc QoS (QoS <= 3 hoặc < 90%)
+        bad_qos = QoS4G.query.filter(
+            QoS4G.week_name == selected_week,
+            or_(QoS4G.qos_score <= 3, QoS4G.qos_percent < 90)
+        ).all()
+
+        for r in bad_qos:
+            if r.cell_name in bad_cells_dict:
+                bad_cells_dict[r.cell_name]['qos_score'] = r.qos_score
+                bad_cells_dict[r.cell_name]['qos_percent'] = r.qos_percent
+            else:
+                bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
+
+        # Bước 2 & 3: Mapping KPI và Chẩn đoán
+        if bad_cells_dict:
+            cell_names = list(bad_cells_dict.keys())
+            # Lấy danh sách 3 ngày gần nhất có data KPI để đánh giá cho chuẩn xác
+            latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
+
+            if latest_dates:
+                # Query trung bình các chỉ số trong 3 ngày
+                kpi_records = db.session.query(
+                    KPI4G.ten_cell,
+                    func.avg(KPI4G.res_blk_dl).label('avg_prb'),
+                    func.avg(KPI4G.user_dl_avg_thput).label('avg_thput'),
+                    func.avg(KPI4G.cqi_4g).label('avg_cqi'),
+                    func.avg(KPI4G.service_drop_all).label('avg_drop')
+                ).filter(
+                    KPI4G.ten_cell.in_(cell_names),
+                    KPI4G.thoi_gian.in_(latest_dates)
+                ).group_by(KPI4G.ten_cell).all()
+
+                for r in kpi_records:
+                    c_name = r.ten_cell
+                    if c_name in bad_cells_dict:
+                        prb = r.avg_prb or 0
+                        thput = r.avg_thput or 0
+                        cqi = r.avg_cqi or 0
+                        drop = r.avg_drop or 0
+
+                        diagnosis = []
+                        actions = []
+
+                        # Nhóm Nghẽn (Tải cao, Tốc độ thấp)
+                        if prb > 20 and thput < 10:
+                            diagnosis.append("<span class='text-warning fw-bold'><i class='fa-solid fa-truck-fast'></i> Nghẽn (Congestion)</span>")
+                            actions.append("- Kỹ sư RNO: Load Balancing (L1800 -> L2100)<br>- Đề xuất mở rộng HW (Carrier/License)")
+                            summary['nghen'] += 1
+                            
+                        # Nhóm Vô tuyến kém
+                        if cqi < 93:
+                            diagnosis.append("<span class='text-info fw-bold'><i class='fa-solid fa-wifi'></i> Vô tuyến kém (Poor RF)</span>")
+                            actions.append("- Điều chỉnh tham số Tx Power<br>- Tối ưu Tilt/Azimuth giảm Overlapping")
+                            summary['rf'] += 1
+                            
+                        # Nhóm Lỗi thiết bị/Truyền dẫn (Rớt cao)
+                        if drop > 0.3:
+                            diagnosis.append("<span class='text-danger fw-bold'><i class='fa-solid fa-triangle-exclamation'></i> Lỗi Thiết bị / Truyền dẫn</span>")
+                            actions.append("- Đội NOC: Reset card xử lý<br>- Đội UCTT: Kiểm tra quang, đo VSWR, nguồn")
+                            summary['hw'] += 1
+
+                        if not diagnosis:
+                            diagnosis.append("<span class='text-secondary'>Khác (Cần đo kiểm)</span>")
+                            actions.append("- Yêu cầu team chạy Drive Test hiện trường")
+
+                        bad_cells_dict[c_name]['prb'] = round(prb, 2)
+                        bad_cells_dict[c_name]['thput'] = round(thput, 2)
+                        bad_cells_dict[c_name]['cqi'] = round(cqi, 2)
+                        bad_cells_dict[c_name]['drop'] = round(drop, 2)
+                        bad_cells_dict[c_name]['diagnosis'] = "<hr class='my-1'>".join(diagnosis)
+                        bad_cells_dict[c_name]['actions'] = "<hr class='my-1'>".join(actions)
+
+            # Chuyển đổi sang list để hiển thị
+            for c, data in bad_cells_dict.items():
+                data['cell_name'] = c
+                if 'diagnosis' not in data: # Nếu cell này tuần có báo cáo tệ nhưng KPI Ngày không có data
+                    data['prb'] = data['thput'] = data['cqi'] = data['drop'] = 'N/A'
+                    data['diagnosis'] = "<span class='text-muted'>Không có data KPI Ngày</span>"
+                    data['actions'] = "Kiểm tra lại dữ liệu đầu vào KPI"
+                results.append(data)
+                
+            summary['total'] = len(results)
+
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="Tối ưu QoE/QoS 5 Bước", active_page='qoe_qos_opt', all_weeks=all_weeks, selected_week=selected_week, results=results, summary=summary)
 
 @app.route('/poi')
 @login_required
