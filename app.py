@@ -1435,12 +1435,22 @@ def optimize():
         qoe_bad = QoE4G.query.filter((QoE4G.week_name == selected_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
         qos_bad = QoS4G.query.filter((QoS4G.week_name == selected_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
         
+        # Hàm kiểm tra nội bộ để khử dòng rác
+        def is_trash(c_name):
+            c_str = str(c_name).strip().upper()
+            if not c_str or c_str in ['NAN', 'NONE', 'NULL']: return True
+            if len(c_str) < 5: return True
+            if c_str.replace('.', '', 1).isdigit(): return True # Chặn '6', '6.0', '123'
+            if c_str in l900_cells: return True
+            if c_str.startswith('VNP-4G') or c_str.startswith('MBF_TH'): return True
+            return False
+
         for r in qoe_bad:
-            if r.cell_name in l900_cells or r.cell_name.startswith('VNP-4G') or r.cell_name.startswith('MBF_TH'): continue
+            if is_trash(r.cell_name): continue
             bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
             
         for r in qos_bad:
-            if r.cell_name in l900_cells or r.cell_name.startswith('VNP-4G') or r.cell_name.startswith('MBF_TH'): continue
+            if is_trash(r.cell_name): continue
             if r.cell_name not in bad_cells_dict:
                 bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
             else:
