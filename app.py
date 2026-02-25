@@ -768,19 +768,19 @@ CONTENT_TEMPLATE = """
                     function getSignalColor(tech, level) {
                         var t = (tech || '').toUpperCase();
                         if (t.includes('4G') || t.includes('LTE')) {
-                            if (level >= -65) return '#4A4DFF';
-                            if (level >= -85) return '#4CAF50';
-                            if (level >= -95) return '#5EFC54';
-                            if (level >= -105) return '#FFFF4D';
-                            if (level >= -110) return '#FF4D4D';
-                            return '#555555';
+                            if (level >= -75) return '#0000FF'; // Blue (Excellent)
+                            if (level >= -85) return '#00FF00'; // Green (Good)
+                            if (level >= -95) return '#FFFF00'; // Yellow (Fair)
+                            if (level >= -105) return '#FFA500'; // Orange (Poor)
+                            if (level >= -115) return '#FF0000'; // Red (Bad)
+                            return '#808080'; // Gray (Dead)
                         } else { 
-                            if (level >= -65) return '#4A4DFF';
-                            if (level >= -75) return '#4CAF50';
-                            if (level >= -85) return '#5EFC54';
-                            if (level >= -95) return '#FFFF4D';
-                            if (level >= -105) return '#FF4D4D';
-                            return '#555555';
+                            if (level >= -65) return '#0000FF'; // Blue
+                            if (level >= -75) return '#00FF00'; // Green
+                            if (level >= -85) return '#FFFF00'; // Yellow
+                            if (level >= -95) return '#FFA500'; // Orange
+                            if (level >= -105) return '#FF0000'; // Red
+                            return '#808080'; // Gray
                         }
                     }
 
@@ -849,22 +849,22 @@ CONTENT_TEMPLATE = """
 
                             if (has4G) {
                                 html += '<strong class="text-primary fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> 4G RSRP Legend</strong>';
-                                html += '<div><i style="background:#4A4DFF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -65)</div>';
-                                html += '<div><i style="background:#4CAF50; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-85 to -65)</div>';
-                                html += '<div><i style="background:#5EFC54; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-95 to -85)</div>';
-                                html += '<div><i style="background:#FFFF4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-105 to -95)</div>';
-                                html += '<div><i style="background:#FF4D4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-110 to -105)</div>';
-                                html += '<div><i style="background:#555555; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -110)</div>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -75)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-85 to -75)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-95 to -85)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-105 to -95)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-115 to -105)</div>';
+                                html += '<div><i style="background:#808080; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -115)</div>';
                             }
                             if (has3G) {
                                 if (has4G) html += '<hr class="my-2">';
                                 html += '<strong class="text-success fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> 3G RSCP Legend</strong>';
-                                html += '<div><i style="background:#4A4DFF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -65)</div>';
-                                html += '<div><i style="background:#4CAF50; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-75 to -65)</div>';
-                                html += '<div><i style="background:#5EFC54; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-85 to -75)</div>';
-                                html += '<div><i style="background:#FFFF4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-95 to -85)</div>';
-                                html += '<div><i style="background:#FF4D4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-105 to -95)</div>';
-                                html += '<div><i style="background:#555555; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -105)</div>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -65)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-75 to -65)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-85 to -75)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-95 to -85)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-105 to -95)</div>';
+                                html += '<div><i style="background:#808080; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -105)</div>';
                             }
                             div.innerHTML = html;
                             return div;
