@@ -565,6 +565,24 @@ CONTENT_TEMPLATE = """
                 </ol>
             </div>
             
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/optimize" class="row g-3 align-items-center bg-white p-3 rounded-3 border shadow-sm">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">CHỌN TUẦN PHÂN TÍCH (BƯỚC 1)</label>
+                            <select name="week_name" class="form-select border-0 shadow-sm bg-light">
+                                {% for w in all_weeks %}
+                                <option value="{{ w }}" {% if w == latest_week %}selected{% endif %}>{{ w }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 align-self-end">
+                            <button type="submit" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-2"></i>Chạy Bộ Lọc & Chẩn Đoán</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
             <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
                 <h6 class="fw-bold text-danger mb-0"><i class="fa-solid fa-list-check me-2"></i>Danh sách Trạm Cần Xử lý ({{ latest_week or 'Chưa có dữ liệu' }})</h6>
             </div>
@@ -1033,28 +1051,56 @@ CONTENT_TEMPLATE = """
             <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for r in conges_data %}<tr><td class="fw-bold text-primary">{{ r.cell_name }}</td><td>{{ r.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if r.avg_cs_conges > 2 }}">{{ r.avg_cs_conges }}</td><td>{{ r.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if r.avg_ps_conges > 2 }}">{{ r.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Nhấn nút "Thực hiện" để xem kết quả</td></tr>{% endfor %}</tbody></table></div>
 
         {% elif active_page == 'rf' %}
-             <div class="d-flex justify-content-between mb-4">
-                 <div class="btn-group shadow-sm"><a href="/rf?tech=3g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '3g' }}">3G</a><a href="/rf?tech=4g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '4g' }}">4G</a><a href="/rf?tech=5g" class="btn btn-white border {{ 'active bg-primary text-white' if current_tech == '5g' }}">5G</a></div>
-                 <div>
-                     {% if current_user.role == 'admin' %}<a href="/rf/add?tech={{ current_tech }}" class="btn btn-primary shadow-sm me-2">New</a>{% endif %}
-                     <a href="/rf?tech={{ current_tech }}&action=export" class="btn btn-success shadow-sm text-white">Export</a>
+             <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm border gap-3">
+                 <div class="btn-group shadow-sm">
+                     <a href="/rf?tech=3g" class="btn {{ 'btn-primary' if current_tech == '3g' else 'btn-outline-primary' }}">3G</a>
+                     <a href="/rf?tech=4g" class="btn {{ 'btn-primary' if current_tech == '4g' else 'btn-outline-primary' }}">4G</a>
+                     <a href="/rf?tech=5g" class="btn {{ 'btn-primary' if current_tech == '5g' else 'btn-outline-primary' }}">5G</a>
+                 </div>
+                 
+                 <form method="GET" action="/rf" class="d-flex flex-grow-1 mx-lg-4">
+                     <input type="hidden" name="tech" value="{{ current_tech }}">
+                     <div class="input-group shadow-sm">
+                         <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
+                         <input type="text" name="cell_search" class="form-control border-start-0 ps-0" placeholder="Nhập Cell Code hoặc Site Code để tìm nhanh..." value="{{ search_query }}">
+                         <button type="submit" class="btn btn-primary px-4 fw-bold">Tìm kiếm</button>
+                     </div>
+                 </form>
+
+                 <div class="d-flex gap-2">
+                     <form method="GET" action="/rf" class="m-0">
+                         <input type="hidden" name="tech" value="{{ current_tech }}">
+                         <input type="hidden" name="cell_search" value="{{ search_query }}">
+                         <button type="submit" name="action" value="export" class="btn btn-success shadow-sm text-white fw-bold"><i class="fa-solid fa-file-excel me-2"></i>Export</button>
+                     </form>
+                     {% if current_user.role == 'admin' %}
+                     <a href="/rf/add?tech={{ current_tech }}" class="btn btn-warning shadow-sm fw-bold"><i class="fa-solid fa-plus me-1"></i>New</a>
+                     {% endif %}
                  </div>
              </div>
-             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
-                 <table class="table table-hover mb-0" style="font-size: 0.9rem;">
-                     <thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th class="text-center bg-light border-bottom" style="width: 120px; position: sticky; left: 0; z-index: 20;">Action</th>{% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}</tr></thead>
+             
+             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 65vh;">
+                 <table class="table table-hover mb-0" style="font-size: 0.85rem; white-space: nowrap;">
+                     <thead class="table-light position-sticky top-0" style="z-index: 10;">
+                         <tr>
+                             <th class="text-center border-bottom bg-light" style="position: sticky; left: 0; z-index: 20;">Action</th>
+                             {% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}
+                         </tr>
+                     </thead>
                      <tbody>
                          {% for row in rf_data %}
                          <tr>
-                             <td class="text-center bg-white border-end" style="position: sticky; left: 0; z-index: 5;">
-                                 <a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-primary border-0"><i class="fa-solid fa-eye"></i></a>
+                             <td class="text-center bg-white border-end shadow-sm" style="position: sticky; left: 0; z-index: 5;">
+                                 <a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-primary py-0"><i class="fa-solid fa-eye"></i></a>
                                  {% if current_user.role == 'admin' %}
-                                 <a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-warning border-0"><i class="fa-solid fa-pen"></i></a>
-                                 <a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-light btn-sm text-danger border-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a>
+                                 <a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-warning py-0"><i class="fa-solid fa-pen"></i></a>
+                                 <a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-danger py-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a>
                                  {% endif %}
                              </td>
                              {% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}
                          </tr>
+                         {% else %}
+                         <tr><td colspan="100%" class="text-center py-4 text-muted"><i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block opacity-50"></i>Không tìm thấy trạm nào.</td></tr>
                          {% endfor %}
                      </tbody>
                  </table>
@@ -2068,11 +2114,27 @@ def script():
 @login_required
 def rf():
     tech = request.args.get('tech', '4g')
+    action = request.args.get('action')
+    search_query = request.args.get('cell_search', '').strip()
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    rows = Model.query.limit(100).all()
+    
+    query = Model.query
+    if search_query:
+        query = query.filter(or_(Model.cell_code.ilike(f"%{search_query}%"), Model.site_code.ilike(f"%{search_query}%")))
+        
+    if action == 'export':
+        def generate():
+            yield '\ufeff'.encode('utf-8')
+            cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+            yield (','.join(cols) + '\n').encode('utf-8')
+            for row in query.all():
+                yield (','.join([str(getattr(row, c) or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
+
+    rows = query.limit(100).all()
     cols = [c.key for c in Model.__table__.columns if c.key != 'id']
     data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in rows]
-    return render_page(CONTENT_TEMPLATE, title="RF Data", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data)
+    return render_page(CONTENT_TEMPLATE, title="RF Database", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data, search_query=search_query)
 
 @app.route('/rf/delete/<tech>/<int:id>')
 @login_required
