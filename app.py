@@ -1293,20 +1293,124 @@ def send_telegram_photo(chat_id, photo_url, caption=""):
 def process_bot_command(text):
     text = str(text).strip().upper()
     parts = text.split()
-    if len(parts) < 3: return "🤖 <b>Lỗi cú pháp!</b>\nVui lòng soạn theo mẫu:\n👉 <code>KPI 4G [Mã_Cell]</code>\n👉 <code>RF 4G [Mã_Cell]</code>\n👉 <code>CHART 4G [Mã_Cell]</code>"
+    if not parts: return "🤖 <b>Lỗi cú pháp!</b>"
         
     cmd = parts[0]
-    tech = parts[1].lower()
-    target = parts[2]
     
     with app.app_context():
+        # 1. Lệnh DASHBOARD: Trả về 4 biểu đồ tổng quan mạng 4G
+        if cmd == 'DASHBOARD':
+            records = db.session.query(
+                KPI4G.thoi_gian,
+                func.sum(KPI4G.traffic).label('traffic'),
+                func.avg(KPI4G.user_dl_avg_thput).label('user_dl_avg_thput'),
+                func.avg(KPI4G.res_blk_dl).label('res_blk_dl'),
+                func.avg(KPI4G.cqi_4g).label('cqi_4g')
+            ).group_by(KPI4G.thoi_gian).order_by(KPI4G.thoi_gian.desc()).limit(7).all()
+
+            if not records:
+                return "❌ Chưa có dữ liệu hệ thống 4G."
+
+            records.reverse()
+            labels = [r[0] for r in records if r[0]]
+
+            def create_dash_url(label, data, color, title):
+                cfg = {
+                    "type": "line",
+                    "data": {"labels": labels, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]},
+                    "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}
+                }
+                return f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(cfg))}&w=600&h=350&bkg=white"
+
+            charts_to_send = []
+            metrics = [
+                ("Total Traffic (GB)", [round(r[1] or 0, 2) for r in records], "#0078d4", "Tổng Traffic 4G (7 Ngày)"),
+                ("Avg Thput (Mbps)", [round(r[2] or 0, 2) for r in records], "#107c10", "Trung bình Tốc độ DL (7 Ngày)"),
+                ("Avg PRB (%)", [round(r[3] or 0, 2) for r in records], "#ffaa44", "Trung bình Tải PRB (7 Ngày)"),
+                ("Avg CQI", [round(r[4] or 0, 2) for r in records], "#00bcf2", "Trung bình CQI 4G (7 Ngày)")
+            ]
+
+            for label, data, color, title in metrics:
+                charts_to_send.append({
+                    "type": "photo",
+                    "url": create_dash_url(label, data, color, title),
+                    "caption": f"📈 <b>{title}</b> toàn mạng."
+                })
+            return charts_to_send
+
+        # Bắt lỗi thiếu tham số cho các lệnh cần Mã Cell
+        if len(parts) < 2:
+            return "🤖 <b>Lỗi cú pháp!</b> Vui lòng nhập đúng mẫu. (VD: <code>KPI THA001</code>)"
+
+        target = parts[-1] # Lấy mã cell (từ cuối cùng)
+        
+        # 2. Lệnh CTS: Tra cứu Điểm số QoE/QoS tuần mới nhất
+        if cmd == 'CTS':
+            qoe = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).first()
+            qos = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{target}%")).order_by(QoS4G.id.desc()).first()
+
+            if not qoe and not qos:
+                return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
+
+            msg = f"🌟 <b>THÔNG SỐ QoE / QoS - {target}</b>\n\n"
+            if qoe:
+                msg += f"📅 <b>{qoe.week_name}</b>\n- Điểm QoE: {qoe.qoe_score} ⭐\n- Tỷ lệ QoE: {qoe.qoe_percent} %\n\n"
+            if qos:
+                if not qoe or qoe.week_name != qos.week_name:
+                    msg += f"📅 <b>{qos.week_name}</b>\n"
+                msg += f"- Điểm QoS: {qos.qos_score} ⭐\n- Tỷ lệ QoS: {qos.qos_percent} %\n"
+            return msg
+
+        # 3. Lệnh CHARTCTS: Biểu đồ QoE/QoS 4 tuần gần nhất
+        if cmd == 'CHARTCTS':
+            qoe_records = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).limit(4).all()
+            qos_records = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{target}%")).order_by(QoS4G.id.desc()).limit(4).all()
+
+            if not qoe_records and not qos_records:
+                return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
+
+            # Gom nhóm tuần và sắp xếp từ cũ tới mới
+            all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
+            all_weeks = all_weeks[-4:]
+
+            def create_cts_url(label, data, color, title):
+                cfg = {
+                    "type": "line",
+                    "data": {"labels": all_weeks, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]},
+                    "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}
+                }
+                return f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(cfg))}&w=600&h=350&bkg=white"
+
+            charts_to_send = []
+            c_name = (qoe_records[0].cell_name if qoe_records else qos_records[0].cell_name)
+
+            if qoe_records:
+                qmap = {r.week_name: r.qoe_score for r in qoe_records}
+                pmap = {r.week_name: r.qoe_percent for r in qoe_records}
+                charts_to_send.append({"type": "photo", "url": create_cts_url("Điểm QoE", [qmap.get(w, 0) for w in all_weeks], "#0078d4", f"Điểm QoE (4 Tuần) - {c_name}"), "caption": f"📈 Điểm QoE của {c_name}"})
+                charts_to_send.append({"type": "photo", "url": create_cts_url("% QoE", [pmap.get(w, 0) for w in all_weeks], "#107c10", f"% QoE (4 Tuần) - {c_name}"), "caption": f"📈 Tỷ lệ % QoE của {c_name}"})
+
+            if qos_records:
+                qmap = {r.week_name: r.qos_score for r in qos_records}
+                pmap = {r.week_name: r.qos_percent for r in qos_records}
+                charts_to_send.append({"type": "photo", "url": create_cts_url("Điểm QoS", [qmap.get(w, 0) for w in all_weeks], "#ffaa44", f"Điểm QoS (4 Tuần) - {c_name}"), "caption": f"📈 Điểm QoS của {c_name}"})
+                charts_to_send.append({"type": "photo", "url": create_cts_url("% QoS", [pmap.get(w, 0) for w in all_weeks], "#e3008c", f"% QoS (4 Tuần) - {c_name}"), "caption": f"📈 Tỷ lệ % QoS của {c_name}"})
+
+            return charts_to_send
+
+        # 4. Các lệnh truyền thống: KPI, RF, CHARTKPI
+        tech = '4g' # Mặc định công nghệ 4G nếu người dùng không gõ
+        if len(parts) >= 3 and parts[1].lower() in ['3g', '4g', '5g']:
+            tech = parts[1].lower()
+
         if cmd == 'KPI':
             Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
-            if not Model: return "❌ Công nghệ không hợp lệ (Chỉ hỗ trợ 3G/4G/5G)"
+            if not Model: return "❌ Công nghệ không hợp lệ"
             record = Model.query.filter(Model.ten_cell.ilike(f"%{target}%")).order_by(Model.id.desc()).first()
             if record:
                 if tech == '4g': return f"📊 <b>KPI 4G - {record.ten_cell}</b>\n📅 Ngày: {record.thoi_gian}\n- Traffic: {record.traffic} GB\n- Avg Thput: {record.user_dl_avg_thput} Mbps\n- PRB: {record.res_blk_dl}%\n- CQI: {record.cqi_4g}\n- Drop Rate: {record.service_drop_all}%"
                 elif tech == '3g': return f"📊 <b>KPI 3G - {record.ten_cell}</b>\n📅 Ngày: {record.thoi_gian}\n- CS Traffic: {record.traffic} Erl\n- PS Traffic: {record.pstraffic} GB\n- CS Conges: {record.csconges}%\n- PS Conges: {record.psconges}%"
+                else: return f"📊 <b>KPI 5G - {record.ten_cell}</b>\n📅 Ngày: {record.thoi_gian}\n- Traffic: {record.traffic} GB\n- Avg Thput: {record.user_dl_avg_throughput} Mbps\n- CQI 5G: {record.cqi_5g}"
             return f"❌ Không tìm thấy dữ liệu KPI cho Cell: <b>{target}</b>"
             
         elif cmd == 'RF':
@@ -1316,9 +1420,10 @@ def process_bot_command(text):
             if record:
                 if tech == '4g': return f"📡 <b>RF 4G - {record.cell_code}</b>\n📍 Trạm: {record.site_code}\n- Tọa độ: {record.latitude}, {record.longitude}\n- Azimuth: {record.azimuth}\n- Tilt: {record.total_tilt}\n- Tần số: {record.frequency}\n- ENodeB: {record.enodeb_id}\n- LCRID: {record.lcrid}"
                 elif tech == '3g': return f"📡 <b>RF 3G - {record.cell_code}</b>\n📍 Trạm: {record.site_code}\n- Tọa độ: {record.latitude}, {record.longitude}\n- Azimuth: {record.azimuth}\n- Tần số: {record.frequency}\n- BSC_LAC: {record.bsc_lac}\n- CI: {record.ci}"
+                elif tech == '5g': return f"📡 <b>RF 5G - {record.cell_code}</b>\n📍 Trạm: {record.site_code}\n- Tọa độ: {record.latitude}, {record.longitude}\n- Azimuth: {record.azimuth}\n- Tần số: {record.frequency}\n- GNodeB: {record.gnodeb_id}\n- LCRID: {record.lcrid}"
             return f"❌ Không tìm thấy cấu hình RF cho Cell: <b>{target}</b>"
             
-        elif cmd in ['CHART', 'BIEUDO']:
+        elif cmd in ['CHARTKPI', 'CHART', 'BIEUDO']:
             Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
             if not Model: return "❌ Công nghệ không hợp lệ"
             records = db.session.query(Model).filter(Model.ten_cell.ilike(f"%{target}%")).order_by(Model.id.desc()).limit(7).all()
