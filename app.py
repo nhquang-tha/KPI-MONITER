@@ -768,19 +768,19 @@ CONTENT_TEMPLATE = """
                     function getSignalColor(tech, level) {
                         var t = (tech || '').toUpperCase();
                         if (t.includes('4G') || t.includes('LTE')) {
-                            if (level >= -75) return '#0000FF'; // Blue (Excellent)
-                            if (level >= -85) return '#00FF00'; // Green (Good)
-                            if (level >= -95) return '#FFFF00'; // Yellow (Fair)
-                            if (level >= -105) return '#FFA500'; // Orange (Poor)
-                            if (level >= -115) return '#FF0000'; // Red (Bad)
-                            return '#808080'; // Gray (Dead)
+                            if (level >= -75) return '#0000FF'; // Blue
+                            if (level >= -85) return '#00FF00'; // Green
+                            if (level >= -95) return '#FFFF00'; // Yellow
+                            if (level >= -105) return '#FFA500'; // Orange
+                            if (level >= -115) return '#FF0000'; // Red
+                            return '#000000'; // Black
                         } else { 
                             if (level >= -65) return '#0000FF'; // Blue
                             if (level >= -75) return '#00FF00'; // Green
                             if (level >= -85) return '#FFFF00'; // Yellow
                             if (level >= -95) return '#FFA500'; // Orange
                             if (level >= -105) return '#FF0000'; // Red
-                            return '#808080'; // Gray
+                            return '#000000'; // Black
                         }
                     }
 
@@ -848,23 +848,23 @@ CONTENT_TEMPLATE = """
                             var has3G = itsData.some(pt => !(pt.tech || '').toUpperCase().includes('4G') && !(pt.tech || '').toUpperCase().includes('LTE'));
 
                             if (has4G) {
-                                html += '<strong class="text-primary fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> 4G RSRP Legend</strong>';
-                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -75)</div>';
-                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-85 to -75)</div>';
-                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-95 to -85)</div>';
-                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-105 to -95)</div>';
-                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-115 to -105)</div>';
-                                html += '<div><i style="background:#808080; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -115)</div>';
+                                html += '<strong class="text-primary fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> Chú giải 4G RSRP</strong>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -75)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-85 đến -75)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-95 đến -85)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Kém (-105 đến -95)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-115 đến -105)</div>';
+                                html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -115)</div>';
                             }
                             if (has3G) {
                                 if (has4G) html += '<hr class="my-2">';
-                                html += '<strong class="text-success fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> 3G RSCP Legend</strong>';
-                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -65)</div>';
-                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-75 to -65)</div>';
-                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-85 to -75)</div>';
-                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-95 to -85)</div>';
-                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-105 to -95)</div>';
-                                html += '<div><i style="background:#808080; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -105)</div>';
+                                html += '<strong class="text-success fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> Chú giải 3G RSCP</strong>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -65)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-75 đến -65)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-85 đến -75)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Kém (-95 đến -85)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-105 đến -95)</div>';
+                                html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -105)</div>';
                             }
                             div.innerHTML = html;
                             return div;
@@ -1416,7 +1416,6 @@ def gis():
                                 except ValueError: pass
                 except Exception as e: flash(f'Lỗi xử lý file {file.filename}: {e}', 'danger')
         
-        # Lấy mẫu ngẫu nhiên nếu có quá nhiều file lớn được chọn cùng lúc để chống treo máy
         if len(its_data) > 20000:
             its_data = random.sample(its_data, 20000)
             flash(f'Đã giới hạn hiển thị ngẫu nhiên 20,000 điểm đo từ tổng số để chống treo trình duyệt.', 'warning')
