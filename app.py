@@ -1293,9 +1293,23 @@ def send_telegram_photo(chat_id, photo_url, caption=""):
 def process_bot_command(text):
     text = str(text).strip().upper()
     parts = text.split()
-    if not parts: return "🤖 <b>Lỗi cú pháp!</b>"
+    if not parts: return "🤖 <b>Lỗi cú pháp!</b> Gõ <code>HELP</code> để xem hướng dẫn."
         
     cmd = parts[0]
+    
+    # 0. Lệnh HELP: Hiển thị hướng dẫn sử dụng
+    if cmd == 'HELP':
+        return """🤖 <b>HƯỚNG DẪN SỬ DỤNG BOT TRA CỨU NETOPS</b>
+Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
+
+👉 <code>DASHBOARD</code>: Tổng quan mạng 4G toàn hệ thống (7 ngày).
+👉 <code>KPI [Mã_Cell]</code>: Tra cứu thông số KPI ngày mới nhất (VD: KPI THA001_1).
+👉 <code>CHARTKPI [Mã_Cell]</code>: Tra cứu biểu đồ KPI 7 ngày gần nhất.
+👉 <code>RF [Mã_Cell]</code>: Tra cứu tất cả thông số cấu hình trạm.
+👉 <code>CTS [Mã_Cell]</code>: Tra cứu thông số QoE, QoS tuần mới nhất.
+👉 <code>CHARTCTS [Mã_Cell]</code>: Tra cứu biểu đồ QoE, QoS 4 tuần mới nhất.
+
+<i>*Lưu ý: Mặc định tra cứu mạng 4G. Có thể thêm 3G/5G vào giữa câu lệnh (VD: KPI 3G THA001).</i>"""
     
     with app.app_context():
         # 1. Lệnh DASHBOARD: Trả về 4 biểu đồ tổng quan mạng 4G
