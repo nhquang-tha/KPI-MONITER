@@ -576,8 +576,9 @@ CONTENT_TEMPLATE = """
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-4 align-self-end">
-                            <button type="submit" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-2"></i>Chạy Bộ Lọc & Chẩn Đoán</button>
+                        <div class="col-md-4 align-self-end d-flex gap-2">
+                            <button type="submit" name="action" value="filter" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-1"></i>Lọc</button>
+                            <button type="submit" name="action" value="export" class="btn btn-success w-100 shadow-sm"><i class="fa-solid fa-file-excel me-1"></i>Export</button>
                         </div>
                     </form>
                 </div>
@@ -587,9 +588,9 @@ CONTENT_TEMPLATE = """
                 <h6 class="fw-bold text-danger mb-0"><i class="fa-solid fa-list-check me-2"></i>Danh sách Trạm Cần Xử lý ({{ latest_week or 'Chưa có dữ liệu' }})</h6>
             </div>
             
-            <div class="table-responsive bg-white rounded shadow-sm border">
+            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 65vh;">
                  <table class="table table-hover table-bordered mb-0 align-middle" style="font-size: 0.85rem;">
-                     <thead class="table-light text-center">
+                     <thead class="table-light text-center position-sticky top-0" style="z-index: 10;">
                          <tr>
                              <th rowspan="2" class="align-middle">Cell Name</th>
                              <th colspan="2">1. Báo cáo Tuần (Macro)</th>
@@ -606,7 +607,7 @@ CONTENT_TEMPLATE = """
                      <tbody>
                          {% for row in optimized_data %}
                          <tr>
-                             <td class="fw-bold text-primary">{{ row.cell_name }}</td>
+                             <td class="fw-bold text-primary text-nowrap">{{ row.cell_name }}</td>
                              <td class="text-center {{ 'text-danger fw-bold' if row.qoe_score != '-' and row.qoe_score <= 2 }}">{{ row.qoe_score }}{% if row.qoe_percent != '-' %}<br><small class="text-muted">({{ row.qoe_percent }}%)</small>{% endif %}</td>
                              <td class="text-center {{ 'text-danger fw-bold' if row.qos_score != '-' and row.qos_score <= 3 }}">{{ row.qos_score }}{% if row.qos_percent != '-' %}<br><small class="text-muted">({{ row.qos_percent }}%)</small>{% endif %}</td>
                              <td class="text-center {{ 'text-danger fw-bold' if row.prb != '-' and row.prb > 20 }}">{{ row.prb }}</td>
@@ -614,22 +615,22 @@ CONTENT_TEMPLATE = """
                              <td class="text-center {{ 'text-danger fw-bold' if row.cqi != '-' and row.cqi < 93 }}">{{ row.cqi }}</td>
                              <td class="text-center {{ 'text-danger fw-bold' if row.drop != '-' and row.drop > 0.3 }}">{{ row.drop }}</td>
                              <td>
-                                 <ul class="mb-0 ps-3 text-danger fw-bold">
+                                 <ul class="mb-0 ps-3 text-danger fw-bold" style="min-width: 150px;">
                                      {% for issue in row.issues %}<li>{{ issue }}</li>{% endfor %}
                                  </ul>
                              </td>
                              <td>
-                                 <ul class="mb-0 ps-3 text-success">
+                                 <ul class="mb-0 ps-3 text-success" style="min-width: 180px;">
                                      {% for action in row.actions %}<li>{{ action }}</li>{% endfor %}
                                  </ul>
                              </td>
-                             <td class="text-center p-2">
-                                 <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-primary mb-1 w-100 py-0" style="font-size: 0.75rem;">Xem KPI</a>
-                                 <a href="/qoe-qos?cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-warning w-100 py-0 text-dark" style="font-size: 0.75rem;">Xem QoE</a>
+                             <td class="text-center p-2" style="min-width: 100px;">
+                                 <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-primary mb-1 w-100 py-0 shadow-sm" style="font-size: 0.75rem;"><i class="fa-solid fa-chart-line me-1"></i>Xem KPI</a>
+                                 <a href="/qoe-qos?cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-warning w-100 py-0 text-dark shadow-sm" style="font-size: 0.75rem;"><i class="fa-solid fa-star-half-stroke me-1"></i>Xem QoE</a>
                              </td>
                          </tr>
                          {% else %}
-                         <tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-face-smile fa-3x mb-3 text-success d-block"></i>Tuyệt vời! Không phát hiện Cell nào vi phạm ngưỡng yếu kém trong tuần gần nhất.</td></tr>
+                         <tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-face-smile fa-3x mb-3 text-success d-block"></i>Tuyệt vời! Không phát hiện Cell nào vi phạm ngưỡng tệ trong tuần gần nhất.</td></tr>
                          {% endfor %}
                      </tbody>
                  </table>
@@ -1154,89 +1155,7 @@ CONTENT_TEMPLATE = """
                      <div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div>
                  </div>
              </div>
-
-        {% elif active_page == 'optimize' %}
-            <div class="alert alert-info border-0 shadow-sm mb-4">
-                <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-book-open-reader me-2"></i>Quy trình Tối ưu 5 Bước</h5>
-                <ol class="mb-0 text-dark">
-                    <li class="mb-1"><strong>Thu thập Vĩ mô:</strong> Tự động lọc Top Cell tệ từ báo cáo QoE/QoS Tuần.</li>
-                    <li class="mb-1"><strong>Chẩn đoán Vi mô:</strong> Tự động ghép nối KPI Ngày để tìm nguyên nhân gốc rễ (Nghẽn, Nhiễu, Lỗi Thiết bị).</li>
-                    <li class="mb-1"><strong>Giải pháp Tối ưu:</strong> Điều phối kỹ sư RNO, NOC, UCTT xử lý.</li>
-                    <li class="mb-1"><strong>Giám sát Tức thời:</strong> Xem nhanh KPI sau khi tác động.</li>
-                    <li><strong>Đóng vòng Tối ưu:</strong> Theo dõi điểm QoE/QoS cải thiện ở tuần tiếp theo.</li>
-                </ol>
-            </div>
-            
-            <div class="row mb-4">
-                <div class="col-md-12">
-                    <form method="GET" action="/optimize" class="row g-3 align-items-center bg-white p-3 rounded-3 border shadow-sm">
-                        <div class="col-md-8">
-                            <label class="form-label fw-bold small text-muted">CHỌN TUẦN PHÂN TÍCH (BƯỚC 1)</label>
-                            <select name="week_name" class="form-select border-0 shadow-sm bg-light">
-                                {% for w in all_weeks %}
-                                <option value="{{ w }}" {% if w == latest_week %}selected{% endif %}>{{ w }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-4 align-self-end">
-                            <button type="submit" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-2"></i>Chạy Bộ Lọc & Chẩn Đoán</button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-
-            <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
-                <h6 class="fw-bold text-danger mb-0"><i class="fa-solid fa-list-check me-2"></i>Danh sách Trạm Cần Cấp Cứu ({{ latest_week or 'Chưa có dữ liệu Tuần' }})</h6>
-            </div>
-            
-            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 65vh;">
-                 <table class="table table-hover table-bordered mb-0 align-middle" style="font-size: 0.85rem;">
-                     <thead class="table-light text-center position-sticky top-0" style="z-index: 10;">
-                         <tr>
-                             <th rowspan="2" class="align-middle">Cell Name</th>
-                             <th colspan="2">1. Báo cáo Tuần (Macro)</th>
-                             <th colspan="4">2. KPI Ngày Gần Nhất (Micro)</th>
-                             <th rowspan="2" class="align-middle">3. Chẩn đoán (Bệnh)</th>
-                             <th rowspan="2" class="align-middle">4. Giải pháp (Action)</th>
-                             <th rowspan="2" class="align-middle">5. Giám sát</th>
-                         </tr>
-                         <tr>
-                             <th>Điểm QoE</th><th>Điểm QoS</th>
-                             <th>PRB (%)</th><th>Thput (Mbps)</th><th>CQI (%)</th><th>Drop (%)</th>
-                         </tr>
-                     </thead>
-                     <tbody>
-                         {% for row in optimized_data %}
-                         <tr>
-                             <td class="fw-bold text-primary text-nowrap">{{ row.cell_name }}</td>
-                             <td class="text-center {{ 'text-danger fw-bold' if row.qoe_score != '-' and row.qoe_score <= 2 }}">{{ row.qoe_score }}{% if row.qoe_percent != '-' %}<br><small class="text-muted">({{ row.qoe_percent }}%)</small>{% endif %}</td>
-                             <td class="text-center {{ 'text-danger fw-bold' if row.qos_score != '-' and row.qos_score <= 3 }}">{{ row.qos_score }}{% if row.qos_percent != '-' %}<br><small class="text-muted">({{ row.qos_percent }}%)</small>{% endif %}</td>
-                             <td class="text-center {{ 'text-danger fw-bold' if row.prb != '-' and row.prb > 20 }}">{{ row.prb }}</td>
-                             <td class="text-center {{ 'text-danger fw-bold' if row.thput != '-' and row.thput < 10 }}">{{ row.thput }}</td>
-                             <td class="text-center {{ 'text-danger fw-bold' if row.cqi != '-' and row.cqi < 93 }}">{{ row.cqi }}</td>
-                             <td class="text-center {{ 'text-danger fw-bold' if row.drop != '-' and row.drop > 0.3 }}">{{ row.drop }}</td>
-                             <td>
-                                 <ul class="mb-0 ps-3 text-danger fw-bold" style="min-width: 150px;">
-                                     {% for issue in row.issues %}<li>{{ issue }}</li>{% endfor %}
-                                 </ul>
-                             </td>
-                             <td>
-                                 <ul class="mb-0 ps-3 text-success" style="min-width: 180px;">
-                                     {% for action in row.actions %}<li>{{ action }}</li>{% endfor %}
-                                 </ul>
-                             </td>
-                             <td class="text-center p-2" style="min-width: 100px;">
-                                 <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-primary mb-1 w-100 py-0 shadow-sm" style="font-size: 0.75rem;"><i class="fa-solid fa-chart-line me-1"></i>Xem KPI</a>
-                                 <a href="/qoe-qos?cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-warning w-100 py-0 text-dark shadow-sm" style="font-size: 0.75rem;"><i class="fa-solid fa-star-half-stroke me-1"></i>Xem QoE</a>
-                             </td>
-                         </tr>
-                         {% else %}
-                         <tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-face-smile fa-3x mb-3 text-success d-block"></i>Tuyệt vời! Không phát hiện Cell nào vi phạm ngưỡng tệ trong tuần gần nhất.</td></tr>
-                         {% endfor %}
-                     </tbody>
-                 </table>
-            </div>
-
+        
         {% elif active_page == 'script' %}
              <div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Generate Script</div><div class="card-body">
                 <ul class="nav nav-tabs mb-3" id="scriptTabs" role="tablist">
@@ -1499,12 +1418,11 @@ def index():
 @app.route('/optimize')
 @login_required
 def optimize():
-    # Lấy danh sách toàn bộ các tuần đã import
+    action = request.args.get('action')
     qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
     qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
     all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
     
-    # Lấy tuần đang chọn (nếu không có thì lấy tuần mới nhất)
     selected_week = request.args.get('week_name')
     if not selected_week and all_weeks:
         selected_week = all_weeks[0]
@@ -1512,20 +1430,16 @@ def optimize():
     bad_cells_dict = {}
     
     if selected_week:
-        # Tìm danh sách cell L900 từ bảng RF4G để loại trừ
         l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
 
-        # Bước 1: Lọc Cell Tệ (Macro Level) theo tuần đang chọn
         qoe_bad = QoE4G.query.filter((QoE4G.week_name == selected_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
         qos_bad = QoS4G.query.filter((QoS4G.week_name == selected_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
         
         for r in qoe_bad:
-            # Loại bỏ các cell L900, VNP-4G và MBF_TH
             if r.cell_name in l900_cells or r.cell_name.startswith('VNP-4G') or r.cell_name.startswith('MBF_TH'): continue
             bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
             
         for r in qos_bad:
-            # Loại bỏ các cell L900, VNP-4G và MBF_TH
             if r.cell_name in l900_cells or r.cell_name.startswith('VNP-4G') or r.cell_name.startswith('MBF_TH'): continue
             if r.cell_name not in bad_cells_dict:
                 bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
@@ -1533,11 +1447,9 @@ def optimize():
                 bad_cells_dict[r.cell_name]['qos_score'] = r.qos_score
                 bad_cells_dict[r.cell_name]['qos_percent'] = r.qos_percent
         
-        # Bước 2: Chẩn đoán Vi mô (Micro Level)
         if bad_cells_dict:
             cell_names = list(bad_cells_dict.keys())
             
-            # Lấy danh sách 3 ngày gần nhất có data KPI để đánh giá trung bình cho chuẩn xác
             latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
             
             if latest_dates:
@@ -1563,7 +1475,6 @@ def optimize():
                         issues = []
                         actions = []
                         
-                        # Bộ lọc chẩn đoán theo NPO
                         if prb > 20 and thput < 10:
                             issues.append("Nghẽn (Congestion)")
                             actions.append("Cân bằng tải L1800->L2100 / Thêm Carrier")
@@ -1587,13 +1498,36 @@ def optimize():
                             'actions': actions
                         })
                     
-    # Chuẩn bị dữ liệu cho Giao diện
     optimized_data = []
     for cell, data in bad_cells_dict.items():
         data['cell_name'] = cell
         if 'issues' not in data:
              data.update({'prb': '-', 'thput': '-', 'cqi': '-', 'drop': '-', 'issues': ['Thiếu dữ liệu KPI ngày'], 'actions': ['Cần Import KPI']})
         optimized_data.append(data)
+        
+    if action == 'export':
+        export_list = []
+        for data in optimized_data:
+            export_list.append({
+                'Cell Name': data.get('cell_name', ''),
+                'QoE Score': data.get('qoe_score', ''),
+                'QoE %': data.get('qoe_percent', ''),
+                'QoS Score': data.get('qos_score', ''),
+                'QoS %': data.get('qos_percent', ''),
+                'PRB (%)': data.get('prb', ''),
+                'Thput (Mbps)': data.get('thput', ''),
+                'CQI (%)': data.get('cqi', ''),
+                'Drop (%)': data.get('drop', ''),
+                'Chẩn đoán': " | ".join(data.get('issues', [])),
+                'Giải pháp': " | ".join(data.get('actions', []))
+            })
+        df = pd.DataFrame(export_list)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Toi_Uu')
+        output.seek(0)
+        safe_week_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', selected_week) if selected_week else 'Week'
+        return send_file(output, download_name=f'ToiUu_{safe_week_name}.xlsx', as_attachment=True)
         
     gc.collect()
     return render_page(CONTENT_TEMPLATE, title="Tối ưu QoE/QoS (NPO)", active_page='optimize', optimized_data=optimized_data, latest_week=selected_week, all_weeks=all_weeks)
@@ -2205,7 +2139,10 @@ def import_data():
                         for i in range(header_row_idx + 1, len(df)):
                             row_data = df.iloc[i]
                             c_name = str(row_data[cell_col_idx]).strip()
-                            if not c_name or c_name == 'nan' or len(c_name) < 3 or c_name.isdigit(): continue
+                            
+                            # Cải tiến logic lọc lỗi rác từ Excel
+                            if not c_name or str(c_name).lower() in ['nan', 'none', 'null'] or len(str(c_name)) < 5 or str(c_name).isdigit(): 
+                                continue
                             
                             try: val1 = float(row_data[cell_col_idx + 2])
                             except: val1 = 0.0
