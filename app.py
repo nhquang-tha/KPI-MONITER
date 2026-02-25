@@ -559,7 +559,7 @@ CONTENT_TEMPLATE = """
                         <div class="col-md-2"><label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option></select></div>
                         <div class="col-md-2"><label class="form-label fw-bold small text-muted">SITE CODE</label><input type="text" name="site_code" class="form-control border-0 shadow-sm" placeholder="VD: THA001" value="{{ site_code_input }}"></div>
                         <div class="col-md-3"><label class="form-label fw-bold small text-muted">CELL NAME</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}"></div>
-                        <div class="col-md-3"><label class="form-label fw-bold small text-muted text-warning"><i class="fa-solid fa-file-lines me-1"></i>LOG ITS (.TXT/.CSV)</label><input type="file" name="its_file" class="form-control border-0 shadow-sm" accept=".txt,.csv"></div>
+                        <div class="col-md-3"><label class="form-label fw-bold small text-muted text-warning"><i class="fa-solid fa-file-lines me-1"></i>LOG ITS (.TXT/.CSV)</label><input type="file" name="its_file" class="form-control border-0 shadow-sm" accept=".txt,.csv" multiple></div>
                         <div class="col-md-2 d-flex flex-column gap-2 mt-4 pt-1"><button type="submit" name="action" value="search" class="btn btn-primary btn-sm w-100 shadow-sm fw-bold"><i class="fa-solid fa-search me-1"></i>Tìm kiếm</button><button type="submit" name="action" value="show_log" class="btn btn-warning btn-sm w-100 shadow-sm fw-bold text-white"><i class="fa-solid fa-route me-1"></i>Xem Log</button></div>
                     </form>
                 </div>
@@ -1354,14 +1354,16 @@ def gis():
                 if sc and c_gn and c_lc: db_mapping[f"{c_gn}_{c_lc}"] = sc
     
     if request.method == 'POST' and 'its_file' in request.files:
-        file = request.files['its_file']
-        if file and file.filename:
-            show_its = True
-            try:
-                file_bytes = file.read()
-                if not file_bytes:
-                    flash('Lỗi: File tải lên trống.', 'danger')
-                else:
+        files = request.files.getlist('its_file')
+        for file in files:
+            if file and file.filename:
+                show_its = True
+                try:
+                    file_bytes = file.read()
+                    if not file_bytes:
+                        flash(f'Lỗi: File {file.filename} tải lên trống.', 'danger')
+                        continue
+                    
                     content = file_bytes.decode('utf-8-sig', errors='ignore')
                     lines = content.splitlines()
                     if len(lines) > 1:
@@ -1382,10 +1384,9 @@ def gis():
                         qual_idx = next((i for i, h in enumerate(headers) if h in ['qual', 'ecno', 'sinr', 'snr', 'rsrq']), -1)
 
                         if lat_idx == -1 or lon_idx == -1:
-                            flash('Lỗi: Không tìm thấy cột Tọa độ trong file Log.', 'danger')
+                            flash(f'Lỗi: Không tìm thấy cột Tọa độ trong file {file.filename}.', 'danger')
                         else:
                             data_lines = lines[1:]
-                            if len(data_lines) > 15000: data_lines = random.sample(data_lines, 15000)
                             for line in data_lines:
                                 if not line.strip(): continue
                                 parts = line.split(sep)
@@ -1413,13 +1414,19 @@ def gis():
                                     
                                     its_data.append({'lat': lat, 'lon': lon, 'level': lvl, 'qual': qual_str, 'tech': tech_str, 'cellid': c or '', 'node': n or ''})
                                 except ValueError: pass
-            except Exception as e: flash(f'Lỗi xử lý file log ITS: {e}', 'danger')
+                except Exception as e: flash(f'Lỗi xử lý file {file.filename}: {e}', 'danger')
+        
+        # Lấy mẫu ngẫu nhiên nếu có quá nhiều file lớn được chọn cùng lúc để chống treo máy
+        if len(its_data) > 20000:
+            its_data = random.sample(its_data, 20000)
+            flash(f'Đã giới hạn hiển thị ngẫu nhiên 20,000 điểm đo từ tổng số để chống treo trình duyệt.', 'warning')
             
     if Model:
         query = db.session.query(Model)
         if action_type == 'show_log' and show_its:
-            if matched_sites: flash(f'Đã tải {len(its_data)} điểm Log. Tìm thấy {len(matched_sites)} trạm khớp trong DB.', 'success')
+            if matched_sites: flash(f'Đã tải {len(its_data)} điểm Log từ các file. Tìm thấy {len(matched_sites)} trạm khớp trong DB.', 'success')
             else: flash('Không có điểm Log nào khớp với trạm trong DB.', 'danger')
+            
             if matched_sites: query = query.filter(Model.site_code.in_(list(matched_sites)[:900]))
             else: query = query.filter(text("1=0"))
         else:
