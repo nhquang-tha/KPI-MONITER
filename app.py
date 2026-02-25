@@ -1121,6 +1121,24 @@ CONTENT_TEMPLATE = """
                 </ol>
             </div>
             
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/optimize" class="row g-3 align-items-center bg-white p-3 rounded-3 border shadow-sm">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">CHỌN TUẦN PHÂN TÍCH (BƯỚC 1)</label>
+                            <select name="week_name" class="form-select border-0 shadow-sm bg-light">
+                                {% for w in all_weeks %}
+                                <option value="{{ w }}" {% if w == latest_week %}selected{% endif %}>{{ w }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 align-self-end">
+                            <button type="submit" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-2"></i>Chạy Bộ Lọc & Chẩn Đoán</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
                 <h6 class="fw-bold text-danger mb-0"><i class="fa-solid fa-list-check me-2"></i>Danh sách Trạm Cần Cấp Cứu ({{ latest_week or 'Chưa có dữ liệu Tuần' }})</h6>
             </div>
@@ -1435,67 +1453,85 @@ def index():
 @app.route('/optimize')
 @login_required
 def optimize():
-    # Lấy tên tuần mới nhất từ Database QoE
-    latest_qoe = QoE4G.query.order_by(QoE4G.id.desc()).first()
-    latest_week = latest_qoe.week_name if latest_qoe else None
+    # Lấy danh sách toàn bộ các tuần đã import
+    qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
+    qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
+    all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
+    
+    # Lấy tuần đang chọn (nếu không có thì lấy tuần mới nhất)
+    selected_week = request.args.get('week_name')
+    if not selected_week and all_weeks:
+        selected_week = all_weeks[0]
     
     bad_cells_dict = {}
     
-    if latest_week:
+    if selected_week:
         # Tìm danh sách cell L900 từ bảng RF4G để loại trừ
         l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
 
-        # Bước 1: Lọc Cell Tệ (Macro Level)
-        qoe_bad = QoE4G.query.filter((QoE4G.week_name == latest_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
-        qos_bad = QoS4G.query.filter((QoS4G.week_name == latest_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
+        # Bước 1: Lọc Cell Tệ (Macro Level) theo tuần đang chọn
+        qoe_bad = QoE4G.query.filter((QoE4G.week_name == selected_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
+        qos_bad = QoS4G.query.filter((QoS4G.week_name == selected_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
         
         for r in qoe_bad:
-            if r.cell_name in l900_cells: continue
+            # Loại bỏ các cell L900, VNP-4G và MBF_TH
+            if r.cell_name in l900_cells or r.cell_name.startswith('VNP-4G') or r.cell_name.startswith('MBF_TH'): continue
             bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
+            
         for r in qos_bad:
-            if r.cell_name in l900_cells: continue
+            # Loại bỏ các cell L900, VNP-4G và MBF_TH
+            if r.cell_name in l900_cells or r.cell_name.startswith('VNP-4G') or r.cell_name.startswith('MBF_TH'): continue
             if r.cell_name not in bad_cells_dict:
                 bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
             else:
                 bad_cells_dict[r.cell_name]['qos_score'] = r.qos_score
                 bad_cells_dict[r.cell_name]['qos_percent'] = r.qos_percent
         
-        # Bước 2: Chẩn đoán Vi mô (Micro Level) dựa trên KPI Ngày mới nhất
+        # Bước 2: Chẩn đoán Vi mô (Micro Level)
         if bad_cells_dict:
             cell_names = list(bad_cells_dict.keys())
             
-            # Tìm ngày có dữ liệu mới nhất trong bảng KPI 4G
-            latest_kpi_record = KPI4G.query.order_by(KPI4G.id.desc()).first()
-            latest_kpi_date = latest_kpi_record.thoi_gian if latest_kpi_record else None
+            # Lấy danh sách 3 ngày gần nhất có data KPI để đánh giá trung bình cho chuẩn xác
+            latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
             
-            if latest_kpi_date:
-                kpi_records = KPI4G.query.filter(KPI4G.thoi_gian == latest_kpi_date, KPI4G.ten_cell.in_(cell_names)).all()
-                for kpi in kpi_records:
-                    c = kpi.ten_cell
-                    prb = kpi.res_blk_dl or 0
-                    thput = kpi.user_dl_avg_thput or 0
-                    cqi = kpi.cqi_4g or 0
-                    drop = kpi.service_drop_all or 0
-                    
-                    issues = []
-                    actions = []
-                    
-                    # Bộ lọc chẩn đoán theo NPO
-                    if prb > 20 and thput < 10:
-                        issues.append("Nghẽn (Congestion)")
-                        actions.append("Cân bằng tải L1800->L2100 / Thêm Carrier")
-                    if cqi < 93:
-                        issues.append("Vô tuyến kém / Nhiễu")
-                        actions.append("Chỉnh Tx Power / Tối ưu Tilt, Azimuth")
-                    if drop > 0.3 and prb <= 20:
-                        issues.append("Lỗi Thiết bị / Truyền dẫn")
-                        actions.append("NOC reset Card / UCTT đo kiểm Quang, VSWR")
-                        
-                    if not issues:
-                        issues.append("Chưa rõ nguyên nhân")
-                        actions.append("Theo dõi sâu / Phân tích tham số")
-                        
+            if latest_dates:
+                kpi_records = db.session.query(
+                    KPI4G.ten_cell,
+                    func.avg(KPI4G.res_blk_dl).label('avg_prb'),
+                    func.avg(KPI4G.user_dl_avg_thput).label('avg_thput'),
+                    func.avg(KPI4G.cqi_4g).label('avg_cqi'),
+                    func.avg(KPI4G.service_drop_all).label('avg_drop')
+                ).filter(
+                    KPI4G.ten_cell.in_(cell_names),
+                    KPI4G.thoi_gian.in_(latest_dates)
+                ).group_by(KPI4G.ten_cell).all()
+                
+                for r in kpi_records:
+                    c = r.ten_cell
                     if c in bad_cells_dict:
+                        prb = r.avg_prb or 0
+                        thput = r.avg_thput or 0
+                        cqi = r.avg_cqi or 0
+                        drop = r.avg_drop or 0
+                        
+                        issues = []
+                        actions = []
+                        
+                        # Bộ lọc chẩn đoán theo NPO
+                        if prb > 20 and thput < 10:
+                            issues.append("Nghẽn (Congestion)")
+                            actions.append("Cân bằng tải L1800->L2100 / Thêm Carrier")
+                        if cqi < 93:
+                            issues.append("Vô tuyến kém / Nhiễu")
+                            actions.append("Chỉnh Tx Power / Tối ưu Tilt, Azimuth")
+                        if drop > 0.3 and prb <= 20:
+                            issues.append("Lỗi Thiết bị / Truyền dẫn")
+                            actions.append("NOC reset Card / UCTT đo kiểm Quang, VSWR")
+                            
+                        if not issues:
+                            issues.append("Chưa rõ nguyên nhân")
+                            actions.append("Theo dõi sâu / Phân tích tham số")
+                            
                         bad_cells_dict[c].update({
                             'prb': round(prb, 2),
                             'thput': round(thput, 2),
@@ -1514,7 +1550,7 @@ def optimize():
         optimized_data.append(data)
         
     gc.collect()
-    return render_page(CONTENT_TEMPLATE, title="Tối ưu QoE/QoS (NPO)", active_page='optimize', optimized_data=optimized_data, latest_week=latest_week)
+    return render_page(CONTENT_TEMPLATE, title="Tối ưu QoE/QoS (NPO)", active_page='optimize', optimized_data=optimized_data, latest_week=selected_week, all_weeks=all_weeks)
 
 @app.route('/gis', methods=['GET', 'POST'])
 @login_required
