@@ -570,35 +570,307 @@ CONTENT_TEMPLATE = """
                     var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
                     var itsData = {{ its_data | tojson | safe if its_data else '[]' }};
                     var actionType = "{{ action_type }}";
+                    var searchSite = "{{ site_code_input }}";
+                    var searchCell = "{{ cell_name_input }}";
+                    var isShowIts = {{ 'true' if show_its else 'false' }};
+                    var hasGisData = gisData.length > 0;
+                    var hasItsData = isShowIts && itsData.length > 0;
+                    
                     if(!document.getElementById('gisMap')) return;
 
-                    var map = L.map('gisMap', { center: [19.807, 105.776], zoom: 9, fullscreenControl: true });
-                    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+                    var mapCenter = [19.807, 105.776];
+                    var mapZoom = 9;
+
+                    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'});
+                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Tiles © Esri'});
+
+                    var map = L.map('gisMap', {
+                        center: mapCenter,
+                        zoom: mapZoom,
+                        layers: [osmLayer],
+                        fullscreenControl: true,
+                        fullscreenControlOptions: { position: 'topleft' }
+                    });
+
                     L.control.layers({"Bản đồ (OSM)": osmLayer, "Vệ tinh": satelliteLayer}).addTo(map);
 
+                    // Add Custom Settings Control
+                    if (hasGisData || hasItsData) {
+                        var settingsControl = L.control({position: 'topright'});
+                        settingsControl.onAdd = function (map) {
+                            var div = L.DomUtil.create('div', 'info settings-control shadow-sm');
+                            div.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                            div.style.padding = '12px';
+                            div.style.borderRadius = '8px';
+                            div.style.border = '1px solid #dee2e6';
+                            
+                            L.DomEvent.disableClickPropagation(div);
+
+                            var html = '<div class="d-flex flex-column gap-2">';
+
+                            if (hasGisData) {
+                                html += '<div class="d-flex align-items-center justify-content-between">';
+                                html += '<label class="small fw-bold text-muted mb-0 me-2" style="white-space: nowrap;"><i class="fa-solid fa-wifi text-info me-1"></i>Bán kính quạt:</label>';
+                                html += '<input type="range" class="form-range" id="sectorRadiusSlider" min="50" max="2000" step="50" value="350" style="width: 100px;">';
+                                html += '<span id="sectorRadiusVal" class="small text-muted ms-2 fw-bold" style="min-width: 45px; text-align: right;">350m</span>';
+                                html += '</div>';
+                            }
+
+                            if (hasItsData) {
+                                html += '<div class="d-flex align-items-center justify-content-between">';
+                                html += '<label class="small fw-bold text-muted mb-0 me-2" style="white-space: nowrap;"><i class="fa-solid fa-circle text-primary me-1"></i>Cỡ hạt Log:</label>';
+                                html += '<input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 100px;">';
+                                html += '</div>';
+
+                                html += '<div class="d-flex align-items-center mt-1 pt-2 border-top">';
+                                html += '<div class="form-check form-switch mb-0 w-100 d-flex align-items-center ps-0">';
+                                html += '<label class="form-check-label small fw-bold text-muted me-3" for="showLinesToggle" style="cursor: pointer;"><i class="fa-solid fa-link text-success me-1"></i>Nối vệt tia</label>';
+                                html += '<input class="form-check-input mt-0 ms-auto float-none" type="checkbox" id="showLinesToggle" checked style="cursor: pointer;">';
+                                html += '</div>';
+                                html += '</div>';
+                            }
+
+                            html += '</div>';
+                            div.innerHTML = html;
+                            return div;
+                        };
+                        settingsControl.addTo(map);
+                    }
+
+                    // Bounds Management
                     var bounds = [];
-                    if (itsData.length > 0) itsData.forEach(p => bounds.push([p.lat, p.lon]));
-                    if (gisData.length > 0) gisData.forEach(c => bounds.push([c.lat, c.lon]));
-                    if (bounds.length > 0) map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
+                    if (isShowIts && itsData.length > 0) {
+                        itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
+                    }
+                    if (actionType === 'show_log' && gisData.length > 0) {
+                        gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
+                    }
+
+                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
+                        var targetCell = gisData[0];
+                        for (var i = 0; i < gisData.length; i++) {
+                            var sCode = (gisData[i].site_code || "").toLowerCase();
+                            var cName = (gisData[i].cell_name || "").toLowerCase();
+                            var sInput = searchSite.toLowerCase();
+                            var cInput = searchCell.toLowerCase();
+                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) { targetCell = gisData[i]; break; }
+                        }
+                        if (targetCell.lat && targetCell.lon) { map.setView([targetCell.lat, targetCell.lon], 15); } 
+                        else { map.setView(mapCenter, mapZoom); }
+                    } else if (bounds.length > 0) {
+                        map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
+                    } else {
+                        map.setView(mapCenter, mapZoom);
+                    }
+
+                    var siteLayerGroup = L.layerGroup().addTo(map);
+                    var sectorLayerGroup = L.layerGroup().addTo(map);
+                    var itsLayerGroup = L.layerGroup().addTo(map);
+                    var cellLookup = {};
+                    var renderedSites = {};
+
+                    var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
+
+                    function getSectorMidPoint(lat, lon, azimuth, distanceMeters) {
+                        var latFactor = 111320;
+                        var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
+                        var radMap = (azimuth || 0) * Math.PI / 180;
+                        var dx = (distanceMeters * Math.sin(radMap)) / lonFactor;
+                        var dy = (distanceMeters * Math.cos(radMap)) / latFactor;
+                        return [lat + dy, lon + dx];
+                    }
+
+                    function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
+                        var center = [lat, lon];
+                        var points = [center];
+                        var startAngle = azimuth - beamwidth / 2;
+                        var endAngle = azimuth + beamwidth / 2;
+                        var latFactor = 111320;
+                        var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
+                        for (var i = startAngle; i <= endAngle; i += 5) {
+                            var radMap = i * Math.PI / 180;
+                            var dx = (radiusMeters * Math.sin(radMap)) / lonFactor; 
+                            var dy = (radiusMeters * Math.cos(radMap)) / latFactor; 
+                            points.push([lat + dy, lon + dx]);
+                        }
+                        points.push(center);
+                        return points;
+                    }
 
                     gisData.forEach(function(cell) {
                         if(!cell.lat || !cell.lon) return;
-                        L.circleMarker([cell.lat, cell.lon], {radius: 4, color: '#333', fillColor: '#fff', fillOpacity: 1}).bindPopup("<b>Site:</b> " + cell.site_code).addTo(map);
-                        
-                        var radMap = (cell.azi || 0) * Math.PI / 180;
-                        var dx = (350 * Math.sin(radMap)) / (111320 * Math.cos(cell.lat * Math.PI / 180)); 
-                        var dy = (350 * Math.cos(radMap)) / 111320; 
-                        var p1 = [cell.lat, cell.lon];
-                        var p2 = [cell.lat + dy + dx*0.5, cell.lon + dx - dy*0.5];
-                        var p3 = [cell.lat + dy - dx*0.5, cell.lon + dx + dy*0.5];
-                        L.polygon([p1, p2, p3], {color: '#0078d4', fillColor: '#0078d4', fillOpacity: 0.35}).bindPopup("<b>Cell:</b> " + cell.cell_name).addTo(map);
+                        if (!renderedSites[cell.site_code]) {
+                            L.circleMarker([cell.lat, cell.lon], {radius: 5, color: '#333', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1}).bindPopup("<b>Site Code:</b> " + cell.site_code).addTo(siteLayerGroup);
+                            renderedSites[cell.site_code] = true;
+                        }
                     });
 
-                    itsData.forEach(function(pt) {
-                        var color = pt.level >= -85 ? '#4CAF50' : (pt.level >= -105 ? '#FFFF4D' : '#FF4D4D');
-                        L.circleMarker([pt.lat, pt.lon], {radius: 3, fillColor: color, color: '#000', weight: 0.5, fillOpacity: 0.9}).bindPopup("Level: " + pt.level).addTo(map);
-                    });
+                    function cVal(v) {
+                        if (v === null || v === undefined) return "";
+                        var s = String(v).trim();
+                        if (s.endsWith(".0")) s = s.slice(0, -2);
+                        return s;
+                    }
+
+                    function buildLookupAndDrawSectors() {
+                        sectorLayerGroup.clearLayers();
+                        cellLookup = {};
+
+                        var radiusSlider = document.getElementById('sectorRadiusSlider');
+                        var sectorRadius = radiusSlider ? parseInt(radiusSlider.value) : 350;
+                        var valDisplay = document.getElementById('sectorRadiusVal');
+                        if (valDisplay) valDisplay.innerText = sectorRadius + 'm';
+
+                        gisData.forEach(function(cell) {
+                            if(!cell.lat || !cell.lon) return;
+
+                            var tech = cell.tech;
+                            var info = cell.info;
+                            var key = "";
+
+                            if (tech === '4g') {
+                                var en = cVal(info.enodeb_id); var lc = cVal(info.lcrid);
+                                if (en && lc) key = en + "_" + lc;
+                            } else if (tech === '3g') {
+                                var ci = cVal(info.ci);
+                                if (ci) key = ci;
+                            } else if (tech === '5g') {
+                                 var gn = cVal(info.gnodeb_id); var lc5 = cVal(info.lcrid);
+                                 if (gn && lc5) key = gn + "_" + lc5;
+                            }
+
+                            if (key) {
+                                cellLookup[key] = getSectorMidPoint(cell.lat, cell.lon, cell.azi, sectorRadius * 0.65);
+                            }
+
+                            var color = techColors[cell.tech] || '#dc3545';
+                            var polyPoints = getSectorPolygon(cell.lat, cell.lon, cell.azi, 60, sectorRadius);
+                            var polygon = L.polygon(polyPoints, {color: color, weight: 1, fillColor: color, fillOpacity: 0.35}).addTo(sectorLayerGroup);
+
+                            var infoHtml = "<div style='max-height: 250px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.8rem;'>";
+                            for (const [k, v] of Object.entries(cell.info)) {
+                                if (v !== null && v !== '' && v !== 'None') {
+                                    infoHtml += "<tr><th class='text-muted bg-light w-50'>" + k.toUpperCase() + "</th><td class='fw-bold'>" + v + "</td></tr>";
+                                }
+                            }
+                            infoHtml += "</table></div>";
+
+                            polygon.bindPopup(
+                                "<div class='mb-2 pb-2 border-bottom'><b>Cell:</b> <span class='text-primary fs-6'>" + cell.cell_name + "</span><br>" +
+                                "<b>Site:</b> " + cell.site_code + "<br>" +
+                                "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon + "</div>" + infoHtml,
+                                { minWidth: 300, maxWidth: 450 }
+                            );
+                        });
+                        drawITSData();
+                    }
+
+                    function getSignalColor(tech, level) {
+                        var t = (tech || '').toUpperCase();
+                        if (t.includes('4G') || t.includes('LTE')) {
+                            if (level >= -65) return '#4A4DFF';
+                            if (level >= -85) return '#4CAF50';
+                            if (level >= -95) return '#5EFC54';
+                            if (level >= -105) return '#FFFF4D';
+                            if (level >= -110) return '#FF4D4D';
+                            return '#555555';
+                        } else { 
+                            if (level >= -65) return '#4A4DFF';
+                            if (level >= -75) return '#4CAF50';
+                            if (level >= -85) return '#5EFC54';
+                            if (level >= -95) return '#FFFF4D';
+                            if (level >= -105) return '#FF4D4D';
+                            return '#555555';
+                        }
+                    }
+
+                    function drawITSData() {
+                        if (!isShowIts || itsData.length === 0) return;
+                        itsLayerGroup.clearLayers();
+
+                        var pointSizeSlider = document.getElementById('pointSizeSlider');
+                        var pointSize = pointSizeSlider ? parseInt(pointSizeSlider.value) : 3;
+                        var showLinesToggle = document.getElementById('showLinesToggle');
+                        var showLines = showLinesToggle ? showLinesToggle.checked : false;
+
+                        itsData.forEach(function(pt) {
+                            var ptColor = getSignalColor(pt.tech, pt.level);
+                            var ptCoord = [pt.lat, pt.lon];
+                            
+                            L.circleMarker(ptCoord, {radius: pointSize, fillColor: ptColor, color: "#000", weight: 0.5, fillOpacity: 0.9})
+                            .bindPopup("<div class='small'><b>Tech:</b> " + pt.tech + "<br><b>Level:</b> <span class='fw-bold' style='color:"+ptColor+"'>" + pt.level + " dBm</span><br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>Node/CellID:</b> " + (pt.node||'-') + " / " + pt.cellid + "</div>")
+                            .addTo(itsLayerGroup);
+
+                            if (showLines) {
+                                var ptTech = (pt.tech || '').toLowerCase();
+                                var key = "";
+                                if (ptTech.includes('4g') || ptTech.includes('lte')) {
+                                    if (pt.node && pt.cellid) key = pt.node + "_" + pt.cellid;
+                                } else if (ptTech.includes('3g') || ptTech.includes('wcdma') || ptTech.includes('hspa') || ptTech.includes('umts')) {
+                                    if (pt.cellid) key = pt.cellid;
+                                } else if (ptTech.includes('5g') || ptTech.includes('nr')) {
+                                    if (pt.node && pt.cellid) key = pt.node + "_" + pt.cellid;
+                                }
+
+                                var targetCellCoord = cellLookup[key];
+                                if (targetCellCoord) {
+                                    L.polyline([ptCoord, targetCellCoord], {color: ptColor, weight: 1.5, opacity: 0.6, dashArray: '3, 4'}).addTo(itsLayerGroup);
+                                }
+                            }
+                        });
+                    }
+
+                    buildLookupAndDrawSectors();
+
+                    var radSliderEl = document.getElementById('sectorRadiusSlider');
+                    if (radSliderEl) radSliderEl.addEventListener('input', buildLookupAndDrawSectors);
+
+                    var sliderEl = document.getElementById('pointSizeSlider');
+                    if (sliderEl) sliderEl.addEventListener('input', drawITSData);
+
+                    var toggleEl = document.getElementById('showLinesToggle');
+                    if (toggleEl) toggleEl.addEventListener('change', drawITSData);
+
+                    // Add Legend
+                    if (isShowIts && itsData.length > 0) {
+                        var legend = L.control({position: 'bottomright'});
+                        legend.onAdd = function (map) {
+                            var div = L.DomUtil.create('div', 'info legend shadow-sm');
+                            div.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                            div.style.padding = '10px 15px';
+                            div.style.borderRadius = '8px';
+                            div.style.fontSize = '0.85rem';
+                            div.style.lineHeight = '1.8';
+                            div.style.border = '1px solid #dee2e6';
+                            
+                            var html = '';
+                            var has4G = itsData.some(pt => (pt.tech || '').toUpperCase().includes('4G') || (pt.tech || '').toUpperCase().includes('LTE'));
+                            var has3G = itsData.some(pt => !(pt.tech || '').toUpperCase().includes('4G') && !(pt.tech || '').toUpperCase().includes('LTE'));
+
+                            if (has4G) {
+                                html += '<strong class="text-primary fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> 4G RSRP Legend</strong>';
+                                html += '<div><i style="background:#4A4DFF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -65)</div>';
+                                html += '<div><i style="background:#4CAF50; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-85 to -65)</div>';
+                                html += '<div><i style="background:#5EFC54; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-95 to -85)</div>';
+                                html += '<div><i style="background:#FFFF4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-105 to -95)</div>';
+                                html += '<div><i style="background:#FF4D4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-110 to -105)</div>';
+                                html += '<div><i style="background:#555555; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -110)</div>';
+                            }
+                            if (has3G) {
+                                if (has4G) html += '<hr class="my-2">';
+                                html += '<strong class="text-success fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> 3G RSCP Legend</strong>';
+                                html += '<div><i style="background:#4A4DFF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Excellent (≥ -65)</div>';
+                                html += '<div><i style="background:#4CAF50; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Good (-75 to -65)</div>';
+                                html += '<div><i style="background:#5EFC54; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Fair (-85 to -75)</div>';
+                                html += '<div><i style="background:#FFFF4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Poor (-95 to -85)</div>';
+                                html += '<div><i style="background:#FF4D4D; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Bad (-105 to -95)</div>';
+                                html += '<div><i style="background:#555555; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Dead (< -105)</div>';
+                            }
+                            div.innerHTML = html;
+                            return div;
+                        };
+                        legend.addTo(map);
+                    }
                 });
             </script>
 
