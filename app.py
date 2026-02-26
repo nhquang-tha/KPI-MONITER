@@ -648,7 +648,14 @@ CONTENT_TEMPLATE = """
                     </form>
                 </div>
             </div>
-            <div class="card border border-light shadow-sm"><div class="card-body p-2 position-relative"><div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index: 1;"></div></div></div>
+            <div class="card border border-light shadow-sm">
+                <div class="card-body p-2 position-relative">
+                    <button type="button" id="btn-fullscreen" class="btn btn-danger fw-bold shadow-lg" style="position: absolute; top: 15px; left: 60px; z-index: 999; border: 2px solid white; border-radius: 8px;">
+                        <i class="fa-solid fa-expand me-2"></i>Bật Toàn Màn Hình
+                    </button>
+                    <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index: 1;"></div>
+                </div>
+            </div>
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
                     var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
@@ -674,6 +681,10 @@ CONTENT_TEMPLATE = """
                         layers: [osmLayer],
                         fullscreenControl: true,
                         fullscreenControlOptions: { position: 'topleft' }
+                    });
+                    
+                    document.getElementById('btn-fullscreen').addEventListener('click', function() {
+                        map.toggleFullscreen();
                     });
 
                     L.control.layers({"Bản đồ (OSM)": osmLayer, "Vệ tinh": satelliteLayer}).addTo(map);
@@ -730,20 +741,9 @@ CONTENT_TEMPLATE = """
                         gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
                     }
 
-                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
-                        var targetCell = gisData[0];
-                        for (var i = 0; i < gisData.length; i++) {
-                            var sCode = (gisData[i].site_code || "").toLowerCase();
-                            var cName = (gisData[i].cell_name || "").toLowerCase();
-                            var sInput = searchSite.toLowerCase();
-                            var cInput = searchCell.toLowerCase();
-                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) { targetCell = gisData[i]; break; }
-                        }
-                        if (targetCell.lat && targetCell.lon) { map.setView([targetCell.lat, targetCell.lon], 15); } 
-                        else { map.setView(mapCenter, mapZoom); }
-                    } else if (bounds.length > 0) {
+                    if (bounds.length > 0) {
                         map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
-                    } else {
+                    } else if (actionType !== 'search') {
                         map.setView(mapCenter, mapZoom);
                     }
 
@@ -805,8 +805,23 @@ CONTENT_TEMPLATE = """
                         var valDisplay = document.getElementById('sectorRadiusVal');
                         if (valDisplay) valDisplay.innerText = sectorRadius + 'm';
 
+                        var targetCellCoord = null;
+                        var targetPolygon = null;
+
                         gisData.forEach(function(cell) {
                             if(!cell.lat || !cell.lon) return;
+
+                            var isMatch = false;
+                            if (actionType === 'search' && (searchSite || searchCell)) {
+                                var sCode = (cell.site_code || "").toLowerCase();
+                                var cName = (cell.cell_name || "").toLowerCase();
+                                var sInput = searchSite.toLowerCase();
+                                var cInput = searchCell.toLowerCase();
+                                if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) { 
+                                    isMatch = true;
+                                    if (!targetCellCoord) targetCellCoord = [cell.lat, cell.lon];
+                                }
+                            }
 
                             var tech = cell.tech;
                             var info = cell.info;
@@ -829,7 +844,14 @@ CONTENT_TEMPLATE = """
 
                             var color = techColors[cell.tech] || '#dc3545';
                             var polyPoints = getSectorPolygon(cell.lat, cell.lon, cell.azi, 60, sectorRadius);
-                            var polygon = L.polygon(polyPoints, {color: color, weight: 1, fillColor: color, fillOpacity: 0.35}).addTo(sectorLayerGroup);
+                            var polygon = L.polygon(polyPoints, {
+                                color: isMatch ? '#ff0000' : color, 
+                                weight: isMatch ? 3 : 1, 
+                                fillColor: isMatch ? '#ff0000' : color, 
+                                fillOpacity: isMatch ? 0.7 : 0.35
+                            }).addTo(sectorLayerGroup);
+
+                            if (isMatch && !targetPolygon) targetPolygon = polygon;
 
                             var infoHtml = "<div style='max-height: 250px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.8rem;'>";
                             for (const [k, v] of Object.entries(cell.info)) {
@@ -846,6 +868,12 @@ CONTENT_TEMPLATE = """
                                 { minWidth: 300, maxWidth: 450 }
                             );
                         });
+                        
+                        if (actionType === 'search' && targetCellCoord) {
+                            map.setView(targetCellCoord, 16);
+                            if (targetPolygon) setTimeout(() => targetPolygon.openPopup(), 600);
+                        }
+
                         drawITSData();
                     }
 
@@ -1795,22 +1823,48 @@ def gis():
             flash(f'Đã giới hạn hiển thị ngẫu nhiên 20,000 điểm đo từ tổng số để chống treo trình duyệt.', 'warning')
             
     if Model:
-        query = db.session.query(Model)
         if action_type == 'show_log' and show_its:
+            query = db.session.query(Model)
             if matched_sites: flash(f'Đã tải {len(its_data)} điểm Log từ các file. Tìm thấy {len(matched_sites)} trạm khớp trong DB.', 'success')
             else: flash('Không có điểm Log nào khớp với trạm trong DB.', 'danger')
             
             if matched_sites: query = query.filter(Model.site_code.in_(list(matched_sites)[:900]))
             else: query = query.filter(text("1=0"))
+            records = query.all()
         else:
-            if site_code_input: query = query.filter(Model.site_code.ilike(f"%{site_code_input}%"))
-            if cell_name_input:
-                filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
-                if hasattr(Model, 'cell_name'): filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
-                query = query.filter(or_(*filters))
-            if not site_code_input and not cell_name_input: query = query.limit(2000)
+            records_dict = {}
+            target_lat, target_lon = None, None
+            found_search = False
+            
+            if site_code_input or cell_name_input:
+                search_q = db.session.query(Model)
+                if site_code_input: search_q = search_q.filter(Model.site_code.ilike(f"%{site_code_input}%"))
+                if cell_name_input:
+                    filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
+                    if hasattr(Model, 'cell_name'): filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
+                    search_q = search_q.filter(or_(*filters))
+                
+                for r in search_q.limit(50).all():
+                    records_dict[r.id] = r
+                    if not found_search and r.latitude and r.longitude:
+                        try:
+                            target_lat, target_lon = float(r.latitude), float(r.longitude)
+                            found_search = True
+                        except: pass
+            
+            if found_search and target_lat and target_lon:
+                lat_min, lat_max = target_lat - 0.15, target_lat + 0.15
+                lon_min, lon_max = target_lon - 0.15, target_lon + 0.15
+                nearby = db.session.query(Model).filter(
+                    Model.latitude >= lat_min, Model.latitude <= lat_max,
+                    Model.longitude >= lon_min, Model.longitude <= lon_max
+                ).limit(2000).all()
+                for r in nearby: records_dict[r.id] = r
+            else:
+                for r in db.session.query(Model).limit(3000).all(): records_dict[r.id] = r
+                
+            records = list(records_dict.values())
 
-        records = query.all()
         cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
         for r in records:
             try:
