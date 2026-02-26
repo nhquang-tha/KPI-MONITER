@@ -557,46 +557,40 @@ CONTENT_TEMPLATE = """
         {% elif active_page == 'azimuth' %}
             <div class="row">
                 <div class="col-md-4">
-                    <div class="card border border-light shadow-sm">
-                        <div class="card-header bg-white fw-bold text-primary"><i class="fa-solid fa-calculator me-2"></i>Nhập thông số</div>
+                    <div class="card border border-light shadow-sm mb-3">
+                        <div class="card-header bg-white fw-bold text-primary"><i class="fa-solid fa-compass me-2"></i>Tọa độ Điểm O (Gốc)</div>
                         <div class="card-body">
-                            <form id="azimuthForm">
-                                <h6 class="fw-bold text-secondary mb-3">Điểm A (Điểm gốc)</h6>
-                                <div class="mb-3">
-                                    <label class="form-label small fw-bold">Vĩ độ (Latitude)</label>
-                                    <input type="text" id="latA" class="form-control form-control-sm" placeholder="VD: 21.028511" required>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label small fw-bold">Kinh độ (Longitude)</label>
-                                    <input type="text" id="lngA" class="form-control form-control-sm" placeholder="VD: 105.804817" required>
-                                </div>
-                                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-4" onclick="getGPS()"><i class="fa-solid fa-location-crosshairs me-1"></i>Lấy vị trí GPS của tôi</button>
-
-                                <h6 class="fw-bold text-secondary mb-3">Thông số Vẽ Điểm B</h6>
-                                <div class="mb-3">
-                                    <label class="form-label small fw-bold">Góc Azimuth (Độ)</label>
-                                    <input type="number" id="azimuthAngle" class="form-control form-control-sm" min="0" max="360" step="any" placeholder="0 - 360" required>
-                                </div>
-                                <div class="mb-4">
-                                    <label class="form-label small fw-bold">Khoảng cách</label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="number" id="distance" class="form-control" min="0" step="any" required placeholder="Nhập khoảng cách...">
-                                        <select id="distUnit" class="form-select" style="max-width: 80px;">
-                                            <option value="m">Mét</option>
-                                            <option value="km">Km</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <button type="submit" class="btn btn-primary w-100 shadow-sm fw-bold"><i class="fa-solid fa-pencil me-2"></i>Tính toán & Vẽ đường</button>
-                            </form>
+                            <div class="mb-2">
+                                <label class="form-label small fw-bold">Vĩ độ (Latitude)</label>
+                                <input type="text" id="latO" class="form-control form-control-sm" placeholder="VD: 21.028511" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Kinh độ (Longitude)</label>
+                                <input type="text" id="lngO" class="form-control form-control-sm" placeholder="VD: 105.804817" required>
+                            </div>
+                            <button type="button" class="btn btn-outline-secondary btn-sm w-100" onclick="getGPS()"><i class="fa-solid fa-location-crosshairs me-1"></i>Lấy vị trí GPS của tôi</button>
                         </div>
                     </div>
-                    
-                    <div class="card border border-light shadow-sm mt-3" id="resultCard" style="display: none;">
-                        <div class="card-header bg-success text-white fw-bold"><i class="fa-solid fa-check-circle me-2"></i>Kết quả Điểm B</div>
-                        <div class="card-body bg-light">
-                            <div class="mb-2"><label class="small fw-bold text-muted">Vĩ độ B:</label><input type="text" id="resLatB" class="form-control form-control-sm bg-white" readonly></div>
-                            <div><label class="small fw-bold text-muted">Kinh độ B:</label><input type="text" id="resLngB" class="form-control form-control-sm bg-white" readonly></div>
+
+                    <div class="card border border-light shadow-sm">
+                        <div class="card-header bg-white fw-bold text-success"><i class="fa-solid fa-pencil me-2"></i>Thêm Điểm Kết Nối</div>
+                        <div class="card-body">
+                            <form id="azimuthForm">
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold">Tên điểm tới</label>
+                                    <input type="text" id="ptName" class="form-control form-control-sm" placeholder="VD: Trạm A" required>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label small fw-bold">Góc Azimuth (Độ)</label>
+                                    <input type="number" id="ptAzimuth" class="form-control form-control-sm" min="0" max="360" step="any" placeholder="0 - 360" required>
+                                </div>
+                                <div class="mb-4">
+                                    <label class="form-label small fw-bold">Khoảng cách (Mét)</label>
+                                    <input type="number" id="ptDistance" class="form-control form-control-sm" min="0" step="any" placeholder="Nhập số mét..." required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 shadow-sm fw-bold mb-2"><i class="fa-solid fa-plus me-2"></i>Vẽ đường nối</button>
+                                <button type="button" class="btn btn-danger w-100 shadow-sm fw-bold" onclick="clearDrawnPoints()"><i class="fa-solid fa-trash-can me-2"></i>Xóa các đường đã vẽ</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -613,10 +607,10 @@ CONTENT_TEMPLATE = """
             </div>
 
             <script>
-                var azMap, markerA, markerB, azPolyline;
+                var azMap, markerO;
+                var drawnItems = L.layerGroup();
 
                 document.addEventListener('DOMContentLoaded', function() {
-                    // Init Map
                     azMap = L.map('azimuthMap', {
                         center: [16.0, 106.0], 
                         zoom: 5,
@@ -631,8 +625,9 @@ CONTENT_TEMPLATE = """
                     var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'}).addTo(azMap);
                     var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
                     L.control.layers({"Bản đồ (OSM)": osmLayer, "Vệ tinh": satelliteLayer}).addTo(azMap);
+                    
+                    drawnItems.addTo(azMap);
 
-                    // Form Submission
                     document.getElementById('azimuthForm').addEventListener('submit', function(e) {
                         e.preventDefault();
                         drawAzimuth();
@@ -642,9 +637,10 @@ CONTENT_TEMPLATE = """
                 function getGPS() {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(function(position) {
-                            document.getElementById('latA').value = position.coords.latitude;
-                            document.getElementById('lngA').value = position.coords.longitude;
+                            document.getElementById('latO').value = position.coords.latitude;
+                            document.getElementById('lngO').value = position.coords.longitude;
                             azMap.setView([position.coords.latitude, position.coords.longitude], 15);
+                            drawOrigin();
                         }, function(error) {
                             alert("Lỗi không lấy được GPS: " + error.message);
                         });
@@ -653,65 +649,73 @@ CONTENT_TEMPLATE = """
                     }
                 }
 
+                function drawOrigin() {
+                    var latO = document.getElementById('latO').value;
+                    var lngO = document.getElementById('lngO').value;
+                    if (!latO || !lngO) return;
+                    
+                    if (markerO) { azMap.removeLayer(markerO); }
+                    var iconO = L.divIcon({className: 'custom-div-icon', html: "<div style='background-color:#c0392b;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(0,0,0,0.6);'></div>", iconSize: [14, 14], iconAnchor: [7, 7]});
+                    markerO = L.marker([latO, lngO], {icon: iconO})
+                        .bindTooltip("<b class='text-danger'>Điểm O</b>", {permanent: true, direction: 'left', className: 'bg-white border-danger rounded px-1 py-0'})
+                        .addTo(azMap);
+                }
+
+                document.getElementById('latO').addEventListener('input', drawOrigin);
+                document.getElementById('lngO').addEventListener('input', drawOrigin);
+
                 function calculateDestinationPoint(lat1, lon1, brng, dist) {
-                    // Haversine formula
-                    const R = 6371e3; // Earth Radius in meters
+                    const R = 6371e3;
                     const d = parseFloat(dist);
                     const brngRad = parseFloat(brng) * Math.PI / 180;
                     const lat1Rad = parseFloat(lat1) * Math.PI / 180;
                     const lon1Rad = parseFloat(lon1) * Math.PI / 180;
 
-                    const lat2Rad = Math.asin(Math.sin(lat1Rad) * Math.cos(d/R) +
-                                            Math.cos(lat1Rad) * Math.sin(d/R) * Math.cos(brngRad));
-                    const lon2Rad = lon1Rad + Math.atan2(Math.sin(brngRad) * Math.sin(d/R) * Math.cos(lat1Rad),
-                                                    Math.cos(d/R) - Math.sin(lat1Rad) * Math.sin(lat2Rad));
+                    const lat2Rad = Math.asin(Math.sin(lat1Rad) * Math.cos(d/R) + Math.cos(lat1Rad) * Math.sin(d/R) * Math.cos(brngRad));
+                    const lon2Rad = lon1Rad + Math.atan2(Math.sin(brngRad) * Math.sin(d/R) * Math.cos(lat1Rad), Math.cos(d/R) - Math.sin(lat1Rad) * Math.sin(lat2Rad));
 
                     return [lat2Rad * 180 / Math.PI, lon2Rad * 180 / Math.PI];
                 }
 
                 function drawAzimuth() {
-                    var latA = document.getElementById('latA').value;
-                    var lngA = document.getElementById('lngA').value;
-                    var az = document.getElementById('azimuthAngle').value;
-                    var dist = document.getElementById('distance').value;
-                    var unit = document.getElementById('distUnit').value;
+                    var latO = document.getElementById('latO').value;
+                    var lngO = document.getElementById('lngO').value;
+                    var ptName = document.getElementById('ptName').value;
+                    var az = document.getElementById('ptAzimuth').value;
+                    var dist = document.getElementById('ptDistance').value;
 
-                    if (!latA || !lngA || !az || !dist) return;
+                    if (!latO || !lngO || !ptName || !az || !dist) {
+                        alert("Vui lòng nhập đủ Điểm O, Tên điểm, Góc và Khoảng cách!");
+                        return;
+                    }
 
-                    var distInMeters = unit === 'km' ? parseFloat(dist) * 1000 : parseFloat(dist);
+                    drawOrigin();
+                    var pointB = calculateDestinationPoint(latO, lngO, az, dist);
 
-                    // Calc Point B
-                    var pointB = calculateDestinationPoint(latA, lngA, az, distInMeters);
+                    var iconB = L.divIcon({className: 'custom-div-icon', html: "<div style='background-color:#2980b9;width:10px;height:10px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);'></div>", iconSize: [10, 10], iconAnchor: [5, 5]});
+                    var markerB = L.marker(pointB, {icon: iconB})
+                        .bindTooltip("<b>" + ptName + "</b>", {permanent: true, direction: 'right', className: 'text-primary border-primary rounded px-1 py-0'})
+                        .addTo(drawnItems);
+
+                    var polyline = L.polyline([[latO, lngO], pointB], {
+                        color: '#000000',
+                        weight: 4,
+                        opacity: 1.0
+                    }).bindPopup("<b>" + ptName + "</b><br>Góc Azimuth: " + az + "°<br>Khoảng cách: " + dist + " m").addTo(drawnItems);
+
+                    var group = new L.featureGroup([markerO, drawnItems]);
+                    azMap.fitBounds(group.getBounds(), {padding: [50, 50]});
                     
-                    // Show Results
-                    document.getElementById('resLatB').value = pointB[0].toFixed(6);
-                    document.getElementById('resLngB').value = pointB[1].toFixed(6);
-                    document.getElementById('resultCard').style.display = 'block';
-
-                    // Clear old layers
-                    if (markerA) azMap.removeLayer(markerA);
-                    if (markerB) azMap.removeLayer(markerB);
-                    if (azPolyline) azMap.removeLayer(azPolyline);
-
-                    // Draw Point A (Red Marker)
-                    var iconA = L.divIcon({className: 'custom-div-icon', html: "<div style='background-color:#c0392b;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);'></div>", iconSize: [12, 12], iconAnchor: [6, 6]});
-                    markerA = L.marker([latA, lngA], {icon: iconA}).bindPopup("<b>Điểm A (Gốc)</b><br>Lat: " + parseFloat(latA).toFixed(5) + "<br>Lng: " + parseFloat(lngA).toFixed(5)).addTo(azMap);
-
-                    // Draw Point B (Blue Marker)
-                    var iconB = L.divIcon({className: 'custom-div-icon', html: "<div style='background-color:#2980b9;width:12px;height:12px;border-radius:50%;border:2px solid white;box-shadow:0 0 4px rgba(0,0,0,0.5);'></div>", iconSize: [12, 12], iconAnchor: [6, 6]});
-                    markerB = L.marker(pointB, {icon: iconB}).bindPopup("<b>Điểm B Đích</b><br>Lat: " + pointB[0].toFixed(5) + "<br>Lng: " + pointB[1].toFixed(5)).addTo(azMap);
-
-                    // Draw Line
-                    azPolyline = L.polyline([[latA, lngA], pointB], {
-                        color: '#e74c3c',
-                        weight: 3,
-                        opacity: 0.8,
-                        dashArray: '5, 5'
-                    }).bindPopup("<b>Azimuth:</b> " + az + "°<br><b>Khoảng cách:</b> " + dist + " " + unit).addTo(azMap);
-
-                    // Fit Map Bounds
-                    azMap.fitBounds(azPolyline.getBounds(), {padding: [50, 50]});
-                    markerB.openPopup();
+                    // Xóa trắng form để nhập điểm tiếp theo
+                    document.getElementById('ptName').value = '';
+                    document.getElementById('ptAzimuth').value = '';
+                    document.getElementById('ptDistance').value = '';
+                    document.getElementById('ptName').focus();
+                }
+                
+                function clearDrawnPoints() {
+                    drawnItems.clearLayers();
+                    if(markerO) azMap.setView(markerO.getLatLng(), 15);
                 }
             </script>
             
