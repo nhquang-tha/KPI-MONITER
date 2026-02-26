@@ -1117,6 +1117,7 @@ CONTENT_TEMPLATE = """
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li>
                              <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li>
                              <li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#tabQoE" type="button">Import QoE/QoS</button></li>
+                             <li class="nav-item"><button class="nav-link text-danger fw-bold" data-bs-toggle="tab" data-bs-target="#tabReset" type="button">Reset Data</button></li>
                          </ul>
                          <div class="tab-content">
                              <div class="tab-pane fade show active" id="tabRF">
@@ -1147,6 +1148,21 @@ CONTENT_TEMPLATE = """
                                      <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload Data</button>
                                  </form>
+                             </div>
+                             <div class="tab-pane fade" id="tabReset">
+                                 <div class="alert alert-warning border-0 shadow-sm mb-4">
+                                     <i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Cảnh báo:</strong> Hành động này sẽ xóa sạch dữ liệu khỏi cơ sở dữ liệu. Không thể hoàn tác!
+                                 </div>
+                                 <div class="d-flex flex-column gap-3">
+                                     <form action="/reset-data" method="POST" onsubmit="return confirm('CẢNH BÁO TỐI KHẨN: Bạn có CHẮC CHẮN muốn xóa sạch toàn bộ dữ liệu cấu hình RF của 3G, 4G, 5G?');">
+                                         <input type="hidden" name="target" value="rf">
+                                         <button type="submit" class="btn btn-danger w-100 shadow-sm fw-bold"><i class="fa-solid fa-trash-can me-2"></i>Reset Toàn Bộ Dữ Liệu RF</button>
+                                     </form>
+                                     <form action="/reset-data" method="POST" onsubmit="return confirm('CẢNH BÁO TỐI KHẨN: Bạn có CHẮC CHẮN muốn xóa sạch toàn bộ dữ liệu địa điểm POI của 4G, 5G?');">
+                                         <input type="hidden" name="target" value="poi">
+                                         <button type="submit" class="btn btn-danger w-100 shadow-sm fw-bold"><i class="fa-solid fa-trash-can me-2"></i>Reset Toàn Bộ Dữ Liệu POI</button>
+                                     </form>
+                                 </div>
                              </div>
                          </div>
                      </div>
@@ -2339,6 +2355,31 @@ def import_data():
     default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
     
     return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
+
+@app.route('/reset-data', methods=['POST'])
+@login_required
+def reset_data():
+    if current_user.role != 'admin':
+        return redirect(url_for('index'))
+    
+    target = request.form.get('target')
+    try:
+        if target == 'rf':
+            db.session.query(RF3G).delete()
+            db.session.query(RF4G).delete()
+            db.session.query(RF5G).delete()
+            db.session.commit()
+            flash('Đã reset thành công toàn bộ dữ liệu RF (3G, 4G, 5G)!', 'success')
+        elif target == 'poi':
+            db.session.query(POI4G).delete()
+            db.session.query(POI5G).delete()
+            db.session.commit()
+            flash('Đã reset thành công toàn bộ dữ liệu POI (4G, 5G)!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Đã xảy ra lỗi khi reset: {str(e)}', 'danger')
+        
+    return redirect(url_for('import_data'))
 
 @app.route('/backup', methods=['POST'])
 @login_required
