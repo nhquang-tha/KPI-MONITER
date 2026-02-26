@@ -646,12 +646,19 @@ CONTENT_TEMPLATE = """
                     });
                 });
 
+                function flyToOrigin(lat, lng) {
+                    azMap.flyTo([lat, lng], 17, {
+                        animate: true,
+                        duration: 1.5 // in seconds
+                    });
+                }
+
                 function getGPS() {
                     if (navigator.geolocation) {
                         navigator.geolocation.getCurrentPosition(function(position) {
                             document.getElementById('latO').value = position.coords.latitude;
                             document.getElementById('lngO').value = position.coords.longitude;
-                            azMap.setView([position.coords.latitude, position.coords.longitude], 15);
+                            flyToOrigin(position.coords.latitude, position.coords.longitude);
                             drawOrigin();
                         }, function(error) {
                             alert("Lỗi không lấy được GPS: " + error.message);
@@ -673,8 +680,19 @@ CONTENT_TEMPLATE = """
                         .addTo(azMap);
                 }
 
-                document.getElementById('latO').addEventListener('input', drawOrigin);
-                document.getElementById('lngO').addEventListener('input', drawOrigin);
+                document.getElementById('latO').addEventListener('input', function() {
+                    drawOrigin();
+                    var lat = document.getElementById('latO').value;
+                    var lng = document.getElementById('lngO').value;
+                    if(lat && lng) flyToOrigin(lat, lng);
+                });
+                
+                document.getElementById('lngO').addEventListener('input', function() {
+                    drawOrigin();
+                    var lat = document.getElementById('latO').value;
+                    var lng = document.getElementById('lngO').value;
+                    if(lat && lng) flyToOrigin(lat, lng);
+                });
 
                 function calculateDestinationPoint(lat1, lon1, brng, dist) {
                     const R = 6371e3;
@@ -929,9 +947,20 @@ CONTENT_TEMPLATE = """
                         gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
                     }
 
-                    if (bounds.length > 0) {
+                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
+                        var targetCell = gisData[0];
+                        for (var i = 0; i < gisData.length; i++) {
+                            var sCode = (gisData[i].site_code || "").toLowerCase();
+                            var cName = (gisData[i].cell_name || "").toLowerCase();
+                            var sInput = searchSite.toLowerCase();
+                            var cInput = searchCell.toLowerCase();
+                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) { targetCell = gisData[i]; break; }
+                        }
+                        if (targetCell.lat && targetCell.lon) { map.setView([targetCell.lat, targetCell.lon], 15); } 
+                        else { map.setView(mapCenter, mapZoom); }
+                    } else if (bounds.length > 0) {
                         map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
-                    } else if (actionType !== 'search') {
+                    } else {
                         map.setView(mapCenter, mapZoom);
                     }
 
