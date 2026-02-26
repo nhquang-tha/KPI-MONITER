@@ -622,9 +622,21 @@ CONTENT_TEMPLATE = """
                         azMap.toggleFullscreen();
                     });
 
-                    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'}).addTo(azMap);
-                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19});
-                    L.control.layers({"Bản đồ (OSM)": osmLayer, "Vệ tinh": satelliteLayer}).addTo(azMap);
+                    var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    }).addTo(azMap);
+                    
+                    var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    });
+
+                    L.control.layers({"Bản đồ (Google)": googleStreets, "Vệ tinh (Google)": googleHybrid}).addTo(azMap);
                     
                     drawnItems.addTo(azMap);
 
@@ -838,13 +850,9 @@ CONTENT_TEMPLATE = """
                     var mapCenter = [19.807, 105.776];
                     var mapZoom = 9;
 
-                    var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap'});
-                    var satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {maxZoom: 19, attribution: 'Tiles © Esri'});
-
                     var map = L.map('gisMap', {
                         center: mapCenter,
                         zoom: mapZoom,
-                        layers: [osmLayer],
                         fullscreenControl: true,
                         fullscreenControlOptions: { position: 'topleft' }
                     });
@@ -853,7 +861,21 @@ CONTENT_TEMPLATE = """
                         map.toggleFullscreen();
                     });
 
-                    L.control.layers({"Bản đồ (OSM)": osmLayer, "Vệ tinh": satelliteLayer}).addTo(map);
+                    var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    }).addTo(map);
+                    
+                    var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    });
+
+                    L.control.layers({"Bản đồ (Google)": googleStreets, "Vệ tinh (Google)": googleHybrid}).addTo(map);
 
                     // Add Custom Settings Control
                     if (hasGisData || hasItsData) {
