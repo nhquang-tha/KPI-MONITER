@@ -2190,13 +2190,26 @@ def rf():
             yield '\ufeff'.encode('utf-8')
             cols = [c.key for c in Model.__table__.columns if c.key != 'id']
             yield (','.join(cols) + '\n').encode('utf-8')
+            seen_export = set()
             for row in query.all():
-                yield (','.join([str(getattr(row, c) or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+                if row.cell_code not in seen_export:
+                    seen_export.add(row.cell_code)
+                    yield (','.join([str(getattr(row, c) or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
         return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
 
-    rows = query.limit(100).all()
+    rows = query.all()
     cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-    data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in rows]
+    data = []
+    seen_cells = set()
+    
+    for r in rows:
+        if r.cell_code not in seen_cells:
+            seen_cells.add(r.cell_code)
+            data.append({c: getattr(r, c) for c in cols} | {'id': r.id})
+            # Nếu không tìm kiếm cụ thể, chỉ hiển thị tối đa 100 trạm để web không bị lag
+            if not search_query and len(data) >= 100:
+                break
+                
     return render_page(CONTENT_TEMPLATE, title="RF Database", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data, search_query=search_query)
 
 @app.route('/rf/delete/<tech>/<int:id>')
