@@ -644,9 +644,11 @@ CONTENT_TEMPLATE = """
 
                     // Sự kiện Click lên bản đồ để lấy toạ độ Điểm O
                     azMap.on('click', function(e) {
-                        document.getElementById('latO').value = e.latlng.lat.toFixed(6);
-                        document.getElementById('lngO').value = e.latlng.lng.toFixed(6);
-                        drawOrigin();
+                        if (!markerO) { // CHỈ TẠO LẦN ĐẦU TIÊN
+                            document.getElementById('latO').value = e.latlng.lat.toFixed(6);
+                            document.getElementById('lngO').value = e.latlng.lng.toFixed(6);
+                            drawOrigin();
+                        }
                     });
 
                     document.getElementById('azimuthForm').addEventListener('submit', function(e) {
@@ -787,8 +789,13 @@ CONTENT_TEMPLATE = """
                     // Cho phép các điểm kéo thả được
                     var markerB = L.marker(pointB, {icon: iconB, draggable: true})
                         .bindTooltip("<b>" + ptName + "</b>", {permanent: true, direction: 'right', className: 'text-primary border-primary rounded shadow-sm px-1 py-0'})
-                        .bindPopup(popupContent)
+                        .bindPopup(popupContent, {autoPan: false}) // Tắt autoPan để bản đồ không bị giật khi kéo
                         .addTo(drawnItems);
+
+                    // Mở popup ngay khi bắt đầu kéo để nhìn thấy số liệu chạy liên tục
+                    markerB.on('dragstart', function(e) {
+                        this.openPopup();
+                    });
 
                     // Vẽ tia màu đen đậm nét liền
                     var polyline = L.polyline([[latO, lngO], pointB], {
