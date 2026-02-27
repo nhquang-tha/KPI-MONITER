@@ -375,10 +375,6 @@ BASE_LAYOUT = """
         .table-responsive::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        /* Ẩn nút fullscreen mặc định của plugin để nhường chỗ cho nút Custom của chúng ta */
-        .leaflet-control-fullscreen { display: none !important; }
-        /* CSS Dành cho Fullscreen giả lập hoạt động mượt mà trong iFrame/Canvas */
-        .pseudo-fullscreen { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 99999 !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; }
     </style>
 </head>
 <body>
@@ -610,10 +606,11 @@ CONTENT_TEMPLATE = """
                         center: [16.0, 106.0], 
                         zoom: 5,
                         zoomControl: false, // Tắt zoom mặc định (topleft) để nhường chỗ cho Form
-                        fullscreenControl: true // Bật true để plugin xử lý logic
+                        fullscreenControl: true, // Bật Fullscreen chuẩn của thư viện
+                        fullscreenControlOptions: { position: 'bottomright' } // Đặt cạnh nút Zoom
                     });
                     
-                    // Thêm lại nút zoom ở góc dưới phải để không vướng víu
+                    // Thêm lại nút zoom ở góc dưới phải
                     L.control.zoom({ position: 'bottomright' }).addTo(azMap);
 
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
@@ -644,37 +641,6 @@ CONTENT_TEMPLATE = """
                         return div;
                     };
                     formControl.addTo(azMap);
-
-                    // Nút Toàn Màn Hình dạng Biểu tượng nằm cạnh nút Zoom
-                    var customFsControl = L.control({position: 'bottomright'});
-                    customFsControl.onAdd = function(m) {
-                        var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                        var btn = L.DomUtil.create('a', '', container);
-                        btn.href = '#';
-                        btn.title = 'Toàn màn hình';
-                        btn.style.display = 'flex';
-                        btn.style.alignItems = 'center';
-                        btn.style.justifyContent = 'center';
-                        btn.style.color = '#333';
-                        btn.style.textDecoration = 'none';
-                        btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
-                        
-                        L.DomEvent.disableClickPropagation(btn);
-                        L.DomEvent.on(btn, 'click', function(e) {
-                            L.DomEvent.preventDefault(e);
-                            var mapContainer = m.getContainer();
-                            mapContainer.classList.toggle('pseudo-fullscreen');
-                            if (mapContainer.classList.contains('pseudo-fullscreen')) {
-                                btn.innerHTML = '<i class="fa-solid fa-compress"></i>';
-                            } else {
-                                btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
-                            }
-                            // Buộc bản đồ vẽ lại độ phân giải để tránh lỗi xám viền
-                            setTimeout(() => m.invalidateSize(), 300);
-                        });
-                        return container;
-                    };
-                    customFsControl.addTo(azMap);
 
                     // Sự kiện Click lên bản đồ để lấy toạ độ Điểm O
                     azMap.on('click', function(e) {
@@ -978,42 +944,13 @@ CONTENT_TEMPLATE = """
                     var map = L.map('gisMap', {
                         center: mapCenter,
                         zoom: mapZoom,
-                        fullscreenControl: false // Tắt mặc định
+                        zoomControl: false,
+                        fullscreenControl: true, // Bật nút Fullscreen mặc định
+                        fullscreenControlOptions: { position: 'bottomright' }
                     });
                     
                     // Thêm nút zoom ở góc dưới phải
                     L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-                    // Nút Toàn màn hình dạng Biểu tượng nằm cạnh nút Zoom cho GIS
-                    var customFsControlGis = L.control({position: 'bottomright'});
-                    customFsControlGis.onAdd = function(m) {
-                        var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
-                        var btn = L.DomUtil.create('a', '', container);
-                        btn.href = '#';
-                        btn.title = 'Toàn màn hình';
-                        btn.style.display = 'flex';
-                        btn.style.alignItems = 'center';
-                        btn.style.justifyContent = 'center';
-                        btn.style.color = '#333';
-                        btn.style.textDecoration = 'none';
-                        btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
-                        
-                        L.DomEvent.disableClickPropagation(btn);
-                        L.DomEvent.on(btn, 'click', function(e) {
-                            L.DomEvent.preventDefault(e);
-                            var mapContainer = m.getContainer();
-                            mapContainer.classList.toggle('pseudo-fullscreen');
-                            if (mapContainer.classList.contains('pseudo-fullscreen')) {
-                                btn.innerHTML = '<i class="fa-solid fa-compress"></i>';
-                            } else {
-                                btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
-                            }
-                            // Buộc bản đồ vẽ lại
-                            setTimeout(() => m.invalidateSize(), 300);
-                        });
-                        return container;
-                    };
-                    customFsControlGis.addTo(map);
 
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                         maxZoom: 22,
