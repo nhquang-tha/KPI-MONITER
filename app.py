@@ -567,8 +567,6 @@ CONTENT_TEMPLATE = """
 
             <!-- Panel công cụ (Sẽ được gắn vào trong Bản đồ như một Control Nổi) -->
             <div id="azimuthFormContainer" class="shadow-lg" style="display: none; background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; width: 320px; max-height: 70vh; overflow-y: auto; border: 1px solid #dee2e6;">
-                <button type="button" id="btn-toggle-fs" class="btn btn-danger btn-sm w-100 mb-3 fw-bold shadow-sm"><i class="fa-solid fa-expand me-1"></i>Bật/Tắt Toàn Màn Hình</button>
-                
                 <h6 class="fw-bold text-primary mb-2"><i class="fa-solid fa-compass me-2"></i>Tọa độ Điểm O (Gốc)</h6>
                 <div class="mb-2 text-muted" style="font-size: 0.75rem;"><i class="fa-solid fa-info-circle me-1"></i><i>Mẹo: Click lên Bản đồ để chọn nhanh Điểm O</i></div>
                 <div class="mb-2">
@@ -647,19 +645,36 @@ CONTENT_TEMPLATE = """
                     };
                     formControl.addTo(azMap);
 
-                    // Nút Toàn Màn Hình tùy chỉnh (Fix lỗi bị chặn)
-                    L.DomEvent.on(document.getElementById('btn-toggle-fs'), 'click', function(e) {
-                        L.DomEvent.preventDefault(e);
-                        var mapContainer = document.getElementById('azimuthMap');
-                        mapContainer.classList.toggle('pseudo-fullscreen');
-                        if (mapContainer.classList.contains('pseudo-fullscreen')) {
-                            this.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Thu Nhỏ Màn Hình';
-                        } else {
-                            this.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Bật Toàn Màn Hình';
-                        }
-                        // Buộc bản đồ vẽ lại độ phân giải để tránh lỗi xám viền
-                        setTimeout(() => azMap.invalidateSize(), 300);
-                    });
+                    // Nút Toàn Màn Hình dạng Biểu tượng nằm cạnh nút Zoom
+                    var customFsControl = L.control({position: 'bottomright'});
+                    customFsControl.onAdd = function(m) {
+                        var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                        var btn = L.DomUtil.create('a', '', container);
+                        btn.href = '#';
+                        btn.title = 'Toàn màn hình';
+                        btn.style.display = 'flex';
+                        btn.style.alignItems = 'center';
+                        btn.style.justifyContent = 'center';
+                        btn.style.color = '#333';
+                        btn.style.textDecoration = 'none';
+                        btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                        
+                        L.DomEvent.disableClickPropagation(btn);
+                        L.DomEvent.on(btn, 'click', function(e) {
+                            L.DomEvent.preventDefault(e);
+                            var mapContainer = m.getContainer();
+                            mapContainer.classList.toggle('pseudo-fullscreen');
+                            if (mapContainer.classList.contains('pseudo-fullscreen')) {
+                                btn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+                            } else {
+                                btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                            }
+                            // Buộc bản đồ vẽ lại độ phân giải để tránh lỗi xám viền
+                            setTimeout(() => m.invalidateSize(), 300);
+                        });
+                        return container;
+                    };
+                    customFsControl.addTo(azMap);
 
                     // Sự kiện Click lên bản đồ để lấy toạ độ Điểm O
                     azMap.on('click', function(e) {
@@ -966,29 +981,37 @@ CONTENT_TEMPLATE = """
                         fullscreenControl: false // Tắt mặc định
                     });
                     
-                    // Nút Toàn màn hình tùy chỉnh cho GIS nằm trong L.control
-                    var customFsControlGis = L.control({position: 'topleft'});
+                    // Thêm nút zoom ở góc dưới phải
+                    L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+                    // Nút Toàn màn hình dạng Biểu tượng nằm cạnh nút Zoom cho GIS
+                    var customFsControlGis = L.control({position: 'bottomright'});
                     customFsControlGis.onAdd = function(m) {
-                        var btn = L.DomUtil.create('button', 'btn btn-danger btn-sm shadow-lg fw-bold');
-                        btn.style.border = '2px solid white';
-                        btn.style.borderRadius = '8px';
-                        btn.style.marginLeft = '12px';
-                        btn.style.marginTop = '12px';
-                        btn.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Toàn Màn Hình';
+                        var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                        var btn = L.DomUtil.create('a', '', container);
+                        btn.href = '#';
+                        btn.title = 'Toàn màn hình';
+                        btn.style.display = 'flex';
+                        btn.style.alignItems = 'center';
+                        btn.style.justifyContent = 'center';
+                        btn.style.color = '#333';
+                        btn.style.textDecoration = 'none';
+                        btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+                        
                         L.DomEvent.disableClickPropagation(btn);
                         L.DomEvent.on(btn, 'click', function(e) {
                             L.DomEvent.preventDefault(e);
-                            var mapContainer = document.getElementById('gisMap');
+                            var mapContainer = m.getContainer();
                             mapContainer.classList.toggle('pseudo-fullscreen');
                             if (mapContainer.classList.contains('pseudo-fullscreen')) {
-                                btn.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Thu Nhỏ';
+                                btn.innerHTML = '<i class="fa-solid fa-compress"></i>';
                             } else {
-                                btn.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Toàn Màn Hình';
+                                btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
                             }
                             // Buộc bản đồ vẽ lại
                             setTimeout(() => m.invalidateSize(), 300);
                         });
-                        return btn;
+                        return container;
                     };
                     customFsControlGis.addTo(map);
 
