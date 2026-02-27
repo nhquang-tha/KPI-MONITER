@@ -356,8 +356,8 @@ BASE_LAYOUT = """
         .sidebar-menu a.active { border-left-color: var(--primary-color); background-color: rgba(255, 255, 255, 0.95); }
         .sidebar-menu i { margin-right: 15px; width: 24px; text-align: center; font-size: 1.1rem; }
         .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; transition: all 0.3s ease; }
-        .card { border: none; border-radius: var(--border-radius); background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); box-shadow: var(--shadow-soft); transition: transform 0.3s ease, box-shadow 0.3s ease; margin-bottom: 1.5rem; overflow: hidden; }
-        .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+        .card { border: none; border-radius: var(--border-radius); background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px); box-shadow: var(--shadow-soft); transition: box-shadow 0.3s ease; margin-bottom: 1.5rem; }
+        .card:hover { box-shadow: var(--shadow-hover); }
         .card-header { background-color: rgba(255, 255, 255, 0.9); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 1.25rem 1.5rem; font-weight: 600; color: #333; font-size: 1.1rem; }
         .card-body { padding: 1.5rem; }
         .btn-primary { background-color: var(--primary-color); border: none; box-shadow: 0 2px 6px rgba(0, 120, 212, 0.3); border-radius: 6px; padding: 0.5rem 1.25rem; font-weight: 500; transition: all 0.2s; }
@@ -375,6 +375,8 @@ BASE_LAYOUT = """
         .table-responsive::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+        /* Khắc phục lỗi bản đồ Fullscreen bị co lại do z-index và transform */
+        .leaflet-pseudo-fullscreen { position: fixed !important; width: 100vw !important; height: 100vh !important; top: 0 !important; left: 0 !important; z-index: 99999 !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; }
     </style>
 </head>
 <body>
@@ -606,11 +608,11 @@ CONTENT_TEMPLATE = """
                         center: [16.0, 106.0], 
                         zoom: 5,
                         zoomControl: false, // Tắt zoom mặc định (topleft) để nhường chỗ cho Form
-                        fullscreenControl: true, // Bật Fullscreen chuẩn của thư viện
-                        fullscreenControlOptions: { position: 'bottomright' } // Đặt cạnh nút Zoom
+                        fullscreenControl: true, // Bật plugin FullScreen gốc
+                        fullscreenControlOptions: { position: 'bottomright' }
                     });
                     
-                    // Thêm lại nút zoom ở góc dưới phải
+                    // Thêm lại nút zoom ở góc dưới phải để không vướng víu
                     L.control.zoom({ position: 'bottomright' }).addTo(azMap);
 
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
@@ -945,7 +947,7 @@ CONTENT_TEMPLATE = """
                         center: mapCenter,
                         zoom: mapZoom,
                         zoomControl: false,
-                        fullscreenControl: true, // Bật nút Fullscreen mặc định
+                        fullscreenControl: true, // Bật plugin FullScreen gốc
                         fullscreenControlOptions: { position: 'bottomright' }
                     });
                     
@@ -2593,7 +2595,9 @@ def rf_delete(tech, id):
 def rf_detail(tech, id):
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     obj = db.session.get(Model, id)
-    return render_page(RF_DETAIL_TEMPLATE, obj=obj.__dict__, tech=tech)
+    # Lọc bỏ biến nội bộ _sa_instance_state của SQLAlchemy
+    clean_obj = {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+    return render_page(RF_DETAIL_TEMPLATE, obj=clean_obj, tech=tech)
 
 @app.route('/rf/add', methods=['GET', 'POST'])
 @login_required
