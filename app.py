@@ -375,8 +375,10 @@ BASE_LAYOUT = """
         .table-responsive::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        /* CSS Dành cho Fullscreen giả lập hoạt động mượt mà trong iFrame */
-        .pseudo-fullscreen { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; }
+        /* Ẩn nút fullscreen mặc định của plugin để nhường chỗ cho nút Custom của chúng ta */
+        .leaflet-control-fullscreen { display: none !important; }
+        /* CSS Dành cho Fullscreen giả lập hoạt động mượt mà trong iFrame/Canvas */
+        .pseudo-fullscreen { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 99999 !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; }
     </style>
 </head>
 <body>
@@ -609,7 +611,8 @@ CONTENT_TEMPLATE = """
                     azMap = L.map('azimuthMap', {
                         center: [16.0, 106.0], 
                         zoom: 5,
-                        zoomControl: false // Tắt zoom mặc định (topleft) để nhường chỗ cho Form
+                        zoomControl: false, // Tắt zoom mặc định (topleft) để nhường chỗ cho Form
+                        fullscreenControl: true // Bật true để plugin xử lý logic
                     });
                     
                     // Thêm lại nút zoom ở góc dưới phải để không vướng víu
@@ -644,16 +647,17 @@ CONTENT_TEMPLATE = """
                     };
                     formControl.addTo(azMap);
 
-                    // Khắc phục: Nút Toàn Màn Hình giả lập (Hoạt động tốt trên mọi trình duyệt/iFrame)
-                    document.getElementById('btn-toggle-fs').addEventListener('click', function() {
-                        var mapDiv = document.getElementById('azimuthMap');
-                        mapDiv.classList.toggle('pseudo-fullscreen');
-                        if(mapDiv.classList.contains('pseudo-fullscreen')) {
-                            this.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Tắt Toàn Màn Hình';
+                    // Nút Toàn Màn Hình tùy chỉnh (Fix lỗi bị chặn)
+                    L.DomEvent.on(document.getElementById('btn-toggle-fs'), 'click', function(e) {
+                        L.DomEvent.preventDefault(e);
+                        var mapContainer = document.getElementById('azimuthMap');
+                        mapContainer.classList.toggle('pseudo-fullscreen');
+                        if (mapContainer.classList.contains('pseudo-fullscreen')) {
+                            this.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Thu Nhỏ Màn Hình';
                         } else {
                             this.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Bật Toàn Màn Hình';
                         }
-                        // Buộc bản đồ vẽ lại kích thước để không bị lỗi vỡ hạt
+                        // Buộc bản đồ vẽ lại độ phân giải để tránh lỗi xám viền
                         setTimeout(() => azMap.invalidateSize(), 300);
                     });
 
@@ -936,7 +940,7 @@ CONTENT_TEMPLATE = """
                 </div>
             </div>
             <div class="card border border-light shadow-sm">
-                <div class="card-body p-2 position-relative">
+                <div class="card-body p-1 position-relative">
                     <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index: 1;"></div>
                 </div>
             </div>
@@ -959,34 +963,34 @@ CONTENT_TEMPLATE = """
                     var map = L.map('gisMap', {
                         center: mapCenter,
                         zoom: mapZoom,
-                        zoomControl: false
+                        fullscreenControl: false // Tắt mặc định
                     });
                     
-                    L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-                    // Khắc phục: Chèn Nút Fullscreen vào trong bản đồ GIS và dùng Pseudo-Fullscreen
-                    var fsControlGIS = L.control({position: 'topleft'});
-                    fsControlGIS.onAdd = function(map) {
+                    // Nút Toàn màn hình tùy chỉnh cho GIS nằm trong L.control
+                    var customFsControlGis = L.control({position: 'topleft'});
+                    customFsControlGis.onAdd = function(m) {
                         var btn = L.DomUtil.create('button', 'btn btn-danger btn-sm shadow-lg fw-bold');
-                        btn.innerHTML = '<i class="fa-solid fa-expand me-2"></i>Bật Toàn Màn Hình';
                         btn.style.border = '2px solid white';
-                        btn.style.marginLeft = '10px';
-                        btn.style.marginTop = '10px';
-                        
+                        btn.style.borderRadius = '8px';
+                        btn.style.marginLeft = '12px';
+                        btn.style.marginTop = '12px';
+                        btn.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Toàn Màn Hình';
+                        L.DomEvent.disableClickPropagation(btn);
                         L.DomEvent.on(btn, 'click', function(e) {
-                            L.DomEvent.stopPropagation(e);
-                            var mapDiv = document.getElementById('gisMap');
-                            mapDiv.classList.toggle('pseudo-fullscreen');
-                            if(mapDiv.classList.contains('pseudo-fullscreen')) {
-                                btn.innerHTML = '<i class="fa-solid fa-compress me-2"></i>Tắt Toàn Màn Hình';
+                            L.DomEvent.preventDefault(e);
+                            var mapContainer = document.getElementById('gisMap');
+                            mapContainer.classList.toggle('pseudo-fullscreen');
+                            if (mapContainer.classList.contains('pseudo-fullscreen')) {
+                                btn.innerHTML = '<i class="fa-solid fa-compress me-1"></i>Thu Nhỏ';
                             } else {
-                                btn.innerHTML = '<i class="fa-solid fa-expand me-2"></i>Bật Toàn Màn Hình';
+                                btn.innerHTML = '<i class="fa-solid fa-expand me-1"></i>Toàn Màn Hình';
                             }
-                            setTimeout(() => map.invalidateSize(), 300);
+                            // Buộc bản đồ vẽ lại
+                            setTimeout(() => m.invalidateSize(), 300);
                         });
                         return btn;
                     };
-                    fsControlGIS.addTo(map);
+                    customFsControlGis.addTo(map);
 
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                         maxZoom: 22,
