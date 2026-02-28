@@ -375,11 +375,13 @@ BASE_LAYOUT = """
         .table-responsive::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        /* Khắc phục lỗi bản đồ Fullscreen bị co lại do z-index và transform */
-        .leaflet-pseudo-fullscreen { position: fixed !important; width: 100vw !important; height: 100vh !important; top: 0 !important; left: 0 !important; z-index: 99999 !important; border-radius: 0 !important; margin: 0 !important; padding: 0 !important; }
+        /* CSS Overlay cho Sidebar trên Mobile */
+        #sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); z-index: 999; backdrop-filter: blur(2px); transition: all 0.3s ease; }
+        #sidebar-overlay.active { display: block; }
     </style>
 </head>
 <body>
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header"><i class="fa-solid fa-network-wired"></i> NetOps</div>
         <ul class="sidebar-menu">
@@ -407,8 +409,8 @@ BASE_LAYOUT = """
     </div>
 
     <div class="main-content">
-        <button class="btn btn-light shadow-sm d-md-none mb-3 border" onclick="document.getElementById('sidebar').classList.toggle('active')">
-            <i class="fa-solid fa-bars"></i> Menu
+        <button class="btn btn-light shadow-sm d-md-none mb-3 border fw-bold" onclick="toggleSidebar()">
+            <i class="fa-solid fa-bars me-1"></i> Menu
         </button>
 
         <div class="container-fluid p-0">
@@ -446,6 +448,11 @@ BASE_LAYOUT = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('sidebar-overlay').classList.toggle('active');
+        }
+
         let modalChartInstance = null;
         function showDetailModal(cellName, date, value, metricLabel, allDatasets, allLabels) {
             document.getElementById('modalTitle').innerText = 'Chi tiết ' + metricLabel;
@@ -564,7 +571,7 @@ CONTENT_TEMPLATE = """
             </div>
 
             <!-- Panel công cụ (Sẽ được gắn vào trong Bản đồ như một Control Nổi) -->
-            <div id="azimuthFormContainer" class="shadow-lg" style="display: none; background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; width: 320px; max-height: 70vh; overflow-y: auto; border: 1px solid #dee2e6;">
+            <div id="azimuthFormContainer" class="shadow-lg" style="background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; width: 320px; max-width: 90vw; max-height: 65vh; overflow-y: auto; border: 1px solid #dee2e6;">
                 <h6 class="fw-bold text-primary mb-2"><i class="fa-solid fa-compass me-2"></i>Tọa độ Điểm O (Gốc)</h6>
                 <div class="mb-2 text-muted" style="font-size: 0.75rem;"><i class="fa-solid fa-info-circle me-1"></i><i>Mẹo: Click lên Bản đồ để chọn nhanh Điểm O</i></div>
                 <div class="mb-2">
@@ -607,13 +614,10 @@ CONTENT_TEMPLATE = """
                     azMap = L.map('azimuthMap', {
                         center: [16.0, 106.0], 
                         zoom: 5,
-                        zoomControl: false, // Tắt zoom mặc định (topleft) để nhường chỗ cho Form
+                        zoomControl: true, // Mở lại zoom mặc định ở góc topleft
                         fullscreenControl: true, // Bật plugin FullScreen gốc
-                        fullscreenControlOptions: { position: 'bottomright' }
+                        fullscreenControlOptions: { position: 'topleft' } // Đặt ở góc trên bên trái
                     });
-                    
-                    // Thêm lại nút zoom ở góc dưới phải để không vướng víu
-                    L.control.zoom({ position: 'bottomright' }).addTo(azMap);
 
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                         maxZoom: 22,
@@ -633,14 +637,39 @@ CONTENT_TEMPLATE = """
                     
                     drawnItems.addTo(azMap);
 
-                    // --- CHUYỂN FORM VÀO TRONG BẢN ĐỒ LÀM WIDGET ---
-                    var formControl = L.control({position: 'topleft'});
+                    // --- CHUYỂN FORM VÀO TRONG BẢN ĐỒ VÀ TẠO NÚT TOGGLE ẨN/HIỆN LÊN ĐIỆN THOẠI ---
+                    var formControl = L.control({position: 'topright'});
                     formControl.onAdd = function (map) {
-                        var div = document.getElementById('azimuthFormContainer');
-                        div.style.display = 'block'; 
-                        L.DomEvent.disableClickPropagation(div);
-                        L.DomEvent.disableScrollPropagation(div);
-                        return div;
+                        var wrapper = L.DomUtil.create('div', 'leaflet-control');
+                        
+                        // Nút thu gọn
+                        var toggleBtn = L.DomUtil.create('button', 'btn btn-primary btn-sm shadow-lg mb-2 w-100 fw-bold', wrapper);
+                        toggleBtn.innerHTML = '<i class="fa-solid fa-sliders me-1"></i>Công Cụ Vẽ';
+                        toggleBtn.style.border = '2px solid white';
+                        toggleBtn.style.borderRadius = '8px';
+
+                        var formDiv = document.getElementById('azimuthFormContainer');
+                        wrapper.appendChild(formDiv);
+                        
+                        // Tự động thu gọn form nếu dùng trên điện thoại
+                        if (window.innerWidth <= 768) {
+                            formDiv.style.display = 'none';
+                        }
+
+                        L.DomEvent.disableClickPropagation(wrapper);
+                        L.DomEvent.disableScrollPropagation(wrapper);
+
+                        L.DomEvent.on(toggleBtn, 'click', function(e) {
+                            L.DomEvent.preventDefault(e);
+                            L.DomEvent.stopPropagation(e);
+                            if (formDiv.style.display === 'none') {
+                                formDiv.style.display = 'block';
+                            } else {
+                                formDiv.style.display = 'none';
+                            }
+                        });
+
+                        return wrapper;
                     };
                     formControl.addTo(azMap);
 
@@ -946,13 +975,10 @@ CONTENT_TEMPLATE = """
                     var map = L.map('gisMap', {
                         center: mapCenter,
                         zoom: mapZoom,
-                        zoomControl: false,
-                        fullscreenControl: true, // Bật plugin FullScreen gốc
-                        fullscreenControlOptions: { position: 'bottomright' }
+                        zoomControl: true, // Bật zoom ở góc topleft
+                        fullscreenControl: true, // Bật FullScreen
+                        fullscreenControlOptions: { position: 'topleft' } // Chuyển lên góc topleft
                     });
-                    
-                    // Thêm nút zoom ở góc dưới phải
-                    L.control.zoom({ position: 'bottomright' }).addTo(map);
 
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                         maxZoom: 22,
