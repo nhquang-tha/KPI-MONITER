@@ -387,7 +387,6 @@ BASE_LAYOUT = """
         <ul class="sidebar-menu">
             <li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li>
             <li><a href="/gis" class="{{ 'active' if active_page == 'gis' else '' }}"><i class="fa-solid fa-map-location-dot"></i> Bản đồ GIS</a></li>
-            <li><a href="/azimuth" class="{{ 'active' if active_page == 'azimuth' else '' }}"><i class="fa-solid fa-compass"></i> Tính Azimuth</a></li>
             <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li>
             <li><a href="/qoe-qos" class="{{ 'active' if active_page == 'qoe_qos' else '' }}"><i class="fa-solid fa-star-half-stroke"></i> QoE QoS Analytics</a></li>
             <li><a href="/optimize" class="{{ 'active' if active_page == 'optimize' else '' }}"><i class="fa-solid fa-wand-magic-sparkles"></i> Tối ưu QoE/QoS</a></li>
@@ -396,7 +395,16 @@ BASE_LAYOUT = """
             <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
             <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
             <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
-            <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}"><i class="fa-solid fa-code"></i> Script</a></li>
+            <li>
+                <a href="#toolsMenu" data-bs-toggle="collapse" class="{{ 'active' if active_page in ['azimuth', 'script'] else '' }}">
+                    <i class="fa-solid fa-toolbox"></i> Tools
+                    <i class="fa-solid fa-chevron-down ms-auto" style="width: auto; font-size: 0.8rem;"></i>
+                </a>
+                <ul class="collapse list-unstyled {{ 'show' if active_page in ['azimuth', 'script'] else '' }}" id="toolsMenu">
+                    <li><a href="/azimuth" class="{{ 'active' if active_page == 'azimuth' else '' }}" style="margin-left: 20px; font-size: 0.95rem;"><i class="fa-solid fa-compass"></i> Azimuth</a></li>
+                    <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}" style="margin-left: 20px; font-size: 0.95rem;"><i class="fa-solid fa-code"></i> Script</a></li>
+                </ul>
+            </li>
             {% if current_user.role == 'admin' %}
             <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
             <li class="mt-4 mb-2 text-muted px-4 text-uppercase" style="font-size: 0.75rem; letter-spacing: 1px;">System</li>
