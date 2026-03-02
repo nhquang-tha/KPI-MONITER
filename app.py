@@ -988,6 +988,67 @@ CONTENT_TEMPLATE = """
                         fullscreenControlOptions: { position: 'topleft' } // Chuyển lên góc topleft
                     });
 
+                    // Thêm nút GPS Định vị tại vị trí hiện tại
+                    var gpsControlGis = L.control({position: 'topleft'});
+                    gpsControlGis.onAdd = function(m) {
+                        var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                        var btn = L.DomUtil.create('a', '', container);
+                        btn.href = '#';
+                        btn.title = 'Vị trí của tôi';
+                        btn.style.display = 'flex';
+                        btn.style.alignItems = 'center';
+                        btn.style.justifyContent = 'center';
+                        btn.style.width = '30px';
+                        btn.style.height = '30px';
+                        btn.style.backgroundColor = '#fff';
+                        btn.style.color = '#333';
+                        btn.style.textDecoration = 'none';
+                        btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+                        
+                        var userMarker = null;
+
+                        L.DomEvent.disableClickPropagation(btn);
+                        L.DomEvent.on(btn, 'click', function(e) {
+                            L.DomEvent.preventDefault(e);
+                            if (navigator.geolocation) {
+                                // Đổi icon sang trạng thái đang tải
+                                btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+                                navigator.geolocation.getCurrentPosition(function(position) {
+                                    var lat = position.coords.latitude;
+                                    var lng = position.coords.longitude;
+                                    
+                                    // Di chuyển bản đồ mềm mại đến tọa độ GPS
+                                    m.flyTo([lat, lng], 16, { animate: true, duration: 1.5 });
+                                    
+                                    // Xóa marker cũ nếu đã có
+                                    if (userMarker) m.removeLayer(userMarker);
+                                    
+                                    // Tạo chấm xanh chuẩn Google Maps
+                                    var iconGPS = L.divIcon({
+                                        className: 'custom-gps-icon', 
+                                        html: "<div style='background-color:#4285F4;width:16px;height:16px;border-radius:50%;border:2px solid white;box-shadow:0 0 8px rgba(0,0,0,0.6);'></div>", 
+                                        iconSize: [16, 16], 
+                                        iconAnchor: [8, 8]
+                                    });
+                                    
+                                    userMarker = L.marker([lat, lng], {icon: iconGPS})
+                                        .bindTooltip("<b>Vị trí của bạn</b>", {permanent: false, direction: 'top', className: 'text-primary shadow-sm border-0'})
+                                        .addTo(m);
+                                        
+                                    // Trả lại icon như cũ
+                                    btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+                                }, function(error) {
+                                    alert("Lỗi không lấy được GPS: " + error.message);
+                                    btn.innerHTML = '<i class="fa-solid fa-location-crosshairs"></i>';
+                                });
+                            } else {
+                                alert("Trình duyệt của bạn không hỗ trợ định vị.");
+                            }
+                        });
+                        return container;
+                    };
+                    gpsControlGis.addTo(map);
+
                     var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
                         maxZoom: 22,
                         subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
