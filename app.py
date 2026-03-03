@@ -1342,13 +1342,29 @@ CONTENT_TEMPLATE = """
                             div.style.fontSize = '0.85rem';
                             div.style.lineHeight = '1.8';
                             div.style.border = '1px solid #dee2e6';
+                            div.style.minWidth = '160px';
                             
-                            var html = '';
-                            var has4G = itsData.some(pt => (pt.tech || '').toUpperCase().includes('4G') || (pt.tech || '').toUpperCase().includes('LTE'));
-                            var has3G = itsData.some(pt => !(pt.tech || '').toUpperCase().includes('4G') && !(pt.tech || '').toUpperCase().includes('LTE'));
+                            L.DomEvent.disableClickPropagation(div);
+                            
+                            var currentTech = "{{ selected_tech }}";
+                            
+                            var html = '<div id="legend-header" class="d-flex justify-content-between align-items-center" style="cursor:pointer; margin-bottom: 2px;">';
+                            html += '<strong class="text-dark fs-6 mb-0"><i class="fa-solid fa-list-ul me-1"></i> Chú giải</strong>';
+                            html += '<i class="fa-solid fa-chevron-down text-muted ms-3" id="legend-toggle-icon"></i>';
+                            html += '</div>';
+                            
+                            html += '<div id="legend-body" style="display: block; margin-top: 8px;">';
 
-                            if (has4G) {
-                                html += '<strong class="text-primary fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> Chú giải 4G RSRP</strong>';
+                            if (currentTech === '3g') {
+                                html += '<strong class="text-success d-block mb-1"><i class="fa-solid fa-signal me-1"></i> 3G RSCP</strong>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -65)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-75 đến -65)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-85 đến -75)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Kém (-95 đến -85)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-105 đến -95)</div>';
+                                html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -105)</div>';
+                            } else {
+                                html += '<strong class="text-primary d-block mb-1"><i class="fa-solid fa-signal me-1"></i> 4G/5G RSRP</strong>';
                                 html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -75)</div>';
                                 html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-85 đến -75)</div>';
                                 html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-95 đến -85)</div>';
@@ -1356,20 +1372,33 @@ CONTENT_TEMPLATE = """
                                 html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-115 đến -105)</div>';
                                 html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -115)</div>';
                             }
-                            if (has3G) {
-                                if (has4G) html += '<hr class="my-2">';
-                                html += '<strong class="text-success fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> Chú giải 3G RSCP</strong>';
-                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -65)</div>';
-                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-75 đến -65)</div>';
-                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-85 đến -75)</div>';
-                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Kém (-95 đến -85)</div>';
-                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-105 đến -95)</div>';
-                                html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -105)</div>';
-                            }
+                            
+                            html += '</div>';
                             div.innerHTML = html;
                             return div;
                         };
                         legend.addTo(map);
+
+                        // Kích hoạt tính năng Ẩn/Hiện cho bảng Chú giải
+                        setTimeout(function() {
+                            var header = document.getElementById('legend-header');
+                            var body = document.getElementById('legend-body');
+                            var icon = document.getElementById('legend-toggle-icon');
+                            if (header && body && icon) {
+                                header.addEventListener('click', function(e) {
+                                    e.stopPropagation();
+                                    if (body.style.display === 'none') {
+                                        body.style.display = 'block';
+                                        icon.classList.remove('fa-chevron-up');
+                                        icon.classList.add('fa-chevron-down');
+                                    } else {
+                                        body.style.display = 'none';
+                                        icon.classList.remove('fa-chevron-down');
+                                        icon.classList.add('fa-chevron-up');
+                                    }
+                                });
+                            }
+                        }, 100);
                     }
                 });
             </script>
