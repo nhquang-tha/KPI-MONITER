@@ -2397,33 +2397,69 @@ def qoe_qos():
         
         if qoe_records or qos_records:
             has_data = True
+            
+            # Khắc phục lỗi trùng lặp Tên tuần: Gom 'Tuần 09' và 'Tuần 09 (ngày/tháng)' thành 1
+            week_map = {}
+            for r in qoe_records + qos_records:
+                if not r.week_name: continue
+                match = re.search(r'tuan\s*(\d+)', remove_accents(str(r.week_name)).lower())
+                if match:
+                    w_num = int(match.group(1))
+                    # Ưu tiên lấy tên dài hơn để hiển thị (chứa ngày tháng)
+                    if w_num not in week_map or len(r.week_name) > len(week_map[w_num]):
+                        week_map[w_num] = r.week_name
+            
+            for r in qoe_records + qos_records:
+                if not r.week_name: continue
+                match = re.search(r'tuan\s*(\d+)', remove_accents(str(r.week_name)).lower())
+                if match:
+                    r.week_name = week_map[int(match.group(1))]
+
             all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
             
             if qoe_records:
-                qoe_score_map = {r.week_name: (r.qoe_score or 0) for r in qoe_records}
-                qoe_percent_map = {r.week_name: (r.qoe_percent or 0) for r in qoe_records}
+                qoe_score_map = {}
+                qoe_percent_map = {}
+                # Ghi đè giá trị mới nhất nếu có nhiều bản ghi cùng tuần
+                for r in qoe_records:
+                    qoe_score_map[r.week_name] = r.qoe_score or 0
+                    qoe_percent_map[r.week_name] = r.qoe_percent or 0
+
                 charts['qoe_score_chart'] = {'title': 'Biểu đồ Điểm QoE', 'labels': all_weeks, 'datasets': [{'label': 'Điểm QoE (1-5)', 'data': [qoe_score_map.get(w, None) for w in all_weeks], 'borderColor': '#0078d4', 'fill': False, 'borderWidth': 3}]}
                 charts['qoe_percent_chart'] = {'title': 'Biểu đồ Tỷ lệ QoE (%)', 'labels': all_weeks, 'datasets': [{'label': '% QoE', 'data': [qoe_percent_map.get(w, None) for w in all_weeks], 'borderColor': '#107c10', 'fill': False, 'borderWidth': 3}]}
-                for r in qoe_records:
-                    if r.details:
+                
+                seen_detail_weeks = set()
+                # Duyệt ngược để lấy cấu hình mới nhất
+                for r in reversed(qoe_records):
+                    if r.week_name not in seen_detail_weeks and r.details:
+                        seen_detail_weeks.add(r.week_name)
                         try:
                             d = json.loads(r.details)
                             if not qoe_headers: qoe_headers = list(d.keys())
                             qoe_details.append({'week': r.week_name, 'data': d})
                         except: pass
+                qoe_details.reverse()
             
             if qos_records:
-                qos_score_map = {r.week_name: (r.qos_score or 0) for r in qos_records}
-                qos_percent_map = {r.week_name: (r.qos_percent or 0) for r in qos_records}
+                qos_score_map = {}
+                qos_percent_map = {}
+                for r in qos_records:
+                    qos_score_map[r.week_name] = r.qos_score or 0
+                    qos_percent_map[r.week_name] = r.qos_percent or 0
+
                 charts['qos_score_chart'] = {'title': 'Biểu đồ Điểm QoS', 'labels': all_weeks, 'datasets': [{'label': 'Điểm QoS (1-5)', 'data': [qos_score_map.get(w, None) for w in all_weeks], 'borderColor': '#ffaa44', 'fill': False, 'borderWidth': 3}]}
                 charts['qos_percent_chart'] = {'title': 'Biểu đồ Tỷ lệ QoS (%)', 'labels': all_weeks, 'datasets': [{'label': '% QoS', 'data': [qos_percent_map.get(w, None) for w in all_weeks], 'borderColor': '#e3008c', 'fill': False, 'borderWidth': 3}]}
-                for r in qos_records:
-                    if r.details:
+                
+                seen_detail_weeks = set()
+                for r in reversed(qos_records):
+                    if r.week_name not in seen_detail_weeks and r.details:
+                        seen_detail_weeks.add(r.week_name)
                         try:
                             d = json.loads(r.details)
                             if not qos_headers: qos_headers = list(d.keys())
                             qos_details.append({'week': r.week_name, 'data': d})
                         except: pass
+                qos_details.reverse()
     gc.collect()
     return render_page(CONTENT_TEMPLATE, title="QoE & QoS Analytics", active_page='qoe_qos', cell_name_input=cell_name_input, charts=charts, has_data=has_data, qoe_details=qoe_details, qos_details=qos_details, qoe_headers=qoe_headers, qos_headers=qos_headers)
 
@@ -2772,12 +2808,30 @@ def import_data():
             week_name = request.form.get('week_name', 'Tuần')
             TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
             
-            # Tự động xóa dữ liệu cũ của tuần này nếu đã tồn tại để Ghi đè (Overwrite)
+            # Khắc phục: Xóa đè dữ liệu thông minh theo Con số của tuần
             try:
-                deleted_count = db.session.query(TargetModel).filter_by(week_name=week_name).delete()
-                if deleted_count > 0:
-                    db.session.commit()
-                    flash(f'Đã xóa {deleted_count} bản ghi cũ của "{week_name}" để cập nhật mới.', 'info')
+                w_clean = remove_accents(week_name).lower()
+                match = re.search(r'tuan\s*(\d+)', w_clean)
+                if match:
+                    val = int(match.group(1))
+                    all_existing_weeks = [r[0] for r in db.session.query(TargetModel.week_name).distinct().all()]
+                    weeks_to_delete = []
+                    for ex_w in all_existing_weeks:
+                        if not ex_w: continue
+                        ex_match = re.search(r'tuan\s*(\d+)', remove_accents(str(ex_w)).lower())
+                        if ex_match and int(ex_match.group(1)) == val:
+                            weeks_to_delete.append(ex_w)
+                    
+                    if weeks_to_delete:
+                        deleted_count = db.session.query(TargetModel).filter(TargetModel.week_name.in_(weeks_to_delete)).delete()
+                        if deleted_count > 0:
+                            db.session.commit()
+                            flash(f'Đã xóa {deleted_count} bản ghi cũ của "Tuần {val:02d}" để cập nhật mới.', 'info')
+                else:
+                    deleted_count = db.session.query(TargetModel).filter_by(week_name=week_name).delete()
+                    if deleted_count > 0:
+                        db.session.commit()
+                        flash(f'Đã xóa {deleted_count} bản ghi cũ của "{week_name}" để cập nhật mới.', 'info')
             except Exception as e:
                 db.session.rollback()
                 flash(f'Lỗi khi kiểm tra/xóa dữ liệu cũ: {e}', 'warning')
