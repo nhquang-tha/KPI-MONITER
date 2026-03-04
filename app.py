@@ -2826,11 +2826,29 @@ def import_data():
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
     
-    today = datetime.now()
-    year, week_num, weekday = today.isocalendar()
-    start_of_week = today - timedelta(days=today.weekday())
-    end_of_week = start_of_week + timedelta(days=6)
-    default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
+    qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
+    qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
+    all_weeks = [w for w in qoe_weeks + qos_weeks if w]
+    
+    latest_week_num = None
+    for w in all_weeks:
+        w_clean = remove_accents(str(w)).lower()
+        match = re.search(r'tuan\s*(\d+)', w_clean)
+        if match:
+            val = int(match.group(1))
+            if latest_week_num is None or val > latest_week_num:
+                latest_week_num = val
+                
+    if latest_week_num is not None:
+        next_week = latest_week_num + 1
+        if next_week > 53: next_week = 1
+        default_week_name = f"Tuần {next_week:02d}"
+    else:
+        today = datetime.now()
+        year, week_num, weekday = today.isocalendar()
+        start_of_week = today - timedelta(days=today.weekday())
+        end_of_week = start_of_week + timedelta(days=6)
+        default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
     
     return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
 
