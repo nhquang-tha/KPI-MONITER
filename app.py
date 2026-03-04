@@ -1588,8 +1588,8 @@ CONTENT_TEMPLATE = """
                              </div>
                              <div class="tab-pane fade" id="tabQoE">
                                  <form action="/import" method="POST" enctype="multipart/form-data">
-                                     <div class="mb-3"><label class="form-label fw-bold text-primary">Chọn Loại Dữ Liệu QoE/QoS</label><select name="type" class="form-select border-primary"><option value="qoe4g">QoE 4G (Hàng Tuần)</option><option value="qos4g">QoS 4G (Hàng Tuần)</option></select></div>
-                                     <div class="mb-3"><label class="form-label fw-bold">Tên Tuần (Quan trọng)</label><input type="text" name="week_name" class="form-control" value="{{ default_week_name }}" required></div>
+                                     <div class="mb-3"><label class="form-label fw-bold text-primary">Chọn Loại Dữ Liệu QoE/QoS</label><select name="type" id="importQoEQoSType" class="form-select border-primary"><option value="qoe4g">QoE 4G (Hàng Tuần)</option><option value="qos4g">QoS 4G (Hàng Tuần)</option></select></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Tên Tuần (Quan trọng)</label><input type="text" name="week_name" id="importWeekName" class="form-control" value="{{ next_qoe }}" required></div>
                                      <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload Data</button>
                                  </form>
@@ -1616,6 +1616,19 @@ CONTENT_TEMPLATE = """
                      <div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div>
                  </div>
              </div>
+             <script>
+                 document.addEventListener('DOMContentLoaded', function() {
+                     var typeSel = document.getElementById('importQoEQoSType');
+                     var weekInp = document.getElementById('importWeekName');
+                     if(typeSel && weekInp) {
+                         var valQoE = "{{ next_qoe }}";
+                         var valQoS = "{{ next_qos }}";
+                         typeSel.addEventListener('change', function() {
+                             weekInp.value = (this.value === 'qoe4g') ? valQoE : valQoS;
+                         });
+                     }
+                 });
+             </script>
         
         {% elif active_page == 'script' %}
              <div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Generate Script</div><div class="card-body">
@@ -2828,29 +2841,33 @@ def import_data():
     
     qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
     qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
-    all_weeks = [w for w in qoe_weeks + qos_weeks if w]
     
-    latest_week_num = None
-    for w in all_weeks:
-        w_clean = remove_accents(str(w)).lower()
-        match = re.search(r'tuan\s*(\d+)', w_clean)
-        if match:
-            val = int(match.group(1))
-            if latest_week_num is None or val > latest_week_num:
-                latest_week_num = val
-                
-    if latest_week_num is not None:
-        next_week = latest_week_num + 1
-        if next_week > 53: next_week = 1
-        default_week_name = f"Tuần {next_week:02d}"
-    else:
-        today = datetime.now()
-        year, week_num, weekday = today.isocalendar()
-        start_of_week = today - timedelta(days=today.weekday())
-        end_of_week = start_of_week + timedelta(days=6)
-        default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
+    def get_next_week(weeks_list):
+        latest = None
+        for w in weeks_list:
+            if not w: continue
+            w_clean = remove_accents(str(w)).lower()
+            match = re.search(r'tuan\s*(\d+)', w_clean)
+            if match:
+                val = int(match.group(1))
+                if latest is None or val > latest:
+                    latest = val
+        if latest is not None:
+            next_w = latest + 1
+            if next_w > 53: next_w = 1
+            return f"Tuần {next_w:02d}"
+        return None
+
+    today = datetime.now()
+    year, week_num, weekday = today.isocalendar()
+    start_of_week = today - timedelta(days=today.weekday())
+    end_of_week = start_of_week + timedelta(days=6)
+    current_week_str = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
+
+    next_qoe = get_next_week(qoe_weeks) or current_week_str
+    next_qos = get_next_week(qos_weeks) or current_week_str
     
-    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
+    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), next_qoe=next_qoe, next_qos=next_qos)
 
 @app.route('/reset-data', methods=['POST'])
 @login_required
