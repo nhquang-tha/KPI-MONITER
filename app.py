@@ -2771,6 +2771,17 @@ def import_data():
         if itype in ['qoe4g', 'qos4g']:
             week_name = request.form.get('week_name', 'Tuần')
             TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
+            
+            # Tự động xóa dữ liệu cũ của tuần này nếu đã tồn tại để Ghi đè (Overwrite)
+            try:
+                deleted_count = db.session.query(TargetModel).filter_by(week_name=week_name).delete()
+                if deleted_count > 0:
+                    db.session.commit()
+                    flash(f'Đã xóa {deleted_count} bản ghi cũ của "{week_name}" để cập nhật mới.', 'info')
+            except Exception as e:
+                db.session.rollback()
+                flash(f'Lỗi khi kiểm tra/xóa dữ liệu cũ: {e}', 'warning')
+
             for file in files:
                 try:
                     df = pd.read_excel(file, header=None) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None)
@@ -2854,8 +2865,18 @@ def import_data():
                     latest = val
         if latest is not None:
             next_w = latest + 1
-            if next_w > 53: next_w = 1
-            return f"Tuần {next_w:02d}"
+            iso_year = datetime.now().isocalendar()[0]
+            try:
+                # Tính toán chính xác Ngày Thứ 2 của tuần đó theo lịch ISO
+                start_date = datetime.strptime(f'{iso_year}-W{next_w:02d}-1', "%G-W%V-%u")
+            except ValueError:
+                # Nếu năm hiện tại không có tuần thứ 53, chuyển sang tuần 1 năm sau
+                next_w = 1
+                iso_year += 1
+                start_date = datetime.strptime(f'{iso_year}-W{next_w:02d}-1', "%G-W%V-%u")
+            
+            end_date = start_date + timedelta(days=6)
+            return f"Tuần {next_w:02d} ({start_date.strftime('%d/%m')}-{end_date.strftime('%d/%m')})"
         return None
 
     today = datetime.now()
