@@ -99,6 +99,12 @@ def generate_colors(n):
     if n <= len(base): return base[:n]
     return base + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base))]
 
+RF_COLS_ORDER = {
+    '3g': ['csht_code', 'cell_name', 'cell_code', 'site_code', 'latitude', 'longitude', 'equipment', 'frequency', 'psc', 'dl_uarfcn', 'bsc_lac', 'ci', 'anten_height', 'azimuth', 'm_t', 'e_t', 'total_tilt', 'hang_sx', 'antena', 'swap', 'start_day', 'ghi_chu'],
+    '4g': ['csht_code', 'cell_name', 'cell_code', 'site_code', 'latitude', 'longitude', 'equipment', 'frequency', 'dl_uarfcn', 'pci', 'tac', 'enodeb_id', 'lcrid', 'anten_height', 'azimuth', 'm_t', 'e_t', 'total_tilt', 'mimo', 'hang_sx', 'antena', 'swap', 'start_day', 'ghi_chu'],
+    '5g': ['csht_code', 'site_name', 'cell_code', 'site_code', 'latitude', 'longitude', 'equipment', 'frequency', 'nrarfcn', 'pci', 'tac', 'gnodeb_id', 'lcrid', 'anten_height', 'azimuth', 'm_t', 'e_t', 'total_tilt', 'mimo', 'hang_sx', 'antena', 'dong_bo', 'start_day', 'ghi_chu']
+}
+
 # ==============================================================================
 # 3. MODELS
 # ==============================================================================
@@ -2300,7 +2306,7 @@ def gis():
                 
             records = list(records_dict.values())
 
-        cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
+        cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key not in ['id']])
         for r in records:
             try:
                 lat, lon = float(r.latitude), float(r.longitude)
@@ -2726,10 +2732,11 @@ def rf():
     if search_query:
         query = query.filter(or_(Model.cell_code.ilike(f"%{search_query}%"), Model.site_code.ilike(f"%{search_query}%")))
         
+    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
+        
     if action == 'export':
         def generate():
             yield '\ufeff'.encode('utf-8')
-            cols = [c.key for c in Model.__table__.columns if c.key != 'id']
             yield (','.join(cols) + '\n').encode('utf-8')
             seen_export = set()
             for row in query.all():
@@ -2739,7 +2746,6 @@ def rf():
         return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
 
     rows = query.all()
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
     data = []
     seen_cells = set()
     
@@ -2768,8 +2774,8 @@ def rf_delete(tech, id):
 def rf_detail(tech, id):
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     obj = db.session.get(Model, id)
-    # Lọc bỏ biến nội bộ _sa_instance_state của SQLAlchemy
-    clean_obj = {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
+    clean_obj = {c: getattr(obj, c) for c in cols if hasattr(obj, c)}
     return render_page(RF_DETAIL_TEMPLATE, obj=clean_obj, tech=tech)
 
 @app.route('/rf/add', methods=['GET', 'POST'])
@@ -2782,7 +2788,7 @@ def rf_add():
         data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
         db.session.add(Model(**data)); db.session.commit(); flash('Added', 'success')
         return redirect(url_for('rf', tech=tech))
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
     return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=cols, tech=tech, obj={})
 
 @app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
@@ -2794,7 +2800,7 @@ def rf_edit(tech, id):
     if request.method == 'POST':
         for k,v in request.form.items(): setattr(obj, k, v)
         db.session.commit(); flash('Updated', 'success'); return redirect(url_for('rf', tech=tech))
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
     return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=cols, tech=tech, obj=obj.__dict__)
 
 @app.route('/import', methods=['GET', 'POST'])
