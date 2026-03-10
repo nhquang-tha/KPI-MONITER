@@ -974,6 +974,7 @@ CONTENT_TEMPLATE = """
                 document.addEventListener('DOMContentLoaded', function() {
                     var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
                     var itsData = {{ its_data | tojson | safe if its_data else '[]' }};
+                    var rfCols = {{ rf_cols | tojson | safe if rf_cols else '[]' }};
                     var actionType = "{{ action_type }}";
                     var searchSite = "{{ site_code_input }}";
                     var searchCell = "{{ cell_name_input }}";
@@ -1248,11 +1249,13 @@ CONTENT_TEMPLATE = """
                             if (isMatch && !targetPolygon) targetPolygon = polygon;
 
                             var infoHtml = "<div style='max-height: 250px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.8rem;'>";
-                            for (const [k, v] of Object.entries(cell.info)) {
-                                if (v !== null && v !== '' && v !== 'None') {
+                            var keysToLoop = (rfCols && rfCols.length > 0) ? rfCols : Object.keys(cell.info);
+                            keysToLoop.forEach(function(k) {
+                                var v = cell.info[k];
+                                if (v !== undefined && v !== null && v !== '' && v !== 'None') {
                                     infoHtml += "<tr><th class='text-muted bg-light w-50'>" + k.toUpperCase() + "</th><td class='fw-bold'>" + v + "</td></tr>";
                                 }
-                            }
+                            });
                             infoHtml += "</table></div>";
 
                             polygon.bindPopup(
@@ -2158,6 +2161,7 @@ def gis():
     its_data = []
     matched_sites = set()
     gis_data = []
+    cols = []
 
     def clean_val(v):
         if v is None: return None
@@ -2315,7 +2319,7 @@ def gis():
                     gis_data.append({'cell_name': getattr(r, 'cell_name', getattr(r, 'site_name', str(r.cell_code))), 'site_code': r.site_code, 'lat': lat, 'lon': lon, 'azi': azi, 'tech': tech, 'info': {c: getattr(r, c) or '' for c in cols}})
             except: pass
     gc.collect()
-    return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data, its_data=its_data, show_its=show_its, action_type=action_type)
+    return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data, its_data=its_data, show_its=show_its, action_type=action_type, rf_cols=cols)
 
 @app.route('/kpi')
 @login_required
