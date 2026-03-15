@@ -53,46 +53,48 @@ def remove_accents(input_str):
     return s
 
 def clean_header(col_name):
-    col_name = str(col_name).strip()
-    special_map = {
-        'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id',
-        'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'CELL_NAME': 'cell_name',
-        'Frenquency': 'frequency', 'Frequency': 'frequency',
-        'PCI': 'pci', 'TAC': 'tac', 'MIMO': 'mimo',
-        'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
-        'DL Traffic Volume (GB)': 'dl_traffic_volume_gb',
-        'Total Data Traffic Volume (GB)': 'traffic',
-        'Cell Uplink Average Throughput': 'cell_uplink_average_throughput',
-        'Cell Downlink Average Throughput': 'cell_downlink_average_throughput',
-        'A User Downlink Average Throughput': 'user_dl_avg_throughput',
-        'Cell avaibility rate': 'cell_avaibility_rate',
-        'SgNB Addition Success Rate': 'sgnb_addition_success_rate',
-        'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
-        'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g',
-        'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code',
-        'CSHT_code': 'csht_code', 'Hãng_SX': 'hang_sx', 'Antena': 'antena',
-        'Swap': 'swap', 'Start_day': 'start_day', 'Ghi_chú': 'ghi_chu',
-        'Anten_height': 'anten_height', 'Azimuth': 'azimuth', 'M_T': 'm_t', 'E_T': 'e_t', 'Total_tilt': 'total_tilt',
-        'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac', 'CI': 'ci',
-        'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
-        'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
-        'CellID': 'cellid', 'NetworkTech': 'networktech'
-    }
-    col_upper = col_name.upper()
-    for key, val in special_map.items():
-        if key.upper() == col_upper: return val
-    clean = re.sub(r'[^a-z0-9]', '_', remove_accents(col_name).lower())
-    clean = re.sub(r'_+', '_', clean)
-    common_map = {
-        'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo',
-        'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap',
-        'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl',
-        'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges',
-        'cs_so_att': 'cs_so_att', 'ps_so_att': 'ps_so_att',
-        'service_drop_all': 'service_drop_all', 'user_dl_avg_thput': 'user_dl_avg_thput',
-        'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
-    }
-    return common_map.get(clean, clean)
+    c = str(col_name).strip().lower()
+    
+    # Mapping thông minh các biến thể header mới
+    if 'mã node cha' in c: return 'site_code'
+    if 'mã node' in c: return 'cell_code'
+    if 'tên trên hệ thống' in c: return 'cell_name'
+    if 'mã csht' in c: return 'csht_code'
+    if 'longtitude' in c or 'longitude' in c: return 'longitude'
+    if 'latitude' in c: return 'latitude'
+    if 'model ăn ten' in c or 'antenna model' in c: return 'antena'
+    if 'total tilt' in c: return 'total_tilt'
+    if 'mechaincal tilt' in c or 'mechanical tilt' in c: return 'm_t'
+    if 'electrical tilt' in c: return 'e_t'
+    if 'tên thiết bị' in c: return 'equipment'
+    if 'băng tần' in c: return 'frequency'
+    if 'enodeb id' in c: return 'enodeb_id'
+    if 'gnodeb id' in c: return 'gnodeb_id'
+    if 'nrci' == c or 'lcrid' == c: return 'lcrid'
+    if 'antenna high' in c: return 'anten_height'
+    if 'hãng sx' in c: return 'hang_sx'
+    if 'ngày hoạt động' in c: return 'start_day'
+    if 'ghi chú' in c: return 'ghi_chu'
+    if 'lac' == c or 'bsc_lac' in c: return 'bsc_lac'
+    if 'dl_psc' in c or 'psc' == c: return 'psc'
+    if 'cell name' in c or 'tên cell' in c: return 'ten_cell'
+    if 'thời gian' in c: return 'thoi_gian'
+    if 'total data traffic volume' in c: return 'traffic'
+    if 'user downlink average throughput' in c: return 'user_dl_avg_thput'
+    if 'resource block untilizing rate downlink' in c: return 'res_blk_dl'
+    if 'service drop (all service)' in c: return 'service_drop_all'
+    if 'mimo' == c: return 'mimo'
+    if 'nrarfcndl' in c: return 'nrarfcn'
+    if 'pci' == c: return 'pci'
+    if 'tac' == c: return 'tac'
+    if 'ci' == c: return 'ci'
+    if 'đồng bộ' in c: return 'dong_bo'
+    if 'site name' in c: return 'site_name'
+    
+    # Mặc định fallback nếu không khớp
+    clean = re.sub(r'[^a-z0-9]', '_', remove_accents(c))
+    clean = re.sub(r'_+', '_', clean).strip('_')
+    return clean
 
 def generate_colors(n):
     base = ['#0078d4', '#107c10', '#d13438', '#ffaa44', '#00bcf2', '#5c2d91', '#e3008c', '#b4009e']
@@ -2894,20 +2896,65 @@ def import_data():
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
                 for file in files:
                     try:
-                        if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
-                        else: chunks = [pd.read_excel(file)]
+                        # Đọc file (hỗ trợ file có dòng Title ở trên cùng)
+                        if file.filename.endswith('.csv'):
+                            df_raw = pd.read_csv(file, header=None, encoding='utf-8-sig', on_bad_lines='skip', low_memory=False)
+                        else:
+                            df_raw = pd.read_excel(file, header=None)
+                            
+                        header_row_idx = 0
+                        # Tìm dòng Header thực sự trong 10 dòng đầu
+                        for i in range(min(10, len(df_raw))):
+                            row_vals = [str(x).lower().strip() for x in df_raw.iloc[i].values if pd.notna(x)]
+                            # Dấu hiệu nhận biết dòng Header thực thụ
+                            if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name']):
+                                if not any(title_kw in row_vals[0] for title_kw in ['lọc kpi', 'điều kiện']):
+                                    header_row_idx = i
+                                    break
+                                    
+                        # Cắt DataFrame từ dòng Header trở đi
+                        df = df_raw.iloc[header_row_idx + 1:].reset_index(drop=True)
+                        df.columns = df_raw.iloc[header_row_idx]
                         
-                        for df in chunks:
-                            df.columns = [clean_header(c) for c in df.columns]
-                            records = []
-                            for row in df.to_dict('records'):
-                                clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
-                                if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
-                                    clean_row['traffic'] = clean_row['traffic_vol_dl']
+                        # Áp dụng hàm clean_header để chuẩn hoá tên cột
+                        df.columns = [clean_header(c) for c in df.columns]
+                        
+                        records = []
+                        mimo_updates = {}
+                        
+                        for row in df.to_dict('records'):
+                            # Lấy MIMO cho RF4G từ file KPI 4G (Ngay cả khi MIMO không nằm trong DB của KPI)
+                            if itype == 'kpi4g' and 'mimo' in row and 'ten_cell' in row:
+                                if pd.notna(row['mimo']) and str(row['mimo']).strip():
+                                    mimo_updates[str(row['ten_cell']).strip()] = str(row['mimo']).strip()
+                                    
+                            # Lọc các cột có trong CSDL của Model hiện tại
+                            clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
+                            
+                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
+                                clean_row['traffic'] = clean_row['traffic_vol_dl']
+                                
+                            if clean_row:
                                 records.append(clean_row)
-                            if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
-                        flash(f'Imported {file.filename}', 'success')
-                    except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
+                                
+                        if records: 
+                            db.session.bulk_insert_mappings(Model, records)
+                            db.session.commit()
+                            
+                        # Tự động Update MIMO vào bảng RF Database (RF4G)
+                        if itype == 'kpi4g' and mimo_updates:
+                            updated_count = 0
+                            for cell_id, mimo_val in mimo_updates.items():
+                                res = db.session.query(RF4G).filter(
+                                    or_(RF4G.cell_code == cell_id, RF4G.cell_name == cell_id)
+                                ).update({'mimo': mimo_val}, synchronize_session=False)
+                                updated_count += res
+                            db.session.commit()
+                            flash(f'Đã cập nhật tự động tham số MIMO cho {updated_count} trạm 4G.', 'info')
+                            
+                        flash(f'Import thành công file {file.filename}', 'success')
+                    except Exception as e: 
+                        flash(f'Lỗi khi xử lý file {file.filename}: {e}', 'danger')
         return redirect(url_for('import_data'))
         
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
