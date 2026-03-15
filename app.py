@@ -59,12 +59,12 @@ def clean_header(col_name):
     if 'mã node cha' in c: return 'site_code'
     if 'mã node' in c: return 'cell_code'
     if 'tên trên hệ thống' in c: return 'cell_name'
-    if 'mã csht' in c: return 'csht_code'
+    if 'mã csht của trạm' in c or 'mã csht' in c: return 'csht_code'
     if 'longtitude' in c or 'longitude' in c: return 'longitude'
     if 'latitude' in c: return 'latitude'
     if 'model ăn ten' in c or 'antenna model' in c: return 'antena'
     if 'total tilt' in c: return 'total_tilt'
-    if 'mechaincal tilt' in c or 'mechanical tilt' in c: return 'm_t'
+    if 'mechaincal tilt' in c or 'mechanical tilt' in c or 'mechainical tilt' in c: return 'm_t'
     if 'electrical tilt' in c: return 'e_t'
     if 'tên thiết bị' in c: return 'equipment'
     if 'băng tần' in c: return 'frequency'
@@ -1541,7 +1541,7 @@ CONTENT_TEMPLATE = """
                      <thead class="table-light position-sticky top-0" style="z-index: 10;">
                          <tr>
                              <th class="text-center border-bottom bg-light" style="position: sticky; left: 0; z-index: 20;">Action</th>
-                             {% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}
+                             {% for col in rf_columns %}<th>{{ col | replace('site_name', 'cell_name') | replace('_', ' ') | upper }}</th>{% endfor %}
                          </tr>
                      </thead>
                      <tbody>
@@ -2923,14 +2923,40 @@ def import_data():
                         mimo_updates = {}
                         
                         for row in df.to_dict('records'):
+                            # Cấy liên thông các biến thể Tên Cell
+                            if 'ten_cell' in row and 'cell_name' not in row:
+                                row['cell_name'] = row['ten_cell']
+                            elif 'cell_name' in row and 'ten_cell' not in row:
+                                row['ten_cell'] = row['cell_name']
+                                
+                            if 'site_name' in row and 'cell_name' not in row:
+                                row['cell_name'] = row['site_name']
+                            elif 'cell_name' in row and 'site_name' not in row:
+                                row['site_name'] = row['cell_name']
+
                             # Lấy MIMO cho RF4G từ file KPI 4G (Ngay cả khi MIMO không nằm trong DB của KPI)
                             if itype == 'kpi4g' and 'mimo' in row and 'ten_cell' in row:
                                 if pd.notna(row['mimo']) and str(row['mimo']).strip():
                                     mimo_updates[str(row['ten_cell']).strip()] = str(row['mimo']).strip()
                                     
-                            # Lọc các cột có trong CSDL của Model hiện tại
-                            clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
+                            # Lọc các cột có trong CSDL của Model hiện tại và Xử lý ép kiểu dữ liệu
+                            clean_row = {}
+                            for k, v in row.items():
+                                if k in valid_cols and pd.notna(v):
+                                    col_type = Model.__table__.columns[k].type
+                                    val = str(v).strip()
+                                    
+                                    # ÉP KIỂU THÔNG MINH ĐỂ CHỐNG LỖI DATAERROR ('No', 'N/A' -> None)
+                                    if isinstance(col_type, db.Float):
+                                        try: clean_row[k] = float(val)
+                                        except ValueError: clean_row[k] = None
+                                    elif isinstance(col_type, db.Integer):
+                                        try: clean_row[k] = int(float(val))
+                                        except ValueError: clean_row[k] = None
+                                    else:
+                                        clean_row[k] = val
                             
+                            # Fallback dữ liệu nếu cột bị đổi tên trong file mới
                             if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                 clean_row['traffic'] = clean_row['traffic_vol_dl']
                                 
