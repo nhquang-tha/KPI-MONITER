@@ -3001,12 +3001,15 @@ def import_data():
                                             clean_row[k] = None
                                         elif isinstance(col_type, db.Float):
                                             try: 
-                                                f_val = float(val)
+                                                # Fix lỗi định dạng số thập phân bằng dấu phẩy
+                                                val_norm = val.replace(',', '.')
+                                                f_val = float(val_norm)
                                                 clean_row[k] = None if math.isnan(f_val) else f_val
                                             except ValueError: clean_row[k] = None
                                         elif isinstance(col_type, db.Integer):
                                             try: 
-                                                f_val = float(val)
+                                                val_norm = val.replace(',', '.')
+                                                f_val = float(val_norm)
                                                 clean_row[k] = None if math.isnan(f_val) else int(f_val)
                                             except ValueError: clean_row[k] = None
                                         else:
@@ -3019,6 +3022,10 @@ def import_data():
                                             else:
                                                 clean_row[k] = val
                                 
+                                # ÉP CHUẨN IN HOA TỰ ĐỘNG CHO CELL_CODE
+                                if 'cell_code' in clean_row and clean_row['cell_code']:
+                                    clean_row['cell_code'] = str(clean_row['cell_code']).strip().upper()
+
                                 # Fallback dữ liệu nếu cột bị đổi tên trong file mới
                                 if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                     clean_row['traffic'] = clean_row['traffic_vol_dl']
@@ -3031,10 +3038,10 @@ def import_data():
                             # TỐI ƯU RAM GỘP DỮ LIỆU RF: Chỉ lôi các trạm có trong Chunk này lên RAM
                             if is_rf_model and records_to_process:
                                 existing_rf_db = db.session.query(Model).filter(Model.cell_code.in_(list(cell_codes_in_chunk))).all()
-                                existing_rf_map = {r.cell_code: r for r in existing_rf_db}
+                                existing_rf_map = {r.cell_code.upper(): r for r in existing_rf_db if r.cell_code}
                                 
                                 for cr in records_to_process:
-                                    cc = str(cr.get('cell_code', '')).strip()
+                                    cc = str(cr.get('cell_code', '')).strip().upper()
                                     if cc in existing_rf_map:
                                         # Ghi đè cập nhật nếu đã tồn tại
                                         obj = existing_rf_map[cc]
