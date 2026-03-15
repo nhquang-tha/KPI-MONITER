@@ -2896,6 +2896,14 @@ def import_data():
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
                 is_rf_model = itype in ['3g', '4g', '5g']
                 
+                # Ép thứ tự xử lý: File Config3G luôn được đọc trước CELL_3G
+                if itype == '3g':
+                    def file_sort_key(f):
+                        fname = getattr(f, 'filename', '').lower()
+                        if 'config' in fname: return 0
+                        return 1
+                    files = sorted(files, key=file_sort_key)
+                
                 for file in files:
                     try:
                         # TỐI ƯU RAM: Đọc trước 20 dòng để tìm dòng Tiêu đề (Header) thay vì load cả file
@@ -2907,11 +2915,19 @@ def import_data():
                         header_row_idx = 0
                         for i in range(len(preview_df)):
                             row_vals = [str(x).lower().strip() for x in preview_df.iloc[i].values if pd.notna(x)]
-                            if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name', 'mã cell']):
+                            # Nhận diện dòng tiêu đề thông minh hơn
+                            if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name', 'mã cell', 'tên trên hệ thống']):
                                 if not any(title_kw in row_vals[0] for title_kw in ['lọc kpi', 'điều kiện']):
                                     header_row_idx = i
                                     break
                                     
+                        # Kiểm tra xem file hiện tại có phải là file cấu hình phụ (CELL_3G) không?
+                        is_update_only = False
+                        if itype == '3g':
+                            raw_headers_str = " ".join([str(x).lower().strip() for x in preview_df.iloc[header_row_idx].values if pd.notna(x)])
+                            if 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str:
+                                is_update_only = True
+                                
                         # Trả con trỏ file về đầu để đọc thật sự
                         file.seek(0)
                         
@@ -3003,16 +3019,17 @@ def import_data():
                                 for cr in records_to_process:
                                     cc = str(cr.get('cell_code', '')).strip()
                                     if cc in existing_rf_map:
-                                        # Ghi đè cập nhật
+                                        # Ghi đè cập nhật nếu đã tồn tại
                                         obj = existing_rf_map[cc]
                                         for k, v in cr.items():
                                             if v is not None:
                                                 setattr(obj, k, v)
                                     else:
-                                        # Tạo mới
-                                        new_obj = Model(**cr)
-                                        existing_rf_map[cc] = new_obj
-                                        db.session.add(new_obj)
+                                        # NẾU LÀ FILE CELL_3G THÌ KHÔNG TẠO MỚI DÒNG RÁC, CHỈ UPDATE
+                                        if not is_update_only:
+                                            new_obj = Model(**cr)
+                                            existing_rf_map[cc] = new_obj
+                                            db.session.add(new_obj)
                                         
                                 db.session.commit()
                                 total_inserted += len(records_to_process)
