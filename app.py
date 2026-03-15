@@ -55,30 +55,41 @@ def remove_accents(input_str):
 def clean_header(col_name, itype=None):
     c = str(col_name).strip().lower()
     
-    # Mapping RIÊNG BIỆT theo yêu cầu khắt khe của hệ thống 3G (Ghép 2 file Config3G và CELL_3G)
+    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Ánh xạ chính xác tuyệt đối theo yêu cầu để gộp 2 file)
     if itype == '3g':
-        if c == 'mã csht' or c == 'mã csht của trạm': return 'csht_code'
-        if c == 'cell name (alias)': return 'cell_name'
-        if c == 'mã cell' or c == 'tên trên hệ thống': return 'cell_code'
-        if c == 'mã trạm' or c == 'mã node cha': return 'site_code'
-        if c == 'latitude': return 'latitude'
-        if c == 'longitude' or c == 'longtitude': return 'longitude'
-        if c == 'thiết bị' or c == 'tên thiết bị': return 'equipment'
-        if c == 'băng tần': return 'frequency'
-        if c == 'dlpsc' or c == 'dl_psc' or c == 'psc': return 'psc'
-        if c == 'dl_uarfcn': return 'dl_uarfcn'
-        if c == 'lac' or c == 'bsc_lac': return 'bsc_lac'
-        if c == 'ci': return 'ci'
-        if c == 'antennahigh' or c == 'antenna high': return 'anten_height'
-        if c == 'azimuth': return 'azimuth'
-        if c == 'mechanicaltilt' or c == 'mechaincal tilt' or c == 'mechanical tilt' or c == 'mechainical tilt': return 'm_t'
-        if c == 'electricaltilt' or c == 'electrical tilt': return 'e_t'
-        if c == 'totaltilt' or c == 'total tilt': return 'total_tilt'
-        if c == 'antenna tên hãng sx' or c == 'hãng sx': return 'hang_sx'
-        if c == 'antennatype' or c == 'model ăn ten' or c == 'antenna model' or c == 'loại ăn ten': return 'antena'
-        if c == 'antenna dùng chung' or c == 'swap': return 'swap'
-        if c == 'ngày hoạt động': return 'start_day'
-        if c == 'hoàn cảnh ra đời' or c == 'ghi chú': return 'ghi_chu'
+        mapping_3g = {
+            'mã csht': 'csht_code',                # Config3G
+            'cell name (alias)': 'cell_name',      # Config3G
+            'mã cell': 'cell_code',                # Config3G (Khóa JOIN)
+            'tên trên hệ thống': 'cell_code',      # CELL_3G (Khóa JOIN)
+            'mã trạm': 'site_code',                # Config3G
+            'latitude': 'latitude',                # Config3G
+            'longitude': 'longitude',              # Config3G
+            'longtitude': 'longitude',             
+            'thiết bị': 'equipment',               # Config3G
+            'băng tần': 'frequency',               # Config3G
+            'dlpsc': 'psc',                        # Config3G
+            'dl_psc': 'psc',
+            'dl_uarfcn': 'dl_uarfcn',              # Config3G
+            'lac': 'bsc_lac',                      # Config3G
+            'ci': 'ci',                            # Config3G
+            'antennahigh': 'anten_height',         # Config3G
+            'antenna high': 'anten_height',
+            'azimuth': 'azimuth',                  # Config3G
+            'mechanicaltilt': 'm_t',               # Config3G
+            'electricaltilt': 'e_t',               # Config3G
+            'totaltilt': 'total_tilt',             # Config3G
+            'antenna tên hãng sx': 'hang_sx',      # CELL_3G
+            'antennatype': 'antena',               # Config3G
+            'antenna dùng chung': 'swap',          # CELL_3G
+            'ngày hoạt động': 'start_day',         # CELL_3G
+            'hoàn cảnh ra đời': 'ghi_chu'          # CELL_3G
+        }
+        if c in mapping_3g:
+            return mapping_3g[c]
+        # Biến các cột không cần thiết thành tên rác để Pandas tự động loại bỏ, chống xung đột khóa
+        clean_trash = re.sub(r'[^a-z0-9]', '_', remove_accents(c))
+        return f"ignore_3g_{clean_trash}"
 
     # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
     if 'mã node cha' in c: return 'site_code'
@@ -2966,18 +2977,19 @@ def import_data():
                             cell_codes_in_chunk = set()
                             
                             for row in df.to_dict('records'):
-                                # Cấy liên thông các biến thể Tên Cell
-                                if 'ten_cell' in row and 'cell_name' not in row:
-                                    row['cell_name'] = row['ten_cell']
-                                elif 'cell_name' in row and 'ten_cell' not in row:
-                                    row['ten_cell'] = row['cell_name']
-                                    
-                                if 'site_name' in row and 'cell_name' not in row:
-                                    row['cell_name'] = row['site_name']
-                                elif 'cell_name' in row and 'site_name' not in row:
-                                    row['site_name'] = row['cell_name']
+                                # Cấy liên thông các biến thể Tên Cell cho 4G/5G
+                                if itype != '3g':
+                                    if 'ten_cell' in row and 'cell_name' not in row:
+                                        row['cell_name'] = row['ten_cell']
+                                    elif 'cell_name' in row and 'ten_cell' not in row:
+                                        row['ten_cell'] = row['cell_name']
+                                        
+                                    if 'site_name' in row and 'cell_name' not in row:
+                                        row['cell_name'] = row['site_name']
+                                    elif 'cell_name' in row and 'site_name' not in row:
+                                        row['site_name'] = row['cell_name']
 
-                                # Lấy MIMO cho RF4G từ file KPI 4G (Ngay cả khi MIMO không nằm trong DB của KPI)
+                                # Lấy MIMO cho RF4G từ file KPI 4G
                                 if itype == 'kpi4g' and 'mimo' in row and 'ten_cell' in row:
                                     if pd.notna(row['mimo']) and str(row['mimo']).strip():
                                         mimo_updates[str(row['ten_cell']).strip()] = str(row['mimo']).strip()
@@ -3002,7 +3014,14 @@ def import_data():
                                                 clean_row[k] = None if math.isnan(f_val) else int(f_val)
                                             except ValueError: clean_row[k] = None
                                         else:
-                                            clean_row[k] = val
+                                            # Ép kiểu dọn dẹp các số bị Excel thêm đuôi ".0" lưu dạng String (Ví dụ: "10181.0" -> "10181")
+                                            if val.endswith('.0'):
+                                                try:
+                                                    float(val)
+                                                    clean_row[k] = val[:-2]
+                                                except: clean_row[k] = val
+                                            else:
+                                                clean_row[k] = val
                                 
                                 # Fallback dữ liệu nếu cột bị đổi tên trong file mới
                                 if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
