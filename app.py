@@ -54,12 +54,12 @@ def remove_accents(input_str):
 
 def clean_header(col_name, itype=None, raw_headers=None):
     c = str(col_name).strip().lower()
-    raw_headers_str = " | ".join([str(x).lower() for x in raw_headers]) if raw_headers else ""
+    raw_headers_str = " | ".join([str(x).lower().strip() for x in raw_headers]) if raw_headers else ""
     
-    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Nhận dạng file để lấy đúng cột theo phân công)
+    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Chỉ lấy đúng các cột được chỉ định từ mỗi file, chặn tuyệt đối ghi đè)
     if itype == '3g':
-        is_config3g = 'mã cell' in raw_headers_str and 'thiết bị' in raw_headers_str
-        is_cell3g = 'tên trên hệ thống' in raw_headers_str and 'hoàn cảnh ra đời' in raw_headers_str
+        is_config3g = 'mechanicaltilt' in raw_headers_str or 'dlpsc' in raw_headers_str or 'antennatype' in raw_headers_str
+        is_cell3g = 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str
         
         if is_config3g:
             if c == 'mã csht': return 'csht_code'
@@ -68,26 +68,26 @@ def clean_header(col_name, itype=None, raw_headers=None):
             if c == 'mã trạm': return 'site_code'
             if c == 'latitude': return 'latitude'
             if c == 'longitude' or c == 'longtitude': return 'longitude'
-            if c == 'thiết bị' or c == 'tên thiết bị': return 'equipment'
+            if c == 'thiết bị': return 'equipment'
             if c == 'băng tần': return 'frequency'
-            if c == 'dlpsc' or c == 'dl_psc' or c == 'psc': return 'psc'
+            if c == 'dlpsc' or c == 'dl_psc': return 'psc'
             if c == 'dl_uarfcn': return 'dl_uarfcn'
-            if c == 'lac' or c == 'bsc_lac': return 'bsc_lac'
+            if c == 'lac': return 'bsc_lac'
             if c == 'ci': return 'ci'
-            if c == 'antennahigh' or c == 'antenna high': return 'anten_height'
+            if c == 'antennahigh': return 'anten_height'
             if c == 'azimuth': return 'azimuth'
-            if c == 'mechanicaltilt' or c == 'mechanical tilt': return 'm_t'
-            if c == 'electricaltilt' or c == 'electrical tilt': return 'e_t'
-            if c == 'totaltilt' or c == 'total tilt': return 'total_tilt'
-            if c == 'antennatype' or c == 'model ăn ten': return 'antena'
+            if c == 'mechanicaltilt': return 'm_t'
+            if c == 'electricaltilt': return 'e_t'
+            if c == 'totaltilt': return 'total_tilt'
+            if c == 'antennatype': return 'antena'
             return f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}"
             
         if is_cell3g:
-            if c == 'tên trên hệ thống' or c == 'mã cell': return 'cell_code'
-            if c == 'antenna tên hãng sx' or c == 'hãng sx': return 'hang_sx'
-            if c == 'antenna dùng chung' or c == 'swap': return 'swap'
+            if c == 'tên trên hệ thống': return 'cell_code' # Nối chuẩn xác qua CELL_CODE
+            if c == 'antenna tên hãng sx': return 'hang_sx'
+            if c == 'antenna dùng chung': return 'swap'
             if c == 'ngày hoạt động': return 'start_day'
-            if c == 'hoàn cảnh ra đời' or c == 'ghi chú': return 'ghi_chu'
+            if c == 'hoàn cảnh ra đời': return 'ghi_chu'
             return f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}"
 
     # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
