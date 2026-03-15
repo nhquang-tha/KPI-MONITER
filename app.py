@@ -54,58 +54,53 @@ def remove_accents(input_str):
 
 def clean_header(col_name, itype=None, raw_headers=None):
     c = str(col_name).strip().lower()
-    raw_headers_str = " | ".join([str(x).lower().strip() for x in raw_headers]) if raw_headers else ""
     
-    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Ánh xạ tĩnh tuyệt đối, chống nhiễu)
-    if itype == '3g':
-        is_config3g = 'mechanicaltilt' in raw_headers_str or 'dlpsc' in raw_headers_str or 'antennatype' in raw_headers_str or 'cell name (alias)' in raw_headers_str
-        is_cell3g = 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str
+    # BỘ LỌC ĐỘC QUYỀN CHO 3G TÁCH BIỆT TỪNG BẢNG
+    if itype == 'config3g':
+        mapping_config = {
+            'mã csht': 'csht_code',
+            'cell name (alias)': 'cell_name',
+            'mã cell': 'cell_code',
+            'mã trạm': 'site_code',
+            'latitude': 'latitude',
+            'longitude': 'longitude',
+            'longtitude': 'longitude',
+            'thiết bị': 'equipment',
+            'tên thiết bị': 'equipment',
+            'băng tần': 'frequency',
+            'dlpsc': 'psc',
+            'dl_psc': 'psc',
+            'dl_uarfcn': 'dl_uarfcn',
+            'lac': 'bsc_lac',
+            'bsc_lac': 'bsc_lac',
+            'ci': 'ci',
+            'antennahigh': 'anten_height',
+            'antenna high': 'anten_height',
+            'azimuth': 'azimuth',
+            'mechanicaltilt': 'm_t',
+            'mechanical tilt': 'm_t',
+            'electricaltilt': 'e_t',
+            'electrical tilt': 'e_t',
+            'totaltilt': 'total_tilt',
+            'total tilt': 'total_tilt',
+            'antennatype': 'antena',
+            'model ăn ten': 'antena'
+        }
+        return mapping_config.get(c, f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
         
-        if is_config3g:
-            mapping_config = {
-                'mã csht': 'csht_code',
-                'cell name (alias)': 'cell_name',
-                'mã cell': 'cell_code',
-                'mã trạm': 'site_code',
-                'latitude': 'latitude',
-                'longitude': 'longitude',
-                'longtitude': 'longitude',
-                'thiết bị': 'equipment',
-                'tên thiết bị': 'equipment',
-                'băng tần': 'frequency',
-                'dlpsc': 'psc',
-                'dl_psc': 'psc',
-                'dl_uarfcn': 'dl_uarfcn',
-                'lac': 'bsc_lac',
-                'bsc_lac': 'bsc_lac',
-                'ci': 'ci',
-                'antennahigh': 'anten_height',
-                'antenna high': 'anten_height',
-                'azimuth': 'azimuth',
-                'mechanicaltilt': 'm_t',
-                'mechanical tilt': 'm_t',
-                'electricaltilt': 'e_t',
-                'electrical tilt': 'e_t',
-                'totaltilt': 'total_tilt',
-                'total tilt': 'total_tilt',
-                'antennatype': 'antena',
-                'model ăn ten': 'antena'
-            }
-            return mapping_config.get(c, f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
-            
-        if is_cell3g:
-            mapping_cell = {
-                'tên trên hệ thống': 'cell_code',
-                'mã cell': 'cell_code',
-                'antenna tên hãng sx': 'hang_sx',
-                'hãng sx': 'hang_sx',
-                'antenna dùng chung': 'swap',
-                'swap': 'swap',
-                'ngày hoạt động': 'start_day',
-                'hoàn cảnh ra đời': 'ghi_chu',
-                'ghi chú': 'ghi_chu'
-            }
-            return mapping_cell.get(c, f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
+    if itype == 'cell3g':
+        mapping_cell = {
+            'tên trên hệ thống': 'cell_code',
+            'mã cell': 'cell_code',
+            'antenna tên hãng sx': 'hang_sx',
+            'hãng sx': 'hang_sx',
+            'antenna dùng chung': 'swap',
+            'swap': 'swap',
+            'ngày hoạt động': 'start_day',
+            'hoàn cảnh ra đời': 'ghi_chu',
+            'ghi chú': 'ghi_chu'
+        }
+        return mapping_cell.get(c, f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
 
     # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
     if 'mã node cha' in c: return 'site_code'
@@ -175,6 +170,37 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
+
+class Config3G(db.Model):
+    __tablename__ = 'config_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50), index=True)
+    site_code = db.Column(db.String(50))
+    cell_name = db.Column(db.String(100))
+    csht_code = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    antena = db.Column(db.String(100))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
+    equipment = db.Column(db.String(50))
+    frequency = db.Column(db.String(50))
+    psc = db.Column(db.String(50))
+    dl_uarfcn = db.Column(db.String(50))
+    bsc_lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+    anten_height = db.Column(db.Float)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+
+class Cell3G(db.Model):
+    __tablename__ = 'cell_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50), index=True)
+    hang_sx = db.Column(db.String(50))
+    swap = db.Column(db.String(50))
+    start_day = db.Column(db.String(50))
+    ghi_chu = db.Column(db.String(255))
 
 class RF3G(db.Model):
     __tablename__ = 'rf_3g'
@@ -1633,7 +1659,7 @@ CONTENT_TEMPLATE = """
                          <div class="tab-content">
                              <div class="tab-pane fade show active" id="tabRF">
                                  <form action="/import" method="POST" enctype="multipart/form-data">
-                                     <div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option></select></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label><select name="type" class="form-select"><option value="config3g">Config 3G</option><option value="cell3g">CELL 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option></select></div>
                                      <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
                                      <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload RF Data</button>
                                  </form>
@@ -2907,19 +2933,11 @@ def import_data():
                             flash(f'Import thành công {len(records)} dòng.', 'success')
                 except Exception as e: flash(f'Lỗi: {e}', 'danger')
         else:
-            cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+            cfg = {'config3g': Config3G, 'cell3g': Cell3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
             Model = cfg.get(itype)
             if Model:
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-                is_rf_model = itype in ['3g', '4g', '5g']
-                
-                # Ép thứ tự xử lý: File Config3G luôn được đọc trước CELL_3G
-                if itype == '3g':
-                    def file_sort_key(f):
-                        fname = getattr(f, 'filename', '').lower()
-                        if 'config' in fname: return 0
-                        return 1
-                    files = sorted(files, key=file_sort_key)
+                is_rf_model = itype in ['config3g', 'cell3g', '4g', '5g']
                 
                 for file in files:
                     try:
@@ -2938,13 +2956,6 @@ def import_data():
                                     header_row_idx = i
                                     break
                                     
-                        # Kiểm tra xem file hiện tại có phải là file cấu hình phụ (CELL_3G) không?
-                        is_update_only = False
-                        if itype == '3g':
-                            raw_headers_str = " ".join([str(x).lower().strip() for x in preview_df.iloc[header_row_idx].values if pd.notna(x)])
-                            if 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str:
-                                is_update_only = True
-                                
                         # Trả con trỏ file về đầu để đọc thật sự
                         file.seek(0)
                         
@@ -3049,11 +3060,10 @@ def import_data():
                                             if v is not None:
                                                 setattr(obj, k, v)
                                     else:
-                                        # NẾU LÀ FILE CELL_3G THÌ KHÔNG TẠO MỚI DÒNG RÁC, CHỈ UPDATE
-                                        if not is_update_only:
-                                            new_obj = Model(**cr)
-                                            existing_rf_map[cc] = new_obj
-                                            db.session.add(new_obj)
+                                        # TẠO MỚI TRẠM VÀO DB
+                                        new_obj = Model(**cr)
+                                        existing_rf_map[cc] = new_obj
+                                        db.session.add(new_obj)
                                         
                                 db.session.commit()
                                 total_inserted += len(records_to_process)
@@ -3091,6 +3101,51 @@ def import_data():
                         db.session.rollback()
                         flash(f'Lỗi khi xử lý file {file.filename}: {e}', 'danger')
                         
+                # TỰ ĐỘNG ĐỒNG BỘ RF_3G TỪ BẢNG CONFIG_3G VÀ CELL_3G
+                if itype in ['config3g', 'cell3g']:
+                    try:
+                        db.session.query(RF3G).delete()
+                        db.session.commit()
+                        
+                        configs = {c.cell_code: c for c in Config3G.query.all() if c.cell_code}
+                        cells = {c.cell_code: c for c in Cell3G.query.all() if c.cell_code}
+                        
+                        rf3g_inserts = []
+                        for cc, cfg_row in configs.items():
+                            cell_row = cells.get(cc)
+                            rf3g_inserts.append({
+                                'cell_code': cc,
+                                'site_code': cfg_row.site_code,
+                                'cell_name': cfg_row.cell_name,
+                                'csht_code': cfg_row.csht_code,
+                                'latitude': cfg_row.latitude,
+                                'longitude': cfg_row.longitude,
+                                'antena': cfg_row.antena,
+                                'azimuth': cfg_row.azimuth,
+                                'total_tilt': cfg_row.total_tilt,
+                                'equipment': cfg_row.equipment,
+                                'frequency': cfg_row.frequency,
+                                'psc': cfg_row.psc,
+                                'dl_uarfcn': cfg_row.dl_uarfcn,
+                                'bsc_lac': cfg_row.bsc_lac,
+                                'ci': cfg_row.ci,
+                                'anten_height': cfg_row.anten_height,
+                                'm_t': cfg_row.m_t,
+                                'e_t': cfg_row.e_t,
+                                'hang_sx': cell_row.hang_sx if cell_row else None,
+                                'swap': cell_row.swap if cell_row else None,
+                                'start_day': cell_row.start_day if cell_row else None,
+                                'ghi_chu': cell_row.ghi_chu if cell_row else None
+                            })
+                        
+                        if rf3g_inserts:
+                            db.session.bulk_insert_mappings(RF3G, rf3g_inserts)
+                            db.session.commit()
+                            flash(f'Hệ thống đã tự động gộp và đồng bộ {len(rf3g_inserts)} trạm vào CSDL RF 3G!', 'info')
+                    except Exception as e:
+                        db.session.rollback()
+                        flash(f'Lỗi đồng bộ dữ liệu RF 3G: {e}', 'danger')
+
         return redirect(url_for('import_data'))
 
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
@@ -3147,6 +3202,8 @@ def reset_data():
     try:
         if target == 'rf':
             db.session.query(RF3G).delete()
+            db.session.query(Config3G).delete()
+            db.session.query(Cell3G).delete()
             db.session.query(RF4G).delete()
             db.session.query(RF5G).delete()
             db.session.commit()
