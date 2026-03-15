@@ -2924,131 +2924,152 @@ def import_data():
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
                 is_rf_model = itype in ['3g', '4g', '5g']
                 
-                # Tải DB lên Memory để thực hiện thuật toán Ghi Đè/Gộp thông minh (Upsert & Merge)
-                existing_rf = {}
-                if is_rf_model:
-                    existing_rf = {str(r.cell_code).strip(): r for r in db.session.query(Model).all() if r.cell_code}
-
                 for file in files:
                     try:
-                        # Đọc file (hỗ trợ file có dòng Title ở trên cùng)
+                        # TỐI ƯU RAM: Đọc trước 20 dòng để tìm dòng Tiêu đề (Header) thay vì load cả file
                         if file.filename.endswith('.csv'):
-                            df_raw = pd.read_csv(file, header=None, encoding='utf-8-sig', on_bad_lines='skip', low_memory=False)
+                            preview_df = pd.read_csv(file, header=None, nrows=20, encoding='utf-8-sig', on_bad_lines='skip')
                         else:
-                            df_raw = pd.read_excel(file, header=None)
+                            preview_df = pd.read_excel(file, header=None, nrows=20)
                             
                         header_row_idx = 0
-                        # Tìm dòng Header thực sự trong 10 dòng đầu
-                        for i in range(min(10, len(df_raw))):
-                            row_vals = [str(x).lower().strip() for x in df_raw.iloc[i].values if pd.notna(x)]
-                            # Dấu hiệu nhận biết dòng Header thực thụ
+                        for i in range(len(preview_df)):
+                            row_vals = [str(x).lower().strip() for x in preview_df.iloc[i].values if pd.notna(x)]
                             if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name', 'mã cell']):
                                 if not any(title_kw in row_vals[0] for title_kw in ['lọc kpi', 'điều kiện']):
                                     header_row_idx = i
                                     break
                                     
-                        # Cắt DataFrame từ dòng Header trở đi
-                        df = df_raw.iloc[header_row_idx + 1:].reset_index(drop=True)
-                        df.columns = df_raw.iloc[header_row_idx]
+                        # Trả con trỏ file về đầu để đọc thật sự
+                        file.seek(0)
                         
-                        # Áp dụng hàm clean_header để chuẩn hoá tên cột (truyền thêm biến itype)
-                        df.columns = [clean_header(c, itype) for c in df.columns]
-                        
-                        records_to_insert = []
-                        mimo_updates = {}
-                        
-                        for row in df.to_dict('records'):
-                            # Cấy liên thông các biến thể Tên Cell
-                            if 'ten_cell' in row and 'cell_name' not in row:
-                                row['cell_name'] = row['ten_cell']
-                            elif 'cell_name' in row and 'ten_cell' not in row:
-                                row['ten_cell'] = row['cell_name']
-                                
-                            if 'site_name' in row and 'cell_name' not in row:
-                                row['cell_name'] = row['site_name']
-                            elif 'cell_name' in row and 'site_name' not in row:
-                                row['site_name'] = row['cell_name']
+                        CHUNK_SIZE = 2500
+                        if file.filename.endswith('.csv'):
+                            # Cắt nhỏ file CSV ngay từ lúc đọc bằng luồng (Streaming) - Cực kỳ tiết kiệm RAM
+                            chunks = pd.read_csv(file, header=header_row_idx, encoding='utf-8-sig', on_bad_lines='skip', low_memory=False, chunksize=CHUNK_SIZE)
+                        else:
+                            # Đọc Excel: Xóa Dataframe gốc ngay sau khi chia nhỏ
+                            full_df = pd.read_excel(file, header=header_row_idx)
+                            chunks = [full_df[i:i + CHUNK_SIZE] for i in range(0, full_df.shape[0], CHUNK_SIZE)]
+                            del full_df
+                            gc.collect()
 
-                            # Lấy MIMO cho RF4G từ file KPI 4G (Ngay cả khi MIMO không nằm trong DB của KPI)
-                            if itype == 'kpi4g' and 'mimo' in row and 'ten_cell' in row:
-                                if pd.notna(row['mimo']) and str(row['mimo']).strip():
-                                    mimo_updates[str(row['ten_cell']).strip()] = str(row['mimo']).strip()
-                                    
-                            # Lọc các cột có trong CSDL của Model hiện tại và Xử lý ép kiểu dữ liệu
-                            clean_row = {}
-                            for k, v in row.items():
-                                if k in valid_cols and pd.notna(v):
-                                    col_type = Model.__table__.columns[k].type
-                                    val = str(v).strip()
-                                    
-                                    # ÉP KIỂU THÔNG MINH ĐỂ CHỐNG LỖI DATAERROR ('No', 'N/A', 'NaN' -> None)
-                                    if val.lower() in ['nan', 'none', 'null', 'na', 'n/a', 'no', '']:
-                                        clean_row[k] = None
-                                    elif isinstance(col_type, db.Float):
-                                        try: 
-                                            f_val = float(val)
-                                            clean_row[k] = None if math.isnan(f_val) else f_val
-                                        except ValueError: clean_row[k] = None
-                                    elif isinstance(col_type, db.Integer):
-                                        try: 
-                                            f_val = float(val)
-                                            clean_row[k] = None if math.isnan(f_val) else int(f_val)
-                                        except ValueError: clean_row[k] = None
-                                    else:
-                                        clean_row[k] = val
+                        total_inserted = 0
+                        total_mimo_updated = 0
+
+                        # Vòng lặp xử lý từng đoạn nhỏ
+                        for df in chunks:
+                            df.columns = [clean_header(c, itype) for c in df.columns]
                             
-                            # Fallback dữ liệu nếu cột bị đổi tên trong file mới
-                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
-                                clean_row['traffic'] = clean_row['traffic_vol_dl']
+                            records_to_process = []
+                            mimo_updates = {}
+                            cell_codes_in_chunk = set()
+                            
+                            for row in df.to_dict('records'):
+                                # Cấy liên thông các biến thể Tên Cell
+                                if 'ten_cell' in row and 'cell_name' not in row:
+                                    row['cell_name'] = row['ten_cell']
+                                elif 'cell_name' in row and 'ten_cell' not in row:
+                                    row['ten_cell'] = row['cell_name']
+                                    
+                                if 'site_name' in row and 'cell_name' not in row:
+                                    row['cell_name'] = row['site_name']
+                                elif 'cell_name' in row and 'site_name' not in row:
+                                    row['site_name'] = row['cell_name']
+
+                                # Lấy MIMO cho RF4G từ file KPI 4G (Ngay cả khi MIMO không nằm trong DB của KPI)
+                                if itype == 'kpi4g' and 'mimo' in row and 'ten_cell' in row:
+                                    if pd.notna(row['mimo']) and str(row['mimo']).strip():
+                                        mimo_updates[str(row['ten_cell']).strip()] = str(row['mimo']).strip()
+                                        
+                                # Lọc các cột có trong CSDL của Model hiện tại và Xử lý ép kiểu dữ liệu
+                                clean_row = {}
+                                for k, v in row.items():
+                                    if k in valid_cols and pd.notna(v):
+                                        col_type = Model.__table__.columns[k].type
+                                        val = str(v).strip()
+                                        
+                                        if val.lower() in ['nan', 'none', 'null', 'na', 'n/a', 'no', '']:
+                                            clean_row[k] = None
+                                        elif isinstance(col_type, db.Float):
+                                            try: 
+                                                f_val = float(val)
+                                                clean_row[k] = None if math.isnan(f_val) else f_val
+                                            except ValueError: clean_row[k] = None
+                                        elif isinstance(col_type, db.Integer):
+                                            try: 
+                                                f_val = float(val)
+                                                clean_row[k] = None if math.isnan(f_val) else int(f_val)
+                                            except ValueError: clean_row[k] = None
+                                        else:
+                                            clean_row[k] = val
                                 
-                            if clean_row:
-                                if is_rf_model and 'cell_code' in clean_row and clean_row['cell_code']:
-                                    cc = str(clean_row['cell_code']).strip()
-                                    if cc in existing_rf:
-                                        # Merge/Ghi đè thuộc tính trực tiếp trên RAM (Gộp 2 file 3G với nhau)
-                                        obj = existing_rf[cc]
-                                        for k, v in clean_row.items():
+                                # Fallback dữ liệu nếu cột bị đổi tên trong file mới
+                                if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
+                                    clean_row['traffic'] = clean_row['traffic_vol_dl']
+                                    
+                                if clean_row:
+                                    records_to_process.append(clean_row)
+                                    if is_rf_model and 'cell_code' in clean_row and clean_row['cell_code']:
+                                        cell_codes_in_chunk.add(str(clean_row['cell_code']).strip())
+
+                            # TỐI ƯU RAM GỘP DỮ LIỆU RF: Chỉ lôi các trạm có trong Chunk này lên RAM
+                            if is_rf_model and records_to_process:
+                                existing_rf_db = db.session.query(Model).filter(Model.cell_code.in_(list(cell_codes_in_chunk))).all()
+                                existing_rf_map = {r.cell_code: r for r in existing_rf_db}
+                                
+                                for cr in records_to_process:
+                                    cc = str(cr.get('cell_code', '')).strip()
+                                    if cc in existing_rf_map:
+                                        # Ghi đè cập nhật
+                                        obj = existing_rf_map[cc]
+                                        for k, v in cr.items():
                                             if v is not None:
                                                 setattr(obj, k, v)
                                     else:
-                                        # Nếu chưa có thì tạo mới và lưu vào RAM chờ gộp
-                                        new_obj = Model(**clean_row)
-                                        existing_rf[cc] = new_obj
+                                        # Tạo mới
+                                        new_obj = Model(**cr)
+                                        existing_rf_map[cc] = new_obj
                                         db.session.add(new_obj)
-                                else:
-                                    records_to_insert.append(clean_row)
+                                        
+                                db.session.commit()
+                                total_inserted += len(records_to_process)
                                 
-                        if records_to_insert and not is_rf_model: 
-                            db.session.bulk_insert_mappings(Model, records_to_insert)
+                            # Xử lý Bulk Insert cho KPI / POI
+                            elif not is_rf_model and records_to_process:
+                                db.session.bulk_insert_mappings(Model, records_to_process)
+                                db.session.commit()
+                                total_inserted += len(records_to_process)
                             
-                        db.session.commit()
-                        
-                        # Tự động Update MIMO vào bảng RF Database (RF4G) - Chạy BULK UPDATE siêu tốc
-                        if itype == 'kpi4g' and mimo_updates:
-                            try:
+                            # Tự động Update MIMO cục bộ cho Chunk này
+                            if itype == 'kpi4g' and mimo_updates:
                                 rf4g_records = db.session.query(RF4G).filter(
                                     or_(RF4G.cell_code.in_(mimo_updates.keys()), RF4G.cell_name.in_(mimo_updates.keys()))
                                 ).all()
-                                
-                                updated_count = 0
                                 for r in rf4g_records:
                                     m_val = mimo_updates.get(r.cell_code) or mimo_updates.get(r.cell_name)
                                     if m_val and str(r.mimo) != str(m_val):
                                         r.mimo = m_val
-                                        updated_count += 1
-                                        
-                                if updated_count > 0:
-                                    db.session.commit()
-                                    flash(f'Đã cập nhật tự động tham số MIMO cho {updated_count} trạm 4G.', 'info')
-                            except Exception as e:
-                                db.session.rollback()
-                                flash(f'Lỗi cập nhật MIMO: {e}', 'warning')
-                            
-                        flash(f'Import thành công file {file.filename}', 'success')
+                                        total_mimo_updated += 1
+                                db.session.commit()
+                                
+                            # CƯỠNG CHẾ XÓA BIẾN VÀ DỌN RÁC BỘ NHỚ LẬP TỨC SAU MỖI VÒNG LẶP CHUNK
+                            del records_to_process
+                            del mimo_updates
+                            del cell_codes_in_chunk
+                            gc.collect()
+
+                        flash_msg = f'Import thành công file {file.filename} ({total_inserted} dòng).'
+                        if total_mimo_updated > 0:
+                            flash_msg += f' Đã cập nhật MIMO cho {total_mimo_updated} trạm 4G.'
+                        flash(flash_msg, 'success')
+                        
                     except Exception as e: 
+                        db.session.rollback()
                         flash(f'Lỗi khi xử lý file {file.filename}: {e}', 'danger')
+                        
         return redirect(url_for('import_data'))
-        
+
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
