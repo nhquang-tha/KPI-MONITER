@@ -59,7 +59,9 @@ def clean_header(col_name):
     if 'mã node cha' in c: return 'site_code'
     if 'mã node' in c: return 'cell_code'
     if 'tên trên hệ thống' in c: return 'cell_name'
-    if 'mã csht của trạm' in c or 'mã csht' in c: return 'csht_code'
+    if 'mã csht của trạm' in c: return 'csht_code'
+    if 'mã csht của cell' in c: return 'csht_cell_ignore'
+    if 'mã csht' in c: return 'csht_code'
     if 'longtitude' in c or 'longitude' in c: return 'longitude'
     if 'latitude' in c: return 'latitude'
     if 'model ăn ten' in c or 'antenna model' in c: return 'antena'
@@ -2946,12 +2948,18 @@ def import_data():
                                     col_type = Model.__table__.columns[k].type
                                     val = str(v).strip()
                                     
-                                    # ÉP KIỂU THÔNG MINH ĐỂ CHỐNG LỖI DATAERROR ('No', 'N/A' -> None)
-                                    if isinstance(col_type, db.Float):
-                                        try: clean_row[k] = float(val)
+                                    # ÉP KIỂU THÔNG MINH ĐỂ CHỐNG LỖI DATAERROR ('No', 'N/A', 'NaN' -> None)
+                                    if val.lower() in ['nan', 'none', 'null', 'na', 'n/a', 'no', '']:
+                                        clean_row[k] = None
+                                    elif isinstance(col_type, db.Float):
+                                        try: 
+                                            f_val = float(val)
+                                            clean_row[k] = None if math.isnan(f_val) else f_val
                                         except ValueError: clean_row[k] = None
                                     elif isinstance(col_type, db.Integer):
-                                        try: clean_row[k] = int(float(val))
+                                        try: 
+                                            f_val = float(val)
+                                            clean_row[k] = None if math.isnan(f_val) else int(f_val)
                                         except ValueError: clean_row[k] = None
                                     else:
                                         clean_row[k] = val
@@ -2967,16 +2975,26 @@ def import_data():
                             db.session.bulk_insert_mappings(Model, records)
                             db.session.commit()
                             
-                        # Tự động Update MIMO vào bảng RF Database (RF4G)
+                        # Tự động Update MIMO vào bảng RF Database (RF4G) - Chạy BULK UPDATE siêu tốc
                         if itype == 'kpi4g' and mimo_updates:
-                            updated_count = 0
-                            for cell_id, mimo_val in mimo_updates.items():
-                                res = db.session.query(RF4G).filter(
-                                    or_(RF4G.cell_code == cell_id, RF4G.cell_name == cell_id)
-                                ).update({'mimo': mimo_val}, synchronize_session=False)
-                                updated_count += res
-                            db.session.commit()
-                            flash(f'Đã cập nhật tự động tham số MIMO cho {updated_count} trạm 4G.', 'info')
+                            try:
+                                rf4g_records = db.session.query(RF4G).filter(
+                                    or_(RF4G.cell_code.in_(mimo_updates.keys()), RF4G.cell_name.in_(mimo_updates.keys()))
+                                ).all()
+                                
+                                updated_count = 0
+                                for r in rf4g_records:
+                                    m_val = mimo_updates.get(r.cell_code) or mimo_updates.get(r.cell_name)
+                                    if m_val and str(r.mimo) != str(m_val):
+                                        r.mimo = m_val
+                                        updated_count += 1
+                                        
+                                if updated_count > 0:
+                                    db.session.commit()
+                                    flash(f'Đã cập nhật tự động tham số MIMO cho {updated_count} trạm 4G.', 'info')
+                            except Exception as e:
+                                db.session.rollback()
+                                flash(f'Lỗi cập nhật MIMO: {e}', 'warning')
                             
                         flash(f'Import thành công file {file.filename}', 'success')
                     except Exception as e: 
