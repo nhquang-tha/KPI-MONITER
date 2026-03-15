@@ -56,39 +56,56 @@ def clean_header(col_name, itype=None, raw_headers=None):
     c = str(col_name).strip().lower()
     raw_headers_str = " | ".join([str(x).lower().strip() for x in raw_headers]) if raw_headers else ""
     
-    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Chỉ lấy đúng các cột được chỉ định từ mỗi file, chặn tuyệt đối ghi đè)
+    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Ánh xạ tĩnh tuyệt đối, chống nhiễu)
     if itype == '3g':
-        is_config3g = 'mechanicaltilt' in raw_headers_str or 'dlpsc' in raw_headers_str or 'antennatype' in raw_headers_str
+        is_config3g = 'mechanicaltilt' in raw_headers_str or 'dlpsc' in raw_headers_str or 'antennatype' in raw_headers_str or 'cell name (alias)' in raw_headers_str
         is_cell3g = 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str
         
         if is_config3g:
-            if c == 'mã csht': return 'csht_code'
-            if c == 'cell name (alias)': return 'cell_name'
-            if c == 'mã cell': return 'cell_code'
-            if c == 'mã trạm': return 'site_code'
-            if c == 'latitude': return 'latitude'
-            if c == 'longitude' or c == 'longtitude': return 'longitude'
-            if c == 'thiết bị': return 'equipment'
-            if c == 'băng tần': return 'frequency'
-            if c == 'dlpsc' or c == 'dl_psc': return 'psc'
-            if c == 'dl_uarfcn': return 'dl_uarfcn'
-            if c == 'lac': return 'bsc_lac'
-            if c == 'ci': return 'ci'
-            if c == 'antennahigh': return 'anten_height'
-            if c == 'azimuth': return 'azimuth'
-            if c == 'mechanicaltilt': return 'm_t'
-            if c == 'electricaltilt': return 'e_t'
-            if c == 'totaltilt': return 'total_tilt'
-            if c == 'antennatype': return 'antena'
-            return f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}"
+            mapping_config = {
+                'mã csht': 'csht_code',
+                'cell name (alias)': 'cell_name',
+                'mã cell': 'cell_code',
+                'mã trạm': 'site_code',
+                'latitude': 'latitude',
+                'longitude': 'longitude',
+                'longtitude': 'longitude',
+                'thiết bị': 'equipment',
+                'tên thiết bị': 'equipment',
+                'băng tần': 'frequency',
+                'dlpsc': 'psc',
+                'dl_psc': 'psc',
+                'dl_uarfcn': 'dl_uarfcn',
+                'lac': 'bsc_lac',
+                'bsc_lac': 'bsc_lac',
+                'ci': 'ci',
+                'antennahigh': 'anten_height',
+                'antenna high': 'anten_height',
+                'azimuth': 'azimuth',
+                'mechanicaltilt': 'm_t',
+                'mechanical tilt': 'm_t',
+                'electricaltilt': 'e_t',
+                'electrical tilt': 'e_t',
+                'totaltilt': 'total_tilt',
+                'total tilt': 'total_tilt',
+                'antennatype': 'antena',
+                'model ăn ten': 'antena'
+            }
+            return mapping_config.get(c, f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
             
         if is_cell3g:
-            if c == 'tên trên hệ thống': return 'cell_code' # Nối chuẩn xác qua CELL_CODE
-            if c == 'antenna tên hãng sx': return 'hang_sx'
-            if c == 'antenna dùng chung': return 'swap'
-            if c == 'ngày hoạt động': return 'start_day'
-            if c == 'hoàn cảnh ra đời': return 'ghi_chu'
-            return f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}"
+            mapping_cell = {
+                'tên trên hệ thống': 'cell_code',
+                'mã cell': 'cell_code',
+                'antenna tên hãng sx': 'hang_sx',
+                'hãng sx': 'hang_sx',
+                'antenna dùng chung': 'swap',
+                'swap': 'swap',
+                'ngày hoạt động': 'start_day',
+                'hoàn cảnh ra đời': 'ghi_chu',
+                'ghi chú': 'ghi_chu'
+            }
+            return mapping_cell.get(c, f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
 
     # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
     if 'mã node cha' in c: return 'site_code'
