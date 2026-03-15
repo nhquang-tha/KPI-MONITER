@@ -52,33 +52,57 @@ def remove_accents(input_str):
         else: s += c
     return s
 
-def clean_header(col_name):
+def clean_header(col_name, itype=None):
     c = str(col_name).strip().lower()
     
-    # Mapping thông minh các biến thể header mới
+    # Mapping RIÊNG BIỆT theo yêu cầu khắt khe của hệ thống 3G (Ghép 2 file Config3G và CELL_3G)
+    if itype == '3g':
+        if c == 'mã csht' or c == 'mã csht của trạm': return 'csht_code'
+        if c == 'cell name (alias)': return 'cell_name'
+        if c == 'mã cell' or c == 'tên trên hệ thống': return 'cell_code'
+        if c == 'mã trạm' or c == 'mã node cha': return 'site_code'
+        if c == 'latitude': return 'latitude'
+        if c == 'longitude' or c == 'longtitude': return 'longitude'
+        if c == 'thiết bị' or c == 'tên thiết bị': return 'equipment'
+        if c == 'băng tần': return 'frequency'
+        if c == 'dlpsc' or c == 'dl_psc' or c == 'psc': return 'psc'
+        if c == 'dl_uarfcn': return 'dl_uarfcn'
+        if c == 'lac' or c == 'bsc_lac': return 'bsc_lac'
+        if c == 'ci': return 'ci'
+        if c == 'antennahigh' or c == 'antenna high': return 'anten_height'
+        if c == 'azimuth': return 'azimuth'
+        if c == 'mechanicaltilt' or c == 'mechaincal tilt' or c == 'mechanical tilt' or c == 'mechainical tilt': return 'm_t'
+        if c == 'electricaltilt' or c == 'electrical tilt': return 'e_t'
+        if c == 'totaltilt' or c == 'total tilt': return 'total_tilt'
+        if c == 'antenna tên hãng sx' or c == 'hãng sx': return 'hang_sx'
+        if c == 'antennatype' or c == 'model ăn ten' or c == 'antenna model' or c == 'loại ăn ten': return 'antena'
+        if c == 'antenna dùng chung' or c == 'swap': return 'swap'
+        if c == 'ngày hoạt động': return 'start_day'
+        if c == 'hoàn cảnh ra đời' or c == 'ghi chú': return 'ghi_chu'
+
+    # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
     if 'mã node cha' in c: return 'site_code'
     if 'mã node' in c: return 'cell_code'
     if 'tên trên hệ thống' in c: return 'cell_name'
-    if 'mã csht của trạm' in c: return 'csht_code'
+    if 'mã csht của trạm' in c or 'mã csht' in c: return 'csht_code'
     if 'mã csht của cell' in c: return 'csht_cell_ignore'
-    if 'mã csht' in c: return 'csht_code'
     if 'longtitude' in c or 'longitude' in c: return 'longitude'
     if 'latitude' in c: return 'latitude'
-    if 'model ăn ten' in c or 'antenna model' in c: return 'antena'
-    if 'total tilt' in c: return 'total_tilt'
-    if 'mechaincal tilt' in c or 'mechanical tilt' in c or 'mechainical tilt' in c: return 'm_t'
-    if 'electrical tilt' in c: return 'e_t'
-    if 'tên thiết bị' in c: return 'equipment'
+    if 'model ăn ten' in c or 'antenna model' in c or 'antennatype' in c: return 'antena'
+    if 'total tilt' in c or 'totaltilt' in c: return 'total_tilt'
+    if 'mechaincal tilt' in c or 'mechanical tilt' in c or 'mechainical tilt' in c or 'mechanicaltilt' in c: return 'm_t'
+    if 'electrical tilt' in c or 'electricaltilt' in c: return 'e_t'
+    if 'tên thiết bị' in c or 'thiết bị' in c: return 'equipment'
     if 'băng tần' in c: return 'frequency'
     if 'enodeb id' in c: return 'enodeb_id'
     if 'gnodeb id' in c: return 'gnodeb_id'
     if 'nrci' == c or 'lcrid' == c: return 'lcrid'
-    if 'antenna high' in c: return 'anten_height'
-    if 'hãng sx' in c: return 'hang_sx'
+    if 'antenna high' in c or 'antennahigh' in c: return 'anten_height'
+    if 'hãng sx' in c or 'tên hãng sx' in c: return 'hang_sx'
     if 'ngày hoạt động' in c: return 'start_day'
-    if 'ghi chú' in c: return 'ghi_chu'
+    if 'ghi chú' in c or 'hoàn cảnh ra đời' in c: return 'ghi_chu'
     if 'lac' == c or 'bsc_lac' in c: return 'bsc_lac'
-    if 'dl_psc' in c or 'psc' == c: return 'psc'
+    if 'dl_psc' in c or 'psc' == c or 'dlpsc' in c: return 'psc'
     if 'cell name' in c or 'tên cell' in c: return 'ten_cell'
     if 'thời gian' in c: return 'thoi_gian'
     if 'total data traffic volume' in c: return 'traffic'
@@ -92,6 +116,8 @@ def clean_header(col_name):
     if 'ci' == c: return 'ci'
     if 'đồng bộ' in c: return 'dong_bo'
     if 'site name' in c: return 'site_name'
+    if 'antenna dùng chung' in c: return 'swap'
+    if 'dl_uarfcn' in c: return 'dl_uarfcn'
     
     # Mặc định fallback nếu không khớp
     clean = re.sub(r'[^a-z0-9]', '_', remove_accents(c))
@@ -2896,6 +2922,13 @@ def import_data():
             Model = cfg.get(itype)
             if Model:
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+                is_rf_model = itype in ['3g', '4g', '5g']
+                
+                # Tải DB lên Memory để thực hiện thuật toán Ghi Đè/Gộp thông minh (Upsert & Merge)
+                existing_rf = {}
+                if is_rf_model:
+                    existing_rf = {str(r.cell_code).strip(): r for r in db.session.query(Model).all() if r.cell_code}
+
                 for file in files:
                     try:
                         # Đọc file (hỗ trợ file có dòng Title ở trên cùng)
@@ -2909,7 +2942,7 @@ def import_data():
                         for i in range(min(10, len(df_raw))):
                             row_vals = [str(x).lower().strip() for x in df_raw.iloc[i].values if pd.notna(x)]
                             # Dấu hiệu nhận biết dòng Header thực thụ
-                            if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name']):
+                            if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name', 'mã cell']):
                                 if not any(title_kw in row_vals[0] for title_kw in ['lọc kpi', 'điều kiện']):
                                     header_row_idx = i
                                     break
@@ -2918,10 +2951,10 @@ def import_data():
                         df = df_raw.iloc[header_row_idx + 1:].reset_index(drop=True)
                         df.columns = df_raw.iloc[header_row_idx]
                         
-                        # Áp dụng hàm clean_header để chuẩn hoá tên cột
-                        df.columns = [clean_header(c) for c in df.columns]
+                        # Áp dụng hàm clean_header để chuẩn hoá tên cột (truyền thêm biến itype)
+                        df.columns = [clean_header(c, itype) for c in df.columns]
                         
-                        records = []
+                        records_to_insert = []
                         mimo_updates = {}
                         
                         for row in df.to_dict('records'):
@@ -2969,12 +3002,27 @@ def import_data():
                                 clean_row['traffic'] = clean_row['traffic_vol_dl']
                                 
                             if clean_row:
-                                records.append(clean_row)
+                                if is_rf_model and 'cell_code' in clean_row and clean_row['cell_code']:
+                                    cc = str(clean_row['cell_code']).strip()
+                                    if cc in existing_rf:
+                                        # Merge/Ghi đè thuộc tính trực tiếp trên RAM (Gộp 2 file 3G với nhau)
+                                        obj = existing_rf[cc]
+                                        for k, v in clean_row.items():
+                                            if v is not None:
+                                                setattr(obj, k, v)
+                                    else:
+                                        # Nếu chưa có thì tạo mới và lưu vào RAM chờ gộp
+                                        new_obj = Model(**clean_row)
+                                        existing_rf[cc] = new_obj
+                                        db.session.add(new_obj)
+                                else:
+                                    records_to_insert.append(clean_row)
                                 
-                        if records: 
-                            db.session.bulk_insert_mappings(Model, records)
-                            db.session.commit()
+                        if records_to_insert and not is_rf_model: 
+                            db.session.bulk_insert_mappings(Model, records_to_insert)
                             
+                        db.session.commit()
+                        
                         # Tự động Update MIMO vào bảng RF Database (RF4G) - Chạy BULK UPDATE siêu tốc
                         if itype == 'kpi4g' and mimo_updates:
                             try:
