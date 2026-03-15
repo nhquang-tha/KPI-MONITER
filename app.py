@@ -52,44 +52,43 @@ def remove_accents(input_str):
         else: s += c
     return s
 
-def clean_header(col_name, itype=None):
+def clean_header(col_name, itype=None, raw_headers=None):
     c = str(col_name).strip().lower()
+    raw_headers_str = " | ".join([str(x).lower() for x in raw_headers]) if raw_headers else ""
     
-    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Ánh xạ chính xác tuyệt đối theo yêu cầu để gộp 2 file)
+    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Nhận dạng file để lấy đúng cột theo phân công)
     if itype == '3g':
-        mapping_3g = {
-            'mã csht': 'csht_code',                # Config3G
-            'cell name (alias)': 'cell_name',      # Config3G
-            'mã cell': 'cell_code',                # Config3G (Khóa JOIN)
-            'tên trên hệ thống': 'cell_code',      # CELL_3G (Khóa JOIN)
-            'mã trạm': 'site_code',                # Config3G
-            'latitude': 'latitude',                # Config3G
-            'longitude': 'longitude',              # Config3G
-            'longtitude': 'longitude',             
-            'thiết bị': 'equipment',               # Config3G
-            'băng tần': 'frequency',               # Config3G
-            'dlpsc': 'psc',                        # Config3G
-            'dl_psc': 'psc',
-            'dl_uarfcn': 'dl_uarfcn',              # Config3G
-            'lac': 'bsc_lac',                      # Config3G
-            'ci': 'ci',                            # Config3G
-            'antennahigh': 'anten_height',         # Config3G
-            'antenna high': 'anten_height',
-            'azimuth': 'azimuth',                  # Config3G
-            'mechanicaltilt': 'm_t',               # Config3G
-            'electricaltilt': 'e_t',               # Config3G
-            'totaltilt': 'total_tilt',             # Config3G
-            'antenna tên hãng sx': 'hang_sx',      # CELL_3G
-            'antennatype': 'antena',               # Config3G
-            'antenna dùng chung': 'swap',          # CELL_3G
-            'ngày hoạt động': 'start_day',         # CELL_3G
-            'hoàn cảnh ra đời': 'ghi_chu'          # CELL_3G
-        }
-        if c in mapping_3g:
-            return mapping_3g[c]
-        # Biến các cột không cần thiết thành tên rác để Pandas tự động loại bỏ, chống xung đột khóa
-        clean_trash = re.sub(r'[^a-z0-9]', '_', remove_accents(c))
-        return f"ignore_3g_{clean_trash}"
+        is_config3g = 'mã cell' in raw_headers_str and 'thiết bị' in raw_headers_str
+        is_cell3g = 'tên trên hệ thống' in raw_headers_str and 'hoàn cảnh ra đời' in raw_headers_str
+        
+        if is_config3g:
+            if c == 'mã csht': return 'csht_code'
+            if c == 'cell name (alias)': return 'cell_name'
+            if c == 'mã cell': return 'cell_code'
+            if c == 'mã trạm': return 'site_code'
+            if c == 'latitude': return 'latitude'
+            if c == 'longitude' or c == 'longtitude': return 'longitude'
+            if c == 'thiết bị' or c == 'tên thiết bị': return 'equipment'
+            if c == 'băng tần': return 'frequency'
+            if c == 'dlpsc' or c == 'dl_psc' or c == 'psc': return 'psc'
+            if c == 'dl_uarfcn': return 'dl_uarfcn'
+            if c == 'lac' or c == 'bsc_lac': return 'bsc_lac'
+            if c == 'ci': return 'ci'
+            if c == 'antennahigh' or c == 'antenna high': return 'anten_height'
+            if c == 'azimuth': return 'azimuth'
+            if c == 'mechanicaltilt' or c == 'mechanical tilt': return 'm_t'
+            if c == 'electricaltilt' or c == 'electrical tilt': return 'e_t'
+            if c == 'totaltilt' or c == 'total tilt': return 'total_tilt'
+            if c == 'antennatype' or c == 'model ăn ten': return 'antena'
+            return f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}"
+            
+        if is_cell3g:
+            if c == 'tên trên hệ thống' or c == 'mã cell': return 'cell_code'
+            if c == 'antenna tên hãng sx' or c == 'hãng sx': return 'hang_sx'
+            if c == 'antenna dùng chung' or c == 'swap': return 'swap'
+            if c == 'ngày hoạt động': return 'start_day'
+            if c == 'hoàn cảnh ra đời' or c == 'ghi chú': return 'ghi_chu'
+            return f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}"
 
     # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
     if 'mã node cha' in c: return 'site_code'
@@ -2569,43 +2568,6 @@ def poi():
     gc.collect()
     return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
 
-@app.route('/conges-3g')
-@login_required
-def conges_3g():
-    conges_data, target_dates = [], []
-    action = request.args.get('action')
-    if action in ['execute', 'export']:
-        try:
-            all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
-            date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
-            if len(date_objs) >= 3:
-                target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
-                records = db.session.query(KPI3G.ten_cell, KPI3G.traffic, KPI3G.csconges, KPI3G.pstraffic, KPI3G.psconges).filter(
-                    KPI3G.thoi_gian.in_(target_dates),
-                    ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
-                ).all()
-                groups = defaultdict(list)
-                for r in records: groups[r.ten_cell].append(r)
-                for cell, rows in groups.items():
-                    if len(rows) == 3:
-                        conges_data.append({
-                            'cell_name': cell,
-                            'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2),
-                            'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2),
-                            'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
-                            'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
-                        })
-        except: pass
-    gc.collect()
-
-    if action == 'export':
-        df = pd.DataFrame(conges_data)
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Congestion 3G')
-        output.seek(0)
-        return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
-    return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
-
 @app.route('/worst-cell')
 @login_required
 def worst_cell():
@@ -2727,43 +2689,42 @@ def traffic_down():
 
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, degraded_pois=degraded_pois, tech=tech, analysis_date=analysis_date)
 
-@app.route('/script', methods=['GET', 'POST'])
+@app.route('/conges-3g')
 @login_required
-def script():
-    script_result = ""
-    if request.method == 'POST':
-        tech = request.form.get('tech')
-        rns = request.form.getlist('rn[]')
-        srns = request.form.getlist('srn[]')
-        hsns = request.form.getlist('hsn[]')
-        hpns = request.form.getlist('hpn[]')
-        rcns = request.form.getlist('rcn[]')
-        secids = request.form.getlist('sectorid[]')
-        rxnums = request.form.getlist('rxnum[]')
-        txnums = request.form.getlist('txnum[]')
+def conges_3g():
+    conges_data, target_dates = [], []
+    action = request.args.get('action')
+    if action in ['execute', 'export']:
+        try:
+            all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
+            date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
+            if len(date_objs) >= 3:
+                target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
+                records = db.session.query(KPI3G.ten_cell, KPI3G.traffic, KPI3G.csconges, KPI3G.pstraffic, KPI3G.psconges).filter(
+                    KPI3G.thoi_gian.in_(target_dates),
+                    ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+                ).all()
+                groups = defaultdict(list)
+                for r in records: groups[r.ten_cell].append(r)
+                for cell, rows in groups.items():
+                    if len(rows) == 3:
+                        conges_data.append({
+                            'cell_name': cell,
+                            'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2),
+                            'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2),
+                            'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
+                            'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
+                        })
+        except: pass
+    gc.collect()
 
-        lines = []
-        for i in range(len(rns)):
-            lines.append(f"ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={hsns[i]}, HPN={hpns[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;")
-            rs_mode = "GU" if "900" in tech else "UO" if "2100" in tech else "LO"
-            if tech == '4g': rs_mode = "LO"
-            lines.append(f"ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS={rs_mode}, RN={rns[i]}, RXNUM={rxnums[i]}, TXNUM={txnums[i]}, MNTMODE=NORMAL, RFDCPWROFFALMDETECTSW=OFF, RFTXSIGNDETECTSW=OFF;")
-            
-            ant_num = rxnums[i]
-            ant_str = f"ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A"
-            if int(ant_num) >= 2: ant_str += f", ANT2CN=0, ANT2SRN={srns[i]}, ANT2SN=0, ANT2N=R0B"
-            if int(ant_num) >= 4: ant_str += f", ANT3CN=0, ANT3SRN={srns[i]}, ANT3SN=0, ANT3N=R0C, ANT4CN=0, ANT4SRN={srns[i]}, ANT4SN=0, ANT4N=R0D"
-            lines.append(f"ADD SECTOR: SECTORID={secids[i]}, ANTNUM={ant_num}, {ant_str}, CREATESECTOREQM=FALSE;")
-            
-            ant_type_str = "ANTTYPE1=RXTX_MODE"
-            if int(ant_num) >= 2: ant_type_str += ", ANTTYPE2=RXTX_MODE"
-            if int(ant_num) >= 4: ant_type_str += ", ANTTYPE3=RXTX_MODE, ANTTYPE4=RXTX_MODE"
-            lines.append(f"ADD SECTOREQM: SECTOREQMID={secids[i]}, SECTORID={secids[i]}, ANTCFGMODE=ANTENNAPORT, ANTNUM={ant_num}, {ant_str.replace(f'ANT1SRN={srns[i]}', 'ANT1SRN=0').replace(f'ANT2SRN={srns[i]}', 'ANT2SRN=0').replace(f'ANT3SRN={srns[i]}', 'ANT3SRN=0').replace(f'ANT4SRN={srns[i]}', 'ANT4SRN=0')}, {ant_type_str};")
-            lines.append("") 
-
-        script_result = "\n".join(lines)
-
-    return render_page(CONTENT_TEMPLATE, title="Generate Script", active_page='script', script_result=script_result)
+    if action == 'export':
+        df = pd.DataFrame(conges_data)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Congestion 3G')
+        output.seek(0)
+        return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
+    return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
 @app.route('/rf')
 @login_required
@@ -2970,7 +2931,9 @@ def import_data():
 
                         # Vòng lặp xử lý từng đoạn nhỏ
                         for df in chunks:
-                            df.columns = [clean_header(c, itype) for c in df.columns]
+                            # Để nhận biết file 3G nào đang upload, truyền row_headers
+                            raw_headers = list(df.columns)
+                            df.columns = [clean_header(c, itype, raw_headers) for c in df.columns]
                             
                             records_to_process = []
                             mimo_updates = {}
@@ -3157,6 +3120,44 @@ def reset_data():
         flash(f'Đã xảy ra lỗi khi reset: {str(e)}', 'danger')
         
     return redirect(url_for('import_data'))
+
+@app.route('/script', methods=['GET', 'POST'])
+@login_required
+def script():
+    script_result = ""
+    if request.method == 'POST':
+        tech = request.form.get('tech')
+        rns = request.form.getlist('rn[]')
+        srns = request.form.getlist('srn[]')
+        hsns = request.form.getlist('hsn[]')
+        hpns = request.form.getlist('hpn[]')
+        rcns = request.form.getlist('rcn[]')
+        secids = request.form.getlist('sectorid[]')
+        rxnums = request.form.getlist('rxnum[]')
+        txnums = request.form.getlist('txnum[]')
+
+        lines = []
+        for i in range(len(rns)):
+            lines.append(f"ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={hsns[i]}, HPN={hpns[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;")
+            rs_mode = "GU" if "900" in tech else "UO" if "2100" in tech else "LO"
+            if tech == '4g': rs_mode = "LO"
+            lines.append(f"ADD RRU: CN=0, SRN={srns[i]}, SN=0, TP=TRUNK, RCN={rcns[i]}, PS=0, RT=MRRU, RS={rs_mode}, RN={rns[i]}, RXNUM={rxnums[i]}, TXNUM={txnums[i]}, MNTMODE=NORMAL, RFDCPWROFFALMDETECTSW=OFF, RFTXSIGNDETECTSW=OFF;")
+            
+            ant_num = rxnums[i]
+            ant_str = f"ANT1CN=0, ANT1SRN={srns[i]}, ANT1SN=0, ANT1N=R0A"
+            if int(ant_num) >= 2: ant_str += f", ANT2CN=0, ANT2SRN={srns[i]}, ANT2SN=0, ANT2N=R0B"
+            if int(ant_num) >= 4: ant_str += f", ANT3CN=0, ANT3SRN={srns[i]}, ANT3SN=0, ANT3N=R0C, ANT4CN=0, ANT4SRN={srns[i]}, ANT4SN=0, ANT4N=R0D"
+            lines.append(f"ADD SECTOR: SECTORID={secids[i]}, ANTNUM={ant_num}, {ant_str}, CREATESECTOREQM=FALSE;")
+            
+            ant_type_str = "ANTTYPE1=RXTX_MODE"
+            if int(ant_num) >= 2: ant_type_str += ", ANTTYPE2=RXTX_MODE"
+            if int(ant_num) >= 4: ant_type_str += ", ANTTYPE3=RXTX_MODE, ANTTYPE4=RXTX_MODE"
+            lines.append(f"ADD SECTOREQM: SECTOREQMID={secids[i]}, SECTORID={secids[i]}, ANTCFGMODE=ANTENNAPORT, ANTNUM={ant_num}, {ant_str.replace(f'ANT1SRN={srns[i]}', 'ANT1SRN=0').replace(f'ANT2SRN={srns[i]}', 'ANT2SRN=0').replace(f'ANT3SRN={srns[i]}', 'ANT3SRN=0').replace(f'ANT4SRN={srns[i]}', 'ANT4SRN=0')}, {ant_type_str};")
+            lines.append("") 
+
+        script_result = "\n".join(lines)
+
+    return render_page(CONTENT_TEMPLATE, title="Generate Script", active_page='script', script_result=script_result)
 
 @app.route('/backup', methods=['POST'])
 @login_required
