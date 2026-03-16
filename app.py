@@ -1,11 +1,22 @@
-import os, json, gc, re, zipfile, random, math, requests, urllib.parse, jinja2, pandas as pd
-from io import BytesIO
+import os
+import jinja2
+import pandas as pd
+import json
+import gc
+import re
+import zipfile
+import unicodedata
+import random
+import math
+import requests
+import urllib.parse
+from io import BytesIO, StringIO
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text, func, or_
+from sqlalchemy import text, func, inspect, or_, and_
 from itertools import zip_longest
 from collections import defaultdict
 
@@ -27,25 +38,70 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # ==============================================================================
-# 2. CÁC HÀM TIỆN ÍCH (BỘ LỌC ĐỘC QUYỀN 3G & TỰ ĐỘNG UPPERCASE)
+# 2. CÁC HÀM TIỆN ÍCH
 # ==============================================================================
 def remove_accents(input_str):
     if not isinstance(input_str, str): return str(input_str)
-    s1, s0 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨíŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴịỶảỸỹ', u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYaYy'
-    return ''.join(s0[s1.index(c)] if c in s1 else c for c in input_str)
+    s1 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨíŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴịỶảỸỹ'
+    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYaYy'
+    s = ''
+    for c in input_str:
+        if c in s1: s += s0[s1.index(c)]
+        else: s += c
+    return s
 
 def clean_header(col_name, itype=None, raw_headers=None):
     c = str(col_name).strip().lower()
     raw_headers_str = " | ".join([str(x).lower().strip() for x in raw_headers]) if raw_headers else ""
     
+    # BỘ LỌC ĐỘC QUYỀN CHO 3G (Ánh xạ tĩnh tuyệt đối, chống nhiễu)
     if itype == 'config3g':
-        mapping_config = {'mã csht': 'csht_code', 'cell name (alias)': 'cell_name', 'mã cell': 'cell_code', 'mã trạm': 'site_code', 'latitude': 'latitude', 'longitude': 'longitude', 'longtitude': 'longitude', 'thiết bị': 'equipment', 'tên thiết bị': 'equipment', 'băng tần': 'frequency', 'dlpsc': 'psc', 'dl_psc': 'psc', 'dl_uarfcn': 'dl_uarfcn', 'lac': 'bsc_lac', 'bsc_lac': 'bsc_lac', 'ci': 'ci', 'antennahigh': 'anten_height', 'antenna high': 'anten_height', 'azimuth': 'azimuth', 'mechanicaltilt': 'm_t', 'mechanical tilt': 'm_t', 'electricaltilt': 'e_t', 'electrical tilt': 'e_t', 'totaltilt': 'total_tilt', 'total tilt': 'total_tilt', 'antennatype': 'antena', 'model ăn ten': 'antena'}
+        mapping_config = {
+            'mã csht': 'csht_code',
+            'cell name (alias)': 'cell_name',
+            'mã cell': 'cell_code',
+            'mã trạm': 'site_code',
+            'latitude': 'latitude',
+            'longitude': 'longitude',
+            'longtitude': 'longitude',
+            'thiết bị': 'equipment',
+            'tên thiết bị': 'equipment',
+            'băng tần': 'frequency',
+            'dlpsc': 'psc',
+            'dl_psc': 'psc',
+            'dl_uarfcn': 'dl_uarfcn',
+            'lac': 'bsc_lac',
+            'bsc_lac': 'bsc_lac',
+            'ci': 'ci',
+            'antennahigh': 'anten_height',
+            'antenna high': 'anten_height',
+            'azimuth': 'azimuth',
+            'mechanicaltilt': 'm_t',
+            'mechanical tilt': 'm_t',
+            'electricaltilt': 'e_t',
+            'electrical tilt': 'e_t',
+            'totaltilt': 'total_tilt',
+            'total tilt': 'total_tilt',
+            'antennatype': 'antena',
+            'model ăn ten': 'antena'
+        }
         return mapping_config.get(c, f"ignore_config3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
         
     if itype == 'cell3g':
-        mapping_cell = {'tên trên hệ thống': 'cell_code', 'mã cell': 'cell_code', 'antenna tên hãng sx': 'hang_sx', 'hãng sx': 'hang_sx', 'antenna dùng chung': 'swap', 'swap': 'swap', 'ngày hoạt động': 'start_day', 'hoàn cảnh ra đời': 'ghi_chu', 'ghi chú': 'ghi_chu'}
+        mapping_cell = {
+            'tên trên hệ thống': 'cell_code',
+            'mã cell': 'cell_code',
+            'antenna tên hãng sx': 'hang_sx',
+            'hãng sx': 'hang_sx',
+            'antenna dùng chung': 'swap',
+            'swap': 'swap',
+            'ngày hoạt động': 'start_day',
+            'hoàn cảnh ra đời': 'ghi_chu',
+            'ghi chú': 'ghi_chu'
+        }
         return mapping_cell.get(c, f"ignore_cell3g_{re.sub(r'[^a-z0-9]', '_', remove_accents(c))}")
 
+    # Mapping thông minh các biến thể header chung cho 4G/5G và KPI
     if 'mã node cha' in c: return 'site_code'
     if 'mã node' in c: return 'cell_code'
     if 'tên trên hệ thống' in c: return 'cell_name'
@@ -84,8 +140,10 @@ def clean_header(col_name, itype=None, raw_headers=None):
     if 'antenna dùng chung' in c: return 'swap'
     if 'dl_uarfcn' in c: return 'dl_uarfcn'
     
+    # Mặc định fallback nếu không khớp
     clean = re.sub(r'[^a-z0-9]', '_', remove_accents(c))
-    return re.sub(r'_+', '_', clean).strip('_')
+    clean = re.sub(r'_+', '_', clean).strip('_')
+    return clean
 
 def generate_colors(n):
     base = ['#0078d4', '#107c10', '#d13438', '#ffaa44', '#00bcf2', '#5c2d91', '#e3008c', '#b4009e']
@@ -102,58 +160,262 @@ RF_COLS_ORDER = {
 # 3. MODELS DATABASE
 # ==============================================================================
 class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True); username = db.Column(db.String(50), unique=True, nullable=False); password_hash = db.Column(db.String(255), nullable=False); role = db.Column(db.String(20), default='user')
+    __tablename__ = 'user'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(20), default='user')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Config3G(db.Model):
-    __tablename__ = 'config_3g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(255), index=True); site_code = db.Column(db.String(255)); cell_name = db.Column(db.String(255)); csht_code = db.Column(db.String(255)); latitude = db.Column(db.Float); longitude = db.Column(db.Float); antena = db.Column(db.String(255)); azimuth = db.Column(db.Integer); total_tilt = db.Column(db.Float); equipment = db.Column(db.String(255)); frequency = db.Column(db.String(255)); psc = db.Column(db.String(255)); dl_uarfcn = db.Column(db.String(255)); bsc_lac = db.Column(db.String(255)); ci = db.Column(db.String(255)); anten_height = db.Column(db.Float); m_t = db.Column(db.Float); e_t = db.Column(db.Float)
+    __tablename__ = 'config_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    cell_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    antena = db.Column(db.String(255))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    psc = db.Column(db.String(255))
+    dl_uarfcn = db.Column(db.String(255))
+    bsc_lac = db.Column(db.String(255))
+    ci = db.Column(db.String(255))
+    anten_height = db.Column(db.Float)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
 
 class Cell3G(db.Model):
-    __tablename__ = 'cell_3g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(255), index=True); hang_sx = db.Column(db.String(255)); swap = db.Column(db.String(255)); start_day = db.Column(db.String(255)); ghi_chu = db.Column(db.Text)
+    __tablename__ = 'cell_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(255), index=True)
+    hang_sx = db.Column(db.String(255))
+    swap = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class RF3G(db.Model):
-    __tablename__ = 'rf_3g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(255), index=True); site_code = db.Column(db.String(255)); cell_name = db.Column(db.String(255)); csht_code = db.Column(db.String(255)); latitude = db.Column(db.Float); longitude = db.Column(db.Float); antena = db.Column(db.String(255)); azimuth = db.Column(db.Integer); total_tilt = db.Column(db.Float); equipment = db.Column(db.String(255)); frequency = db.Column(db.String(255)); psc = db.Column(db.String(255)); dl_uarfcn = db.Column(db.String(255)); bsc_lac = db.Column(db.String(255)); ci = db.Column(db.String(255)); anten_height = db.Column(db.Float); m_t = db.Column(db.Float); e_t = db.Column(db.Float); hang_sx = db.Column(db.String(255)); swap = db.Column(db.String(255)); start_day = db.Column(db.String(255)); ghi_chu = db.Column(db.Text)
+    __tablename__ = 'rf_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    cell_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    antena = db.Column(db.String(255))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    psc = db.Column(db.String(255))
+    dl_uarfcn = db.Column(db.String(255))
+    bsc_lac = db.Column(db.String(255))
+    ci = db.Column(db.String(255))
+    anten_height = db.Column(db.Float)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    hang_sx = db.Column(db.String(255))
+    swap = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class RF4G(db.Model):
-    __tablename__ = 'rf_4g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(255), index=True); site_code = db.Column(db.String(255)); cell_name = db.Column(db.String(255)); csht_code = db.Column(db.String(255)); latitude = db.Column(db.Float); longitude = db.Column(db.Float); antena = db.Column(db.String(255)); azimuth = db.Column(db.Integer); total_tilt = db.Column(db.Float); equipment = db.Column(db.String(255)); frequency = db.Column(db.String(255)); dl_uarfcn = db.Column(db.String(255)); pci = db.Column(db.String(255)); tac = db.Column(db.String(255)); enodeb_id = db.Column(db.String(255)); lcrid = db.Column(db.String(255)); anten_height = db.Column(db.Float); m_t = db.Column(db.Float); e_t = db.Column(db.Float); mimo = db.Column(db.String(255)); hang_sx = db.Column(db.String(255)); swap = db.Column(db.String(255)); start_day = db.Column(db.String(255)); ghi_chu = db.Column(db.Text)
+    __tablename__ = 'rf_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    cell_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    antena = db.Column(db.String(255))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    dl_uarfcn = db.Column(db.String(255))
+    pci = db.Column(db.String(255))
+    tac = db.Column(db.String(255))
+    enodeb_id = db.Column(db.String(255))
+    lcrid = db.Column(db.String(255))
+    anten_height = db.Column(db.Float)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    mimo = db.Column(db.String(255))
+    hang_sx = db.Column(db.String(255))
+    swap = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class RF5G(db.Model):
-    __tablename__ = 'rf_5g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(255), index=True); site_code = db.Column(db.String(255)); site_name = db.Column(db.String(255)); csht_code = db.Column(db.String(255)); latitude = db.Column(db.Float); longitude = db.Column(db.Float); antena = db.Column(db.String(255)); azimuth = db.Column(db.Integer); total_tilt = db.Column(db.Float); equipment = db.Column(db.String(255)); frequency = db.Column(db.String(255)); nrarfcn = db.Column(db.String(255)); pci = db.Column(db.String(255)); tac = db.Column(db.String(255)); gnodeb_id = db.Column(db.String(255)); lcrid = db.Column(db.String(255)); anten_height = db.Column(db.Float); m_t = db.Column(db.Float); e_t = db.Column(db.Float); mimo = db.Column(db.String(255)); hang_sx = db.Column(db.String(255)); dong_bo = db.Column(db.String(255)); start_day = db.Column(db.String(255)); ghi_chu = db.Column(db.Text)
+    __tablename__ = 'rf_5g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    site_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    antena = db.Column(db.String(255))
+    azimuth = db.Column(db.Integer)
+    total_tilt = db.Column(db.Float)
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    nrarfcn = db.Column(db.String(255))
+    pci = db.Column(db.String(255))
+    tac = db.Column(db.String(255))
+    gnodeb_id = db.Column(db.String(255))
+    lcrid = db.Column(db.String(255))
+    anten_height = db.Column(db.Float)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    mimo = db.Column(db.String(255))
+    hang_sx = db.Column(db.String(255))
+    dong_bo = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class POI4G(db.Model):
-    __tablename__ = 'poi_4g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(50)); site_code = db.Column(db.String(50)); poi_name = db.Column(db.String(200), index=True)
+    __tablename__ = 'poi_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    poi_name = db.Column(db.String(200), index=True)
 
 class POI5G(db.Model):
-    __tablename__ = 'poi_5g'; id = db.Column(db.Integer, primary_key=True); cell_code = db.Column(db.String(50)); site_code = db.Column(db.String(50)); poi_name = db.Column(db.String(200), index=True)
+    __tablename__ = 'poi_5g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50))
+    site_code = db.Column(db.String(50))
+    poi_name = db.Column(db.String(200), index=True)
 
 class KPI3G(db.Model):
-    __tablename__ = 'kpi_3g'; id = db.Column(db.Integer, primary_key=True); ten_cell = db.Column(db.String(100), index=True); thoi_gian = db.Column(db.String(50)); traffic = db.Column(db.Float); pstraffic = db.Column(db.Float); cssr = db.Column(db.Float); dcr = db.Column(db.Float); ps_cssr = db.Column(db.Float); ps_dcr = db.Column(db.Float); hsdpa_throughput = db.Column(db.Float); hsupa_throughput = db.Column(db.Float); cs_so_att = db.Column(db.Float); ps_so_att = db.Column(db.Float); csconges = db.Column(db.Float); psconges = db.Column(db.Float)
+    __tablename__ = 'kpi_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    ten_cell = db.Column(db.String(100), index=True)
+    thoi_gian = db.Column(db.String(50))
+    traffic = db.Column(db.Float)
+    pstraffic = db.Column(db.Float)
+    cssr = db.Column(db.Float)
+    dcr = db.Column(db.Float)
+    ps_cssr = db.Column(db.Float)
+    ps_dcr = db.Column(db.Float)
+    hsdpa_throughput = db.Column(db.Float)
+    hsupa_throughput = db.Column(db.Float)
+    cs_so_att = db.Column(db.Float)
+    ps_so_att = db.Column(db.Float)
+    csconges = db.Column(db.Float)
+    psconges = db.Column(db.Float)
+    stt = db.Column(db.String(50))
+    nha_cung_cap = db.Column(db.String(50))
+    tinh = db.Column(db.String(50))
+    ten_rnc = db.Column(db.String(100))
+    ma_vnp = db.Column(db.String(50))
+    loai_ne = db.Column(db.String(50))
+    lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
 
 class KPI4G(db.Model):
-    __tablename__ = 'kpi_4g'; id = db.Column(db.Integer, primary_key=True); ten_cell = db.Column(db.String(100), index=True); thoi_gian = db.Column(db.String(50)); traffic = db.Column(db.Float); traffic_vol_dl = db.Column(db.Float); traffic_vol_ul = db.Column(db.Float); cell_dl_avg_thputs = db.Column(db.Float); cell_ul_avg_thput = db.Column(db.Float); user_dl_avg_thput = db.Column(db.Float); user_ul_avg_thput = db.Column(db.Float); erab_ssrate_all = db.Column(db.Float); service_drop_all = db.Column(db.Float); unvailable = db.Column(db.Float); res_blk_dl = db.Column(db.Float); cqi_4g = db.Column(db.Float)
+    __tablename__ = 'kpi_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    ten_cell = db.Column(db.String(100), index=True)
+    thoi_gian = db.Column(db.String(50))
+    traffic = db.Column(db.Float)
+    traffic_vol_dl = db.Column(db.Float)
+    traffic_vol_ul = db.Column(db.Float)
+    cell_dl_avg_thputs = db.Column(db.Float)
+    cell_ul_avg_thput = db.Column(db.Float)
+    user_dl_avg_thput = db.Column(db.Float)
+    user_ul_avg_thput = db.Column(db.Float)
+    erab_ssrate_all = db.Column(db.Float)
+    service_drop_all = db.Column(db.Float)
+    unvailable = db.Column(db.Float)
+    res_blk_dl = db.Column(db.Float)
+    cqi_4g = db.Column(db.Float)
+    stt = db.Column(db.String(50))
+    nha_cung_cap = db.Column(db.String(50))
+    tinh = db.Column(db.String(50))
+    ten_rnc = db.Column(db.String(100))
+    ma_vnp = db.Column(db.String(50))
+    loai_ne = db.Column(db.String(50))
+    enodeb_id = db.Column(db.String(50))
+    cell_id = db.Column(db.String(50))
 
 class KPI5G(db.Model):
-    __tablename__ = 'kpi_5g'; id = db.Column(db.Integer, primary_key=True); ten_cell = db.Column(db.String(100), index=True); thoi_gian = db.Column(db.String(50)); traffic = db.Column(db.Float); dl_traffic_volume_gb = db.Column(db.Float); ul_traffic_volume_gb = db.Column(db.Float); cell_downlink_average_throughput = db.Column(db.Float); cell_uplink_average_throughput = db.Column(db.Float); user_dl_avg_throughput = db.Column(db.Float); cqi_5g = db.Column(db.Float); cell_avaibility_rate = db.Column(db.Float); sgnb_addition_success_rate = db.Column(db.Float); sgnb_abnormal_release_rate = db.Column(db.Float)
+    __tablename__ = 'kpi_5g'
+    id = db.Column(db.Integer, primary_key=True)
+    ten_cell = db.Column(db.String(100), index=True)
+    thoi_gian = db.Column(db.String(50))
+    traffic = db.Column(db.Float)
+    dl_traffic_volume_gb = db.Column(db.Float)
+    ul_traffic_volume_gb = db.Column(db.Float)
+    cell_downlink_average_throughput = db.Column(db.Float)
+    cell_uplink_average_throughput = db.Column(db.Float)
+    user_dl_avg_throughput = db.Column(db.Float)
+    cqi_5g = db.Column(db.Float)
+    cell_avaibility_rate = db.Column(db.Float)
+    sgnb_addition_success_rate = db.Column(db.Float)
+    sgnb_abnormal_release_rate = db.Column(db.Float)
+    nha_cung_cap = db.Column(db.String(50))
+    tinh = db.Column(db.String(50))
+    ten_gnodeb = db.Column(db.String(100))
+    ma_vnp = db.Column(db.String(50))
+    loai_ne = db.Column(db.String(50))
+    gnodeb_id = db.Column(db.String(50))
+    cell_id = db.Column(db.String(50))
 
 class QoE4G(db.Model):
-    __tablename__ = 'qoe_4g'; id = db.Column(db.Integer, primary_key=True); cell_name = db.Column(db.String(100), index=True); week_name = db.Column(db.String(100)); qoe_score = db.Column(db.Float); qoe_percent = db.Column(db.Float); details = db.Column(db.Text)
+    __tablename__ = 'qoe_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_name = db.Column(db.String(100), index=True)
+    week_name = db.Column(db.String(100))
+    qoe_score = db.Column(db.Float)
+    qoe_percent = db.Column(db.Float)
+    details = db.Column(db.Text)
 
 class QoS4G(db.Model):
-    __tablename__ = 'qos_4g'; id = db.Column(db.Integer, primary_key=True); cell_name = db.Column(db.String(100), index=True); week_name = db.Column(db.String(100)); qos_score = db.Column(db.Float); qos_percent = db.Column(db.Float); details = db.Column(db.Text)
+    __tablename__ = 'qos_4g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_name = db.Column(db.String(100), index=True)
+    week_name = db.Column(db.String(100))
+    qos_score = db.Column(db.Float)
+    qos_percent = db.Column(db.Float)
+    details = db.Column(db.Text)
+
+class ITSLog(db.Model):
+    __tablename__ = 'its_log'
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    networktech = db.Column(db.String(20))
+    level = db.Column(db.Float)
+    qual = db.Column(db.Float)
+    cellid = db.Column(db.String(50))
 
 @login_manager.user_loader
-def load_user(user_id): return db.session.get(User, int(user_id))
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 
 def init_database():
     with app.app_context():
         db.create_all()
         if not User.query.filter_by(username='admin').first():
-            u = User(username='admin', role='admin'); u.set_password('admin123'); db.session.add(u); db.session.commit()
+            u = User(username='admin', role='admin')
+            u.set_password('admin123')
+            db.session.add(u)
+            db.session.commit()
 init_database()
 
 # ==============================================================================
-# 4. GIAO DIỆN HTML/CSS (Đã phục hồi cấu trúc chuẩn chống lỗi JS)
+# 4. GIAO DIỆN HTML/CSS (Mẫu chuẩn đầy đủ)
 # ==============================================================================
 BASE_LAYOUT = """
 <!DOCTYPE html>
@@ -1247,7 +1509,7 @@ CONTENT_TEMPLATE = """
             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th>Cell Name</th><th>Avg Thput</th><th>Avg PRB</th><th>Avg CQI</th><th>Avg Drop Rate</th><th>Hành động</th></tr></thead><tbody>{% for r in worst_cells %}<tr><td class="fw-bold text-primary">{{ r.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_thput < 7000 }}">{{ r.avg_thput }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_res_blk > 20 }}">{{ r.avg_res_blk }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_cqi < 93 }}">{{ r.avg_cqi }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_drop > 0.3 }}">{{ r.avg_drop }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success text-white">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Nhấn Lọc để xem dữ liệu</td></tr>{% endfor %}</tbody></table></div>
         
         {% elif active_page == 'traffic_down' %}
-            <form method="GET" action="/traffic-down" class="row g-3 mb-4 bg-light p-3"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success ms-2">Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-warning ms-2">Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form>
+            <form method="GET" action="/traffic-down" class="row g-3 mb-4 bg-light p-3"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select"><option value="3g">3G</option><option value="4g">4G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success ms-2">Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-warning ms-2">Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form>
             <div class="row g-4"><div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Zero Traffic</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg 7D</th><th class="text-center">Action</th></tr></thead><tbody>{% for r in zero_traffic %}<tr><td class="fw-bold">{{ r.cell_name }}</td><td class="text-end text-danger">{{ r.traffic_today }}</td><td class="text-end">{{ r.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ r.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div><div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Degraded</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Wk</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for r in degraded %}<tr><td class="fw-bold">{{ r.cell_name }}</td><td class="text-end text-danger">{{ r.traffic_today }}</td><td class="text-end">{{ r.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ r.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ r.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div></div>
         
         {% elif active_page == 'conges_3g' %}
@@ -1260,7 +1522,7 @@ CONTENT_TEMPLATE = """
             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 65vh;"><table class="table table-hover mb-0" style="font-size: 0.85rem; white-space: nowrap;"><thead class="table-light position-sticky top-0" style="z-index: 10;"><tr><th class="text-center border-bottom bg-light" style="position: sticky; left: 0; z-index: 20;">Action</th>{% for col in rf_columns %}<th>{{ col | replace('site_name', 'cell_name') | replace('_', ' ') | upper }}</th>{% endfor %}</tr></thead><tbody>{% for row in rf_data %}<tr><td class="text-center bg-white border-end shadow-sm" style="position: sticky; left: 0; z-index: 5;"><a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-primary py-0"><i class="fa-solid fa-eye"></i></a>{% if current_user.role == 'admin' %}<a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-warning py-0"><i class="fa-solid fa-pen"></i></a><a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-danger py-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a>{% endif %}</td>{% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}</tr>{% else %}<tr><td colspan="100%" class="text-center py-4 text-muted"><i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block opacity-50"></i>Không tìm thấy trạm nào.</td></tr>{% endfor %}</tbody></table></div>
         
         {% elif active_page == 'import' %}
-            <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Data Import</h5><ul class="nav nav-tabs mb-4" id="importTabs" role="tablist"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF" type="button">Import RF</button></li><li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li><li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li><li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#tabQoE" type="button">Import QoE/QoS</button></li><li class="nav-item"><button class="nav-link text-danger fw-bold" data-bs-toggle="tab" data-bs-target="#tabReset" type="button">Reset Data</button></li></ul>
+            <div class="row"><div class="col-md-8"><div class="tab-content bg-white p-4 rounded-3 shadow-sm border"><h5 class="mb-3 text-primary"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Data Import</h5><ul class="nav nav-tabs mb-4" id="importTabs" role="tablist"><li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF">RF</button></li><li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI">POI</button></li><li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI">KPI</button></li><li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#tabQoE">QoE</button></li><li class="nav-item"><button class="nav-link text-danger fw-bold" data-bs-toggle="tab" data-bs-target="#tabReset">Reset</button></li></ul>
             <div class="tab-content">
                 <div class="tab-pane fade show active" id="tabRF"><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label><select name="type" class="form-select"><option value="3g">RF 3G (Gộp tự động Config & CELL)</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option></select></div><div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload RF Data</button></form></div>
                 <div class="tab-pane fade" id="tabPOI"><form action="/import" method="POST" enctype="multipart/form-data"><div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu POI</label><select name="type" class="form-select"><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option></select></div><div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div><button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload POI Data</button></form></div>
@@ -1290,6 +1552,208 @@ def render_page(tpl, **kwargs):
 
 # ==============================================================================
 # 5. ROUTES CHỨC NĂNG CHÍNH
+# ==============================================================================
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    if request.method == 'POST':
+        files = request.files.getlist('file')
+        itype = request.form.get('type')
+        
+        # 1. NHÁNH IMPORT QoE/QoS
+        if itype in ['qoe4g', 'qos4g']:
+            week_name = request.form.get('week_name', 'Tuần')
+            TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
+            try: db.session.query(TargetModel).filter_by(week_name=week_name).delete(); db.session.commit()
+            except: db.session.rollback()
+
+            for file in files:
+                try:
+                    df = pd.read_excel(file, header=None) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None)
+                    h_idx, c_idx = -1, -1
+                    for i, row in df.iterrows():
+                        for j, val in enumerate(row):
+                            if str(val).lower().strip() in ['cell name', 'tên cell']: h_idx, c_idx = i, j; break
+                        if h_idx != -1: break
+                        
+                    if h_idx != -1 and c_idx != -1:
+                        headers = [str(df.iloc[h_idx, j]).strip() for j in range(len(df.columns))]
+                        records = []
+                        for i in range(h_idx + 1, len(df)):
+                            row_data = df.iloc[i]
+                            c_name = str(row_data[c_idx]).strip()
+                            if not c_name or c_name.lower() in ['nan', 'none']: continue
+                            try: val1 = float(str(row_data[c_idx + 2]).replace(',', '.'))
+                            except: val1 = 0.0
+                            try: val2 = float(str(row_data[c_idx + 3]).replace(',', '.'))
+                            except: val2 = 0.0
+                            if math.isnan(val1): val1 = 0.0
+                            if math.isnan(val2): val2 = 0.0
+                            percent, score = max(val1, val2), min(val1, val2)
+                            details = json.dumps({headers[j]: str(row_data[j]).strip() for j in range(len(headers)) if pd.notna(row_data[j])}, ensure_ascii=False)
+                            records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details})
+                        if records:
+                            db.session.bulk_insert_mappings(TargetModel, records)
+                            db.session.commit()
+                            flash(f'Import thành công {len(records)} dòng QoE/QoS.', 'success')
+                except Exception as e: flash(f'Lỗi: {e}', 'danger')
+                
+        # 2. NHÁNH IMPORT RF/KPI/POI VÀ TÍNH NĂNG GỘP 3G THÔNG MINH
+        else:
+            cfg = {'3g': [Config3G, Cell3G], '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+            
+            # Ép thứ tự: Nếu có nhiều file 3G, file có chữ Config sẽ được nạp trước
+            if itype == '3g':
+                files = sorted(files, key=lambda f: 0 if 'config' in getattr(f, 'filename', '').lower() else 1)
+                
+            for file in files:
+                try:
+                    f_name_lower = file.filename.lower()
+                    if f_name_lower.endswith('.csv'): preview_df = pd.read_csv(file, header=None, nrows=20, encoding='utf-8-sig', on_bad_lines='skip')
+                    else: preview_df = pd.read_excel(file, header=None, nrows=20)
+                        
+                    h_idx = 0
+                    for i in range(len(preview_df)):
+                        row_vals = [str(x).lower().strip() for x in preview_df.iloc[i].values if pd.notna(x)]
+                        if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'site name', 'mã cell', 'tên trên hệ thống']):
+                            if not any('lọc kpi' in val for val in row_vals): h_idx = i; break
+                    
+                    # NHẬN DIỆN THÔNG MINH FILE NÀO CỦA 3G ĐANG ĐƯỢC NẠP VÀO
+                    current_itype = itype
+                    is_update_only = False
+                    if itype == '3g':
+                        raw_headers_str = " ".join([str(x).lower().strip() for x in preview_df.iloc[h_idx].values if pd.notna(x)])
+                        if 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str:
+                            current_itype = 'cell3g'
+                            is_update_only = True
+                        else:
+                            current_itype = 'config3g'
+                            
+                    Model = cfg.get(current_itype) if itype == '3g' else cfg.get(itype)
+                    if not Model: continue
+                    valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+                    
+                    file.seek(0)
+                    CHUNK_SIZE = 2500
+                    if f_name_lower.endswith('.csv'):
+                        chunks = pd.read_csv(file, header=h_idx, encoding='utf-8-sig', on_bad_lines='skip', low_memory=False, chunksize=CHUNK_SIZE)
+                    else:
+                        full_df = pd.read_excel(BytesIO(file.read()), header=h_idx)
+                        chunks = [full_df[i:i + CHUNK_SIZE] for i in range(0, full_df.shape[0], CHUNK_SIZE)]
+                        del full_df
+                        gc.collect()
+
+                    total_inserted = 0
+                    for df in chunks:
+                        raw_headers = list(df.columns)
+                        df.columns = [clean_header(c, current_itype, raw_headers) for c in df.columns]
+                        
+                        records_to_process = []
+                        cell_codes_in_chunk = set()
+                        
+                        for row in df.to_dict('records'):
+                            clean_row = {}
+                            for k, v in row.items():
+                                if k in valid_cols and pd.notna(v):
+                                    col_type = Model.__table__.columns[k].type
+                                    val = str(v).strip()
+                                    if val.lower() in ['nan', 'none', 'null', 'na', 'n/a', 'no', '']: clean_row[k] = None
+                                    elif isinstance(col_type, db.Float):
+                                        try: clean_row[k] = float(val.replace(',', '.'))
+                                        except ValueError: clean_row[k] = None
+                                    elif isinstance(col_type, db.Integer):
+                                        try: clean_row[k] = int(float(val.replace(',', '.')))
+                                        except ValueError: clean_row[k] = None
+                                    else:
+                                        if val.endswith('.0'):
+                                            try: clean_row[k] = str(int(float(val)))
+                                            except: clean_row[k] = val
+                                        else:
+                                            clean_row[k] = val[:250] if len(val)>250 else val
+                            
+                            # ÉP CHUẨN IN HOA CHỐNG LỖI LỆCH KHÓA CHÍNH (Vd: 3G_BSN001 == 3g_bsn001)
+                            if 'cell_code' in clean_row and clean_row['cell_code']:
+                                clean_row['cell_code'] = str(clean_row['cell_code']).strip().upper()
+                                
+                            if clean_row:
+                                records_to_process.append(clean_row)
+                                if 'cell_code' in clean_row and clean_row['cell_code']:
+                                    cell_codes_in_chunk.add(str(clean_row['cell_code']).strip())
+
+                        is_rf_model = current_itype in ['config3g', 'cell3g', '4g', '5g']
+                        
+                        if is_rf_model and records_to_process:
+                            existing_rf_db = db.session.query(Model).filter(Model.cell_code.in_(list(cell_codes_in_chunk))).all()
+                            existing_rf_map = {str(r.cell_code).upper(): r for r in existing_rf_db if r.cell_code}
+                            
+                            for cr in records_to_process:
+                                cc = str(cr.get('cell_code', '')).strip().upper()
+                                if cc in existing_rf_map:
+                                    obj = existing_rf_map[cc]
+                                    for k, v in cr.items():
+                                        if v is not None: setattr(obj, k, v)
+                                else:
+                                    # CELL_3G CHỈ ĐƯỢC PHÉP CẬP NHẬT, KHÔNG ĐƯỢC ĐẺ THÊM RÁC
+                                    if not is_update_only:
+                                        new_obj = Model(**cr)
+                                        existing_rf_map[cc] = new_obj
+                                        db.session.add(new_obj)
+                                    
+                            db.session.commit()
+                            total_inserted += len(records_to_process)
+                            
+                        elif not is_rf_model and records_to_process:
+                            db.session.bulk_insert_mappings(Model, records_to_process)
+                            db.session.commit()
+                            total_inserted += len(records_to_process)
+                            
+                        del records_to_process
+                        del cell_codes_in_chunk
+                        gc.collect()
+
+                    flash(f'Import hoàn tất file {file.filename} ({total_inserted} dòng)', 'success')
+                except Exception as e: 
+                    db.session.rollback()
+                    flash(f'Lỗi file {file.filename}: {e}', 'danger')
+                    
+            # BƯỚC CUỐI CÙNG SAU KHI NẠP XONG 2 FILE 3G: TỰ ĐỘNG GỘP VÀO BẢNG RF3G CHÍNH
+            if itype == '3g':
+                try:
+                    db.session.query(RF3G).delete()
+                    db.session.commit()
+                    
+                    configs = {str(c.cell_code).upper(): c for c in Config3G.query.all() if c.cell_code}
+                    cells = {str(c.cell_code).upper(): c for c in Cell3G.query.all() if c.cell_code}
+                    
+                    rf3g_inserts = []
+                    for cc, cfg_row in configs.items():
+                        cell_row = cells.get(cc)
+                        rf3g_inserts.append({
+                            'cell_code': cc, 'site_code': cfg_row.site_code, 'cell_name': cfg_row.cell_name,
+                            'csht_code': cfg_row.csht_code, 'latitude': cfg_row.latitude, 'longitude': cfg_row.longitude,
+                            'antena': cfg_row.antena, 'azimuth': cfg_row.azimuth, 'total_tilt': cfg_row.total_tilt,
+                            'equipment': cfg_row.equipment, 'frequency': cfg_row.frequency, 'psc': cfg_row.psc,
+                            'dl_uarfcn': cfg_row.dl_uarfcn, 'bsc_lac': cfg_row.bsc_lac, 'ci': cfg_row.ci,
+                            'anten_height': cfg_row.anten_height, 'm_t': cfg_row.m_t, 'e_t': cfg_row.e_t,
+                            'hang_sx': cell_row.hang_sx if cell_row else None,
+                            'swap': cell_row.swap if cell_row else None,
+                            'start_day': cell_row.start_day if cell_row else None,
+                            'ghi_chu': cell_row.ghi_chu if cell_row else None
+                        })
+                    
+                    if rf3g_inserts:
+                        db.session.bulk_insert_mappings(RF3G, rf3g_inserts)
+                        db.session.commit()
+                        flash(f'Đã tự động tổng hợp {len(rf3g_inserts)} trạm hoàn chỉnh vào Danh bạ RF 3G!', 'info')
+                except Exception as e:
+                    db.session.rollback()
+                    flash(f'Lỗi Gộp RF 3G: {e}', 'danger')
+
+        return redirect(url_for('import_data'))
+
+# ==============================================================================
+# CÁC ROUTE CÒN LẠI (Backup, Script, Telegram...)
 # ==============================================================================
 def send_telegram_message(chat_id, text_content):
     if not TELEGRAM_BOT_TOKEN: return
@@ -1449,223 +1913,6 @@ def rf():
     data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in (Model.query.limit(100).all() if Model else [])]
     return render_page(CONTENT_TEMPLATE, title="RF Database", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data)
 
-@app.route('/rf/detail/<tech>/<int:id>')
-@login_required
-def rf_detail(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
-    clean_obj = {c: getattr(obj, c) for c in cols if hasattr(obj, c)}
-    return render_page(RF_DETAIL_TEMPLATE, obj=clean_obj, tech=tech)
-
-# ==============================================================================
-# HÀM IMPORT - CHỨA THUẬT TOÁN GỘP FILE 3G VÀ TỰ ĐỘNG CHUẨN HÓA DỮ LIỆU
-# ==============================================================================
-@app.route('/import', methods=['GET', 'POST'])
-@login_required
-def import_data():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    if request.method == 'POST':
-        files = request.files.getlist('file')
-        itype = request.form.get('type')
-        
-        if itype in ['qoe4g', 'qos4g']:
-            week_name = request.form.get('week_name', 'Tuần')
-            TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
-            try: db.session.query(TargetModel).filter_by(week_name=week_name).delete(); db.session.commit()
-            except: db.session.rollback()
-
-            for file in files:
-                try:
-                    df = pd.read_excel(file, header=None) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None)
-                    h_idx, c_idx = -1, -1
-                    for i, row in df.iterrows():
-                        for j, val in enumerate(row):
-                            if str(val).lower().strip() in ['cell name', 'tên cell']: h_idx, c_idx = i, j; break
-                        if h_idx != -1: break
-                        
-                    if h_idx != -1 and c_idx != -1:
-                        headers = [str(df.iloc[h_idx, j]).strip() for j in range(len(df.columns))]
-                        records = []
-                        for i in range(h_idx + 1, len(df)):
-                            row_data = df.iloc[i]
-                            c_name = str(row_data[c_idx]).strip()
-                            if not c_name or c_name.lower() in ['nan', 'none']: continue
-                            try: val1 = float(str(row_data[c_idx + 2]).replace(',', '.'))
-                            except: val1 = 0.0
-                            try: val2 = float(str(row_data[c_idx + 3]).replace(',', '.'))
-                            except: val2 = 0.0
-                            if math.isnan(val1): val1 = 0.0
-                            if math.isnan(val2): val2 = 0.0
-                            percent, score = max(val1, val2), min(val1, val2)
-                            details = json.dumps({headers[j]: str(row_data[j]).strip() for j in range(len(headers)) if pd.notna(row_data[j])}, ensure_ascii=False)
-                            records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details})
-                        if records:
-                            db.session.bulk_insert_mappings(TargetModel, records)
-                            db.session.commit()
-                            flash(f'Import thành công {len(records)} dòng QoE/QoS.', 'success')
-                except Exception as e: flash(f'Lỗi: {e}', 'danger')
-                
-        else:
-            cfg = {'3g': [Config3G, Cell3G], '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
-            
-            # Ép thứ tự: Nếu có nhiều file 3G, file có chữ Config sẽ được nạp trước
-            if itype == '3g':
-                files = sorted(files, key=lambda f: 0 if 'config' in getattr(f, 'filename', '').lower() else 1)
-                
-            for file in files:
-                try:
-                    f_name_lower = file.filename.lower()
-                    if f_name_lower.endswith('.csv'): preview_df = pd.read_csv(file, header=None, nrows=20, encoding='utf-8-sig', on_bad_lines='skip')
-                    else: preview_df = pd.read_excel(file, header=None, nrows=20)
-                        
-                    h_idx = 0
-                    for i in range(len(preview_df)):
-                        row_vals = [str(x).lower().strip() for x in preview_df.iloc[i].values if pd.notna(x)]
-                        if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'site name', 'mã cell', 'tên trên hệ thống']):
-                            if not any('lọc kpi' in val for val in row_vals): h_idx = i; break
-                    
-                    # NHẬN DIỆN THÔNG MINH FILE NÀO CỦA 3G ĐANG ĐƯỢC NẠP VÀO
-                    current_itype = itype
-                    is_update_only = False
-                    if itype == '3g':
-                        raw_headers_str = " ".join([str(x).lower().strip() for x in preview_df.iloc[h_idx].values if pd.notna(x)])
-                        if 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str:
-                            current_itype = 'cell3g'
-                            is_update_only = True
-                        else:
-                            current_itype = 'config3g'
-                            
-                    Model = cfg.get(current_itype) if itype == '3g' else cfg.get(itype)
-                    if not Model: continue
-                    valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
-                    
-                    file.seek(0)
-                    CHUNK_SIZE = 2500
-                    if f_name_lower.endswith('.csv'):
-                        chunks = pd.read_csv(file, header=h_idx, encoding='utf-8-sig', on_bad_lines='skip', low_memory=False, chunksize=CHUNK_SIZE)
-                    else:
-                        full_df = pd.read_excel(BytesIO(file.read()), header=h_idx)
-                        chunks = [full_df[i:i + CHUNK_SIZE] for i in range(0, full_df.shape[0], CHUNK_SIZE)]
-                        del full_df
-                        gc.collect()
-
-                    total_inserted = 0
-                    for df in chunks:
-                        raw_headers = list(df.columns)
-                        df.columns = [clean_header(c, current_itype, raw_headers) for c in df.columns]
-                        
-                        records_to_process = []
-                        cell_codes_in_chunk = set()
-                        
-                        for row in df.to_dict('records'):
-                            clean_row = {}
-                            for k, v in row.items():
-                                if k in valid_cols and pd.notna(v):
-                                    col_type = Model.__table__.columns[k].type
-                                    val = str(v).strip()
-                                    if val.lower() in ['nan', 'none', 'null', 'na', 'n/a', 'no', '']: clean_row[k] = None
-                                    elif isinstance(col_type, db.Float):
-                                        try: clean_row[k] = float(val.replace(',', '.'))
-                                        except ValueError: clean_row[k] = None
-                                    elif isinstance(col_type, db.Integer):
-                                        try: clean_row[k] = int(float(val.replace(',', '.')))
-                                        except ValueError: clean_row[k] = None
-                                    else:
-                                        if val.endswith('.0'):
-                                            try: clean_row[k] = str(int(float(val)))
-                                            except: clean_row[k] = val
-                                        else:
-                                            clean_row[k] = val[:250] if len(val)>250 else val
-                            
-                            # ÉP CHUẨN IN HOA CHỐNG LỖI LỆCH KHÓA CHÍNH (Vd: 3G_BSN001 == 3g_bsn001)
-                            if 'cell_code' in clean_row and clean_row['cell_code']:
-                                clean_row['cell_code'] = str(clean_row['cell_code']).strip().upper()
-                                
-                            if clean_row:
-                                records_to_process.append(clean_row)
-                                if 'cell_code' in clean_row and clean_row['cell_code']:
-                                    cell_codes_in_chunk.add(str(clean_row['cell_code']).strip())
-
-                        is_rf_model = current_itype in ['config3g', 'cell3g', '4g', '5g']
-                        
-                        if is_rf_model and records_to_process:
-                            existing_rf_db = db.session.query(Model).filter(Model.cell_code.in_(list(cell_codes_in_chunk))).all()
-                            existing_rf_map = {str(r.cell_code).upper(): r for r in existing_rf_db if r.cell_code}
-                            
-                            for cr in records_to_process:
-                                cc = str(cr.get('cell_code', '')).strip().upper()
-                                if cc in existing_rf_map:
-                                    obj = existing_rf_map[cc]
-                                    for k, v in cr.items():
-                                        if v is not None: setattr(obj, k, v)
-                                else:
-                                    # CELL_3G CHỈ ĐƯỢC PHÉP CẬP NHẬT, KHÔNG ĐƯỢC ĐẺ THÊM RÁC
-                                    if not is_update_only:
-                                        new_obj = Model(**cr)
-                                        existing_rf_map[cc] = new_obj
-                                        db.session.add(new_obj)
-                                    
-                            db.session.commit()
-                            total_inserted += len(records_to_process)
-                            
-                        elif not is_rf_model and records_to_process:
-                            db.session.bulk_insert_mappings(Model, records_to_process)
-                            db.session.commit()
-                            total_inserted += len(records_to_process)
-                            
-                        del records_to_process
-                        del cell_codes_in_chunk
-                        gc.collect()
-
-                    flash(f'Import hoàn tất file {file.filename} ({total_inserted} dòng)', 'success')
-                except Exception as e: 
-                    db.session.rollback()
-                    flash(f'Lỗi file {file.filename}: {e}', 'danger')
-                    
-            # BƯỚC CUỐI CÙNG SAU KHI NẠP XONG 2 FILE 3G: TỰ ĐỘNG GỘP VÀO BẢNG RF3G CHÍNH
-            if itype == '3g':
-                try:
-                    db.session.query(RF3G).delete()
-                    db.session.commit()
-                    
-                    configs = {str(c.cell_code).upper(): c for c in Config3G.query.all() if c.cell_code}
-                    cells = {str(c.cell_code).upper(): c for c in Cell3G.query.all() if c.cell_code}
-                    
-                    rf3g_inserts = []
-                    for cc, cfg_row in configs.items():
-                        cell_row = cells.get(cc)
-                        rf3g_inserts.append({
-                            'cell_code': cc, 'site_code': cfg_row.site_code, 'cell_name': cfg_row.cell_name,
-                            'csht_code': cfg_row.csht_code, 'latitude': cfg_row.latitude, 'longitude': cfg_row.longitude,
-                            'antena': cfg_row.antena, 'azimuth': cfg_row.azimuth, 'total_tilt': cfg_row.total_tilt,
-                            'equipment': cfg_row.equipment, 'frequency': cfg_row.frequency, 'psc': cfg_row.psc,
-                            'dl_uarfcn': cfg_row.dl_uarfcn, 'bsc_lac': cfg_row.bsc_lac, 'ci': cfg_row.ci,
-                            'anten_height': cfg_row.anten_height, 'm_t': cfg_row.m_t, 'e_t': cfg_row.e_t,
-                            'hang_sx': cell_row.hang_sx if cell_row else None,
-                            'swap': cell_row.swap if cell_row else None,
-                            'start_day': cell_row.start_day if cell_row else None,
-                            'ghi_chu': cell_row.ghi_chu if cell_row else None
-                        })
-                    
-                    if rf3g_inserts:
-                        db.session.bulk_insert_mappings(RF3G, rf3g_inserts)
-                        db.session.commit()
-                        flash(f'Đã tự động tổng hợp {len(rf3g_inserts)} trạm hoàn chỉnh vào Danh bạ RF 3G!', 'info')
-                except Exception as e:
-                    db.session.rollback()
-                    flash(f'Lỗi Gộp RF 3G: {e}', 'danger')
-
-        return redirect(url_for('import_data'))
-
-    d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
-    d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
-    d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    today = datetime.now()
-    start_w = today - timedelta(days=today.weekday())
-    next_w_str = f"Tuần {today.isocalendar()[1]:02d} ({start_w.strftime('%d/%m')}-{(start_w + timedelta(days=6)).strftime('%d/%m')})"
-    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), next_qoe=next_w_str, next_qos=next_w_str)
-
 @app.route('/reset-data', methods=['POST'])
 @login_required
 def reset_data():
@@ -1684,13 +1931,23 @@ def reset_data():
 @app.route('/script', methods=['GET', 'POST'])
 @login_required
 def script():
+    script_result = ""
+    if request.method == 'POST':
+        tech = request.form.get('tech')
+        rns, srns, hsns, hpns, rcns, secids, rxnums, txnums = request.form.getlist('rn[]'), request.form.getlist('srn[]'), request.form.getlist('hsn[]'), request.form.getlist('hpn[]'), request.form.getlist('rcn[]'), request.form.getlist('sectorid[]'), request.form.getlist('rxnum[]'), request.form.getlist('txnum[]')
+        lines = []
+        for i in range(len(rns)):
+            lines.append(f"ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={hsns[i]}, HPN={hpns[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;")
+            lines.append("") 
+        script_result = "\n".join(lines)
+    return render_page(CONTENT_TEMPLATE, title="Generate Script", active_page='script', script_result=script_result)
+
 @app.route('/backup', methods=['POST'])
 @login_required
 def backup_db():
     if current_user.role != 'admin': return redirect(url_for('index'))
     selected_tables = request.form.getlist('tables')
-    if not selected_tables:
-        flash('No tables selected', 'warning'); return redirect(url_for('backup_restore'))
+    if not selected_tables: flash('No tables selected', 'warning'); return redirect(url_for('backup_restore'))
     stream = BytesIO()
     models_map = {'users.csv': User, 'config_3g.csv': Config3G, 'cell_3g.csv': Cell3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
