@@ -54,6 +54,7 @@ def remove_accents(input_str):
 
 def clean_header(col_name, itype=None, raw_headers=None):
     c = str(col_name).strip().lower()
+    raw_headers_str = " | ".join([str(x).lower().strip() for x in raw_headers]) if raw_headers else ""
     
     # BỘ LỌC ĐỘC QUYỀN CHO 3G TÁCH BIỆT TỪNG BẢNG
     if itype == 'config3g':
@@ -174,21 +175,21 @@ class User(UserMixin, db.Model):
 class Config3G(db.Model):
     __tablename__ = 'config_3g'
     id = db.Column(db.Integer, primary_key=True)
-    cell_code = db.Column(db.String(50), index=True)
-    site_code = db.Column(db.String(50))
-    cell_name = db.Column(db.String(100))
-    csht_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    cell_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
+    antena = db.Column(db.String(255))
     azimuth = db.Column(db.Integer)
     total_tilt = db.Column(db.Float)
-    equipment = db.Column(db.String(50))
-    frequency = db.Column(db.String(50))
-    psc = db.Column(db.String(50))
-    dl_uarfcn = db.Column(db.String(50))
-    bsc_lac = db.Column(db.String(50))
-    ci = db.Column(db.String(50))
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    psc = db.Column(db.String(255))
+    dl_uarfcn = db.Column(db.String(255))
+    bsc_lac = db.Column(db.String(255))
+    ci = db.Column(db.String(255))
     anten_height = db.Column(db.Float)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
@@ -196,93 +197,93 @@ class Config3G(db.Model):
 class Cell3G(db.Model):
     __tablename__ = 'cell_3g'
     id = db.Column(db.Integer, primary_key=True)
-    cell_code = db.Column(db.String(50), index=True)
-    hang_sx = db.Column(db.String(50))
-    swap = db.Column(db.String(50))
-    start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255))
+    cell_code = db.Column(db.String(255), index=True)
+    hang_sx = db.Column(db.String(255))
+    swap = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class RF3G(db.Model):
     __tablename__ = 'rf_3g'
     id = db.Column(db.Integer, primary_key=True)
-    cell_code = db.Column(db.String(50), index=True)
-    site_code = db.Column(db.String(50))
-    cell_name = db.Column(db.String(100))
-    csht_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    cell_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
+    antena = db.Column(db.String(255))
     azimuth = db.Column(db.Integer)
     total_tilt = db.Column(db.Float)
-    equipment = db.Column(db.String(50))
-    frequency = db.Column(db.String(50))
-    psc = db.Column(db.String(50))
-    dl_uarfcn = db.Column(db.String(50))
-    bsc_lac = db.Column(db.String(50))
-    ci = db.Column(db.String(50))
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    psc = db.Column(db.String(255))
+    dl_uarfcn = db.Column(db.String(255))
+    bsc_lac = db.Column(db.String(255))
+    ci = db.Column(db.String(255))
     anten_height = db.Column(db.Float)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
-    hang_sx = db.Column(db.String(50))
-    swap = db.Column(db.String(50))
-    start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255))
+    hang_sx = db.Column(db.String(255))
+    swap = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class RF4G(db.Model):
     __tablename__ = 'rf_4g'
     id = db.Column(db.Integer, primary_key=True)
-    cell_code = db.Column(db.String(50), index=True)
-    site_code = db.Column(db.String(50))
-    cell_name = db.Column(db.String(100))
-    csht_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    cell_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
+    antena = db.Column(db.String(255))
     azimuth = db.Column(db.Integer)
     total_tilt = db.Column(db.Float)
-    equipment = db.Column(db.String(50))
-    frequency = db.Column(db.String(50))
-    dl_uarfcn = db.Column(db.String(50))
-    pci = db.Column(db.String(50))
-    tac = db.Column(db.String(50))
-    enodeb_id = db.Column(db.String(50))
-    lcrid = db.Column(db.String(50))
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    dl_uarfcn = db.Column(db.String(255))
+    pci = db.Column(db.String(255))
+    tac = db.Column(db.String(255))
+    enodeb_id = db.Column(db.String(255))
+    lcrid = db.Column(db.String(255))
     anten_height = db.Column(db.Float)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
-    mimo = db.Column(db.String(50))
-    hang_sx = db.Column(db.String(50))
-    swap = db.Column(db.String(50))
-    start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255))
+    mimo = db.Column(db.String(255))
+    hang_sx = db.Column(db.String(255))
+    swap = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class RF5G(db.Model):
     __tablename__ = 'rf_5g'
     id = db.Column(db.Integer, primary_key=True)
-    cell_code = db.Column(db.String(50), index=True)
-    site_code = db.Column(db.String(50))
-    site_name = db.Column(db.String(100))
-    csht_code = db.Column(db.String(50))
+    cell_code = db.Column(db.String(255), index=True)
+    site_code = db.Column(db.String(255))
+    site_name = db.Column(db.String(255))
+    csht_code = db.Column(db.String(255))
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
+    antena = db.Column(db.String(255))
     azimuth = db.Column(db.Integer)
     total_tilt = db.Column(db.Float)
-    equipment = db.Column(db.String(50))
-    frequency = db.Column(db.String(50))
-    nrarfcn = db.Column(db.String(50))
-    pci = db.Column(db.String(50))
-    tac = db.Column(db.String(50))
-    gnodeb_id = db.Column(db.String(50))
-    lcrid = db.Column(db.String(50))
+    equipment = db.Column(db.String(255))
+    frequency = db.Column(db.String(255))
+    nrarfcn = db.Column(db.String(255))
+    pci = db.Column(db.String(255))
+    tac = db.Column(db.String(255))
+    gnodeb_id = db.Column(db.String(255))
+    lcrid = db.Column(db.String(255))
     anten_height = db.Column(db.Float)
     m_t = db.Column(db.Float)
     e_t = db.Column(db.Float)
-    mimo = db.Column(db.String(50))
-    hang_sx = db.Column(db.String(50))
-    dong_bo = db.Column(db.String(50))
-    start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255))
+    mimo = db.Column(db.String(255))
+    hang_sx = db.Column(db.String(255))
+    dong_bo = db.Column(db.String(255))
+    start_day = db.Column(db.String(255))
+    ghi_chu = db.Column(db.Text)
 
 class POI4G(db.Model):
     __tablename__ = 'poi_4g'
@@ -1863,22 +1864,18 @@ def process_bot_command(text):
         
     cmd = parts[0]
     
-    # 0. Lệnh HELP: Hiển thị hướng dẫn sử dụng
     if cmd == 'HELP':
         return """🤖 <b>HƯỚNG DẪN SỬ DỤNG BOT TRA CỨU NETOPS</b>
 Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
 
 👉 <code>DASHBOARD</code>: Tổng quan mạng 4G toàn hệ thống (7 ngày).
-👉 <code>KPI [Mã_Cell]</code>: Tra cứu thông số KPI ngày mới nhất (VD: KPI THA001_1).
+👉 <code>KPI [Mã_Cell]</code>: Tra cứu thông số KPI ngày mới nhất.
 👉 <code>CHARTKPI [Mã_Cell]</code>: Tra cứu biểu đồ KPI 7 ngày gần nhất.
 👉 <code>RF [Mã_Cell]</code>: Tra cứu tất cả thông số cấu hình trạm.
 👉 <code>CTS [Mã_Cell]</code>: Tra cứu thông số QoE, QoS tuần mới nhất.
-👉 <code>CHARTCTS [Mã_Cell]</code>: Tra cứu biểu đồ QoE, QoS 4 tuần mới nhất.
-
-<i>*Lưu ý: Mặc định tra cứu mạng 4G. Có thể thêm 3G/5G vào giữa câu lệnh (VD: KPI 3G THA001).</i>"""
+👉 <code>CHARTCTS [Mã_Cell]</code>: Tra cứu biểu đồ QoE, QoS 4 tuần mới nhất."""
     
     with app.app_context():
-        # 1. Lệnh DASHBOARD: Trả về 4 biểu đồ tổng quan mạng 4G
         if cmd == 'DASHBOARD':
             records = db.session.query(
                 KPI4G.thoi_gian,
@@ -1918,13 +1915,11 @@ Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
                 })
             return charts_to_send
 
-        # Bắt lỗi thiếu tham số cho các lệnh cần Mã Cell
         if len(parts) < 2:
             return "🤖 <b>Lỗi cú pháp!</b> Vui lòng nhập đúng mẫu. (VD: <code>KPI THA001</code>)"
 
-        target = parts[-1] # Lấy mã cell (từ cuối cùng)
+        target = parts[-1] 
         
-        # 2. Lệnh CTS: Tra cứu Điểm số QoE/QoS tuần mới nhất
         if cmd == 'CTS':
             qoe = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).first()
             qos = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{target}%")).order_by(QoS4G.id.desc()).first()
@@ -1941,7 +1936,6 @@ Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
                 msg += f"- Điểm QoS: {qos.qos_score} ⭐\n- Tỷ lệ QoS: {qos.qos_percent} %\n"
             return msg
 
-        # 3. Lệnh CHARTCTS: Biểu đồ QoE/QoS 4 tuần gần nhất
         if cmd == 'CHARTCTS':
             qoe_records = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).limit(4).all()
             qos_records = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{target}%")).order_by(QoS4G.id.desc()).limit(4).all()
@@ -1949,7 +1943,6 @@ Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
             if not qoe_records and not qos_records:
                 return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
 
-            # Gom nhóm tuần và sắp xếp từ cũ tới mới
             all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
             all_weeks = all_weeks[-4:]
 
@@ -1978,8 +1971,7 @@ Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
 
             return charts_to_send
 
-        # 4. Các lệnh truyền thống: KPI, RF, CHARTKPI
-        tech = '4g' # Mặc định công nghệ 4G nếu người dùng không gõ
+        tech = '4g'
         if len(parts) >= 3 and parts[1].lower() in ['3g', '4g', '5g']:
             tech = parts[1].lower()
 
@@ -2491,14 +2483,12 @@ def qoe_qos():
         if qoe_records or qos_records:
             has_data = True
             
-            # Khắc phục lỗi trùng lặp Tên tuần: Gom 'Tuần 09' và 'Tuần 09 (ngày/tháng)' thành 1
             week_map = {}
             for r in qoe_records + qos_records:
                 if not r.week_name: continue
                 match = re.search(r'tuan\s*(\d+)', remove_accents(str(r.week_name)).lower())
                 if match:
                     w_num = int(match.group(1))
-                    # Ưu tiên lấy tên dài hơn để hiển thị (chứa ngày tháng)
                     if w_num not in week_map or len(r.week_name) > len(week_map[w_num]):
                         week_map[w_num] = r.week_name
             
@@ -2513,7 +2503,6 @@ def qoe_qos():
             if qoe_records:
                 qoe_score_map = {}
                 qoe_percent_map = {}
-                # Ghi đè giá trị mới nhất nếu có nhiều bản ghi cùng tuần
                 for r in qoe_records:
                     qoe_score_map[r.week_name] = r.qoe_score or 0
                     qoe_percent_map[r.week_name] = r.qoe_percent or 0
@@ -2522,7 +2511,6 @@ def qoe_qos():
                 charts['qoe_percent_chart'] = {'title': 'Biểu đồ Tỷ lệ QoE (%)', 'labels': all_weeks, 'datasets': [{'label': '% QoE', 'data': [qoe_percent_map.get(w, None) for w in all_weeks], 'borderColor': '#107c10', 'fill': False, 'borderWidth': 3}]}
                 
                 seen_detail_weeks = set()
-                # Duyệt ngược để lấy cấu hình mới nhất
                 for r in reversed(qoe_records):
                     if r.week_name not in seen_detail_weeks and r.details:
                         seen_detail_weeks.add(r.week_name)
@@ -2863,7 +2851,6 @@ def import_data():
             week_name = request.form.get('week_name', 'Tuần')
             TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
             
-            # Khắc phục: Xóa đè dữ liệu thông minh theo Con số của tuần
             try:
                 w_clean = remove_accents(week_name).lower()
                 match = re.search(r'tuan\s*(\d+)', w_clean)
@@ -2909,15 +2896,14 @@ def import_data():
                             row_data = df.iloc[i]
                             c_name = str(row_data[cell_col_idx]).strip()
                             
-                            # Cải tiến logic lọc lỗi rác từ Excel
                             if not c_name or str(c_name).lower() in ['nan', 'none', 'null'] or len(str(c_name)) < 5 or str(c_name).isdigit(): 
                                 continue
                             
-                            try: val1 = float(row_data[cell_col_idx + 2])
+                            try: val1 = float(str(row_data[cell_col_idx + 2]).replace(',', '.'))
                             except: val1 = 0.0
                             if math.isnan(val1): val1 = 0.0
                                 
-                            try: val2 = float(row_data[cell_col_idx + 3])
+                            try: val2 = float(str(row_data[cell_col_idx + 3]).replace(',', '.'))
                             except: val2 = 0.0
                             if math.isnan(val2): val2 = 0.0
                                 
@@ -2939,10 +2925,17 @@ def import_data():
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
                 is_rf_model = itype in ['config3g', 'cell3g', '4g', '5g']
                 
+                if itype == '3g':
+                    def file_sort_key(f):
+                        fname = getattr(f, 'filename', '').lower()
+                        if 'config' in fname: return 0
+                        return 1
+                    files = sorted(files, key=file_sort_key)
+                
                 for file in files:
                     try:
-                        # TỐI ƯU RAM: Đọc trước 20 dòng để tìm dòng Tiêu đề (Header) thay vì load cả file
-                        if file.filename.endswith('.csv'):
+                        file_ext = file.filename.lower()
+                        if file_ext.endswith('.csv'):
                             preview_df = pd.read_csv(file, header=None, nrows=20, encoding='utf-8-sig', on_bad_lines='skip')
                         else:
                             preview_df = pd.read_excel(file, header=None, nrows=20)
@@ -2950,22 +2943,25 @@ def import_data():
                         header_row_idx = 0
                         for i in range(len(preview_df)):
                             row_vals = [str(x).lower().strip() for x in preview_df.iloc[i].values if pd.notna(x)]
-                            # Nhận diện dòng tiêu đề thông minh hơn
                             if any(kw in row_vals for kw in ['mã node', 'cell name', 'tên cell', 'loại đối tượng', 'poi', 'site name', 'mã cell', 'tên trên hệ thống']):
                                 if not any(title_kw in row_vals[0] for title_kw in ['lọc kpi', 'điều kiện']):
                                     header_row_idx = i
                                     break
                                     
-                        # Trả con trỏ file về đầu để đọc thật sự
+                        is_update_only = False
+                        if itype == '3g':
+                            raw_headers_str = " ".join([str(x).lower().strip() for x in preview_df.iloc[header_row_idx].values if pd.notna(x)])
+                            if 'hoàn cảnh ra đời' in raw_headers_str or 'antenna tên hãng sx' in raw_headers_str or 'tên trên hệ thống' in raw_headers_str:
+                                is_update_only = True
+                                
                         file.seek(0)
                         
                         CHUNK_SIZE = 2500
-                        if file.filename.endswith('.csv'):
-                            # Cắt nhỏ file CSV ngay từ lúc đọc bằng luồng (Streaming) - Cực kỳ tiết kiệm RAM
+                        if file_ext.endswith('.csv'):
                             chunks = pd.read_csv(file, header=header_row_idx, encoding='utf-8-sig', on_bad_lines='skip', low_memory=False, chunksize=CHUNK_SIZE)
                         else:
-                            # Đọc Excel: Xóa Dataframe gốc ngay sau khi chia nhỏ
-                            full_df = pd.read_excel(file, header=header_row_idx)
+                            file_bytes = file.read()
+                            full_df = pd.read_excel(BytesIO(file_bytes), header=header_row_idx)
                             chunks = [full_df[i:i + CHUNK_SIZE] for i in range(0, full_df.shape[0], CHUNK_SIZE)]
                             del full_df
                             gc.collect()
@@ -2973,9 +2969,7 @@ def import_data():
                         total_inserted = 0
                         total_mimo_updated = 0
 
-                        # Vòng lặp xử lý từng đoạn nhỏ
                         for df in chunks:
-                            # Để nhận biết file 3G nào đang upload, truyền row_headers
                             raw_headers = list(df.columns)
                             df.columns = [clean_header(c, itype, raw_headers) for c in df.columns]
                             
@@ -2984,7 +2978,6 @@ def import_data():
                             cell_codes_in_chunk = set()
                             
                             for row in df.to_dict('records'):
-                                # Cấy liên thông các biến thể Tên Cell cho 4G/5G
                                 if itype != '3g':
                                     if 'ten_cell' in row and 'cell_name' not in row:
                                         row['cell_name'] = row['ten_cell']
@@ -2996,12 +2989,10 @@ def import_data():
                                     elif 'cell_name' in row and 'site_name' not in row:
                                         row['site_name'] = row['cell_name']
 
-                                # Lấy MIMO cho RF4G từ file KPI 4G
                                 if itype == 'kpi4g' and 'mimo' in row and 'ten_cell' in row:
                                     if pd.notna(row['mimo']) and str(row['mimo']).strip():
                                         mimo_updates[str(row['ten_cell']).strip()] = str(row['mimo']).strip()
                                         
-                                # Lọc các cột có trong CSDL của Model hiện tại và Xử lý ép kiểu dữ liệu
                                 clean_row = {}
                                 for k, v in row.items():
                                     if k in valid_cols and pd.notna(v):
@@ -3012,7 +3003,6 @@ def import_data():
                                             clean_row[k] = None
                                         elif isinstance(col_type, db.Float):
                                             try: 
-                                                # Fix lỗi định dạng số thập phân bằng dấu phẩy
                                                 val_norm = val.replace(',', '.')
                                                 f_val = float(val_norm)
                                                 clean_row[k] = None if math.isnan(f_val) else f_val
@@ -3024,20 +3014,18 @@ def import_data():
                                                 clean_row[k] = None if math.isnan(f_val) else int(f_val)
                                             except ValueError: clean_row[k] = None
                                         else:
-                                            # Ép kiểu dọn dẹp các số bị Excel thêm đuôi ".0" lưu dạng String (Ví dụ: "10181.0" -> "10181")
                                             if val.endswith('.0'):
                                                 try:
                                                     float(val)
                                                     clean_row[k] = val[:-2]
                                                 except: clean_row[k] = val
                                             else:
+                                                if len(val) > 250: val = val[:250]
                                                 clean_row[k] = val
                                 
-                                # ÉP CHUẨN IN HOA TỰ ĐỘNG CHO CELL_CODE
                                 if 'cell_code' in clean_row and clean_row['cell_code']:
                                     clean_row['cell_code'] = str(clean_row['cell_code']).strip().upper()
 
-                                # Fallback dữ liệu nếu cột bị đổi tên trong file mới
                                 if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                     clean_row['traffic'] = clean_row['traffic_vol_dl']
                                     
@@ -3046,35 +3034,31 @@ def import_data():
                                     if is_rf_model and 'cell_code' in clean_row and clean_row['cell_code']:
                                         cell_codes_in_chunk.add(str(clean_row['cell_code']).strip())
 
-                            # TỐI ƯU RAM GỘP DỮ LIỆU RF: Chỉ lôi các trạm có trong Chunk này lên RAM
                             if is_rf_model and records_to_process:
                                 existing_rf_db = db.session.query(Model).filter(Model.cell_code.in_(list(cell_codes_in_chunk))).all()
-                                existing_rf_map = {r.cell_code.upper(): r for r in existing_rf_db if r.cell_code}
+                                existing_rf_map = {str(r.cell_code).upper(): r for r in existing_rf_db if r.cell_code}
                                 
                                 for cr in records_to_process:
                                     cc = str(cr.get('cell_code', '')).strip().upper()
                                     if cc in existing_rf_map:
-                                        # Ghi đè cập nhật nếu đã tồn tại
                                         obj = existing_rf_map[cc]
                                         for k, v in cr.items():
                                             if v is not None:
                                                 setattr(obj, k, v)
                                     else:
-                                        # TẠO MỚI TRẠM VÀO DB
-                                        new_obj = Model(**cr)
-                                        existing_rf_map[cc] = new_obj
-                                        db.session.add(new_obj)
+                                        if not is_update_only:
+                                            new_obj = Model(**cr)
+                                            existing_rf_map[cc] = new_obj
+                                            db.session.add(new_obj)
                                         
                                 db.session.commit()
                                 total_inserted += len(records_to_process)
                                 
-                            # Xử lý Bulk Insert cho KPI / POI
                             elif not is_rf_model and records_to_process:
                                 db.session.bulk_insert_mappings(Model, records_to_process)
                                 db.session.commit()
                                 total_inserted += len(records_to_process)
                             
-                            # Tự động Update MIMO cục bộ cho Chunk này
                             if itype == 'kpi4g' and mimo_updates:
                                 rf4g_records = db.session.query(RF4G).filter(
                                     or_(RF4G.cell_code.in_(mimo_updates.keys()), RF4G.cell_name.in_(mimo_updates.keys()))
@@ -3086,7 +3070,6 @@ def import_data():
                                         total_mimo_updated += 1
                                 db.session.commit()
                                 
-                            # CƯỠNG CHẾ XÓA BIẾN VÀ DỌN RÁC BỘ NHỚ LẬP TỨC SAU MỖI VÒNG LẶP CHUNK
                             del records_to_process
                             del mimo_updates
                             del cell_codes_in_chunk
@@ -3101,14 +3084,13 @@ def import_data():
                         db.session.rollback()
                         flash(f'Lỗi khi xử lý file {file.filename}: {e}', 'danger')
                         
-                # TỰ ĐỘNG ĐỒNG BỘ RF_3G TỪ BẢNG CONFIG_3G VÀ CELL_3G
                 if itype in ['config3g', 'cell3g']:
                     try:
                         db.session.query(RF3G).delete()
                         db.session.commit()
                         
-                        configs = {c.cell_code: c for c in Config3G.query.all() if c.cell_code}
-                        cells = {c.cell_code: c for c in Cell3G.query.all() if c.cell_code}
+                        configs = {str(c.cell_code).upper(): c for c in Config3G.query.all() if c.cell_code}
+                        cells = {str(c.cell_code).upper(): c for c in Cell3G.query.all() if c.cell_code}
                         
                         rf3g_inserts = []
                         for cc, cfg_row in configs.items():
@@ -3169,10 +3151,8 @@ def import_data():
             next_w = latest + 1
             iso_year = datetime.now().isocalendar()[0]
             try:
-                # Tính toán chính xác Ngày Thứ 2 của tuần đó theo lịch ISO
                 start_date = datetime.strptime(f'{iso_year}-W{next_w:02d}-1', "%G-W%V-%u")
             except ValueError:
-                # Nếu năm hiện tại không có tuần thứ 53, chuyển sang tuần 1 năm sau
                 next_w = 1
                 iso_year += 1
                 start_date = datetime.strptime(f'{iso_year}-W{next_w:02d}-1', "%G-W%V-%u")
@@ -3301,8 +3281,8 @@ def restore_db():
                         records = df.to_dict('records')
                         clean_records = [{k: (v if not pd.isna(v) else None) for k, v in r.items() if k in [c.key for c in Model.__table__.columns]} for r in records]
                         if clean_records: db.session.bulk_insert_mappings(Model, clean_records)
-                db.session.commit()
-                flash('Restore Success', 'success')
+            db.session.commit()
+            flash('Restore Success', 'success')
         except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
     return redirect(url_for('backup_restore'))
 
