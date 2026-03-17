@@ -31,7 +31,8 @@ login_manager.login_view = 'login'
 # ==============================================================================
 def remove_accents(input_str):
     if not isinstance(input_str, str): return str(input_str)
-    s1, s0 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨíŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴịỶảỸỹ', u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYaYy'
+    s1 = u'ÀÁÂÃÈÉÊÌÍÒÓÔÕÙÚÝàáâãèéêìíòóôõùúýĂăĐđĨíŨũƠơƯưẠạẢảẤấẦầẨẩẪẫẬậẮắẰằẲẳẴẵẶặẸẹẺẻẼẽẾếỀềỂểỄễỆệỈỉỊịỌọỎỏỐốỒồỔổỖỗỘộỚớỜờỞởỠỡỢợỤụỦủỨứỪừỬửỮữỰựỲỳỴịỶảỸỹ'
+    s0 = u'AAAAEEEIIOOOOUUYaaaaeeeiioooouuyAaDdIiUuOoUuAaAaAaAaAaAaAaAaAaAaAaAaEeEeEeEeEeEeEeEeIiIiOoOoOoOoOoOoOoOoOoOoOoOoOoUuUuUuUuUuUuUuYyYyYaYy'
     return ''.join(s0[s1.index(c)] if c in s1 else c for c in input_str)
 
 def clean_header(col_name, itype=None, raw_headers=None):
@@ -64,7 +65,7 @@ RF_COLS_ORDER = {
 }
 
 # ==============================================================================
-# 3. MODELS DATABASE (Nén dòng để tiết kiệm dung lượng)
+# 3. MODELS DATABASE
 # ==============================================================================
 class User(UserMixin, db.Model):
     __tablename__='user'; id=db.Column(db.Integer, primary_key=True); username=db.Column(db.String(50), unique=True, nullable=False); password_hash=db.Column(db.String(255), nullable=False); role=db.Column(db.String(20), default='user')
@@ -96,20 +97,95 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. GIAO DIỆN HTML/CSS (Mã hóa Minified nguyên khối - Cam kết không gãy code)
+# 4. GIAO DIỆN HTML/CSS 
 # ==============================================================================
-BASE_LAYOUT = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>KPI Monitor</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><style>:root{--primary-color:#0078d4;}body{background:#f3f4f6;font-family:'Segoe UI',sans-serif;overflow-x:hidden;}.sidebar{height:100vh;width:260px;position:fixed;top:0;left:0;background:rgba(240,240,245,0.95);z-index:1000;padding-top:1rem;overflow-y:auto;}.sidebar-header{padding:1.5rem;color:var(--primary-color);font-weight:600;font-size:1.5rem;text-align:center;}.sidebar-menu{padding:0;list-style:none;margin:1rem 0;}.sidebar-menu a{display:flex;padding:14px 25px;color:#555;text-decoration:none;font-weight:500;margin:4px 12px;border-radius:8px;}.sidebar-menu a:hover,.sidebar-menu a.active{background:#fff;color:var(--primary-color);box-shadow:0 2px 8px rgba(0,0,0,0.05);}.sidebar-menu i{margin-right:15px;width:24px;text-align:center;}.main-content{margin-left:260px;padding:30px;min-height:100vh;}.card{border:none;border-radius:12px;background:rgba(255,255,255,0.9);box-shadow:0 4px 12px rgba(0,0,0,0.05);margin-bottom:1.5rem;}@media(max-width:768px){.sidebar{margin-left:-260px;}.sidebar.active{margin-left:0;}.main-content{margin-left:0;padding:15px;}}#sidebar-overlay{display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);z-index:999;}#sidebar-overlay.active{display:block;}</style></head><body><div id="sidebar-overlay" onclick="toggleSidebar()"></div><div class="sidebar" id="sidebar"><div class="sidebar-header"><i class="fa-solid fa-network-wired"></i> NetOps</div><ul class="sidebar-menu"><li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li><li><a href="/gis" class="{{ 'active' if active_page == 'gis' else '' }}"><i class="fa-solid fa-map-location-dot"></i> Bản đồ GIS</a></li><li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li><li><a href="/qoe-qos" class="{{ 'active' if active_page == 'qoe_qos' else '' }}"><i class="fa-solid fa-star-half-stroke"></i> QoE QoS</a></li><li><a href="/optimize" class="{{ 'active' if active_page == 'optimize' else '' }}"><i class="fa-solid fa-wand-magic-sparkles"></i> Tối ưu QoE/QoS</a></li><li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF Database</a></li><li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-pin"></i> POI Report</a></li><li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li><li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li><li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li><li><a href="#toolsMenu" data-bs-toggle="collapse"><i class="fa-solid fa-toolbox"></i> Tools</a><ul class="collapse list-unstyled {{ 'show' if active_page in ['azimuth', 'script'] else '' }}" id="toolsMenu"><li><a href="/azimuth" style="margin-left:20px;"><i class="fa-solid fa-compass"></i> Azimuth</a></li><li><a href="/script" style="margin-left:20px;"><i class="fa-solid fa-code"></i> Script</a></li></ul></li>{% if current_user.role == 'admin' %}<li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li><li><a href="/backup-restore"><i class="fa-solid fa-database"></i> Backup/Restore</a></li><li><a href="/users"><i class="fa-solid fa-users-gear"></i> User Mgmt</a></li>{% endif %}<li><a href="/profile"><i class="fa-solid fa-user-shield"></i> Profile</a></li><li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li></ul></div><div class="main-content"><button class="btn btn-light shadow-sm d-md-none mb-3 border fw-bold" onclick="toggleSidebar()"><i class="fa-solid fa-bars me-1"></i> Menu</button><div class="container-fluid p-0">{% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}{% endif %}{% endwith %}{% block content %}{% endblock %}</div></div><div class="modal fade" id="chartDetailModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content border-0 shadow-lg"><div class="modal-header border-0 pb-0"><h5 class="modal-title text-primary fw-bold" id="modalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><div style="position:relative; height:65vh; width:100%"><canvas id="modalChart"></canvas></div></div></div></div></div><script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script><script>function toggleSidebar(){document.getElementById('sidebar').classList.toggle('active');document.getElementById('sidebar-overlay').classList.toggle('active');}let modalChartInstance=null;function showDetailModal(cName,date,val,mLabel,allDs,allLbls){document.getElementById('modalTitle').innerText='Chi tiết '+mLabel;const ctx=document.getElementById('modalChart').getContext('2d');if(modalChartInstance)modalChartInstance.destroy();modalChartInstance=new Chart(ctx,{type:'line',data:{labels:allLbls,datasets:allDs},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false}}});new bootstrap.Modal(document.getElementById('chartDetailModal')).show();}function toggleCheckboxes(src){let cbs=document.getElementsByName('tables');for(let i=0;i<cbs.length;i++)cbs[i].checked=src.checked;} function addRow(tech){var tb=document.getElementById("rruTable_"+tech).getElementsByTagName('tbody')[0];var nr=tb.insertRow(tb.rows.length);var i=tb.rows.length;var ds,dslot;if(tech=='3g900'){ds=70+i-1;dslot=2;}else if(tech=='3g2100'){ds=80+i-1;dslot=3;}else{ds=60+i-1;dslot=3;}nr.insertCell(0).innerHTML=`<input type="text" name="rn[]" class="form-control" value="RRU${i}">`;nr.insertCell(1).innerHTML=`<input type="number" name="srn[]" class="form-control" value="${ds}">`;nr.insertCell(2).innerHTML=`<input type="number" name="hsn[]" class="form-control" value="${dslot}">`;nr.insertCell(3).innerHTML=`<input type="number" name="hpn[]" class="form-control" value="${i-1}">`;nr.insertCell(4).innerHTML=`<input type="number" name="rcn[]" class="form-control" value="${i-1}">`;nr.insertCell(5).innerHTML=`<input type="number" name="sectorid[]" class="form-control" value="${i-1}">`;nr.insertCell(6).innerHTML=`<input type="number" name="rxnum[]" class="form-control" value="${tech=='4g'?4:2}">`;nr.insertCell(7).innerHTML=`<input type="number" name="txnum[]" class="form-control" value="${tech=='4g'?4:1}">`;nr.insertCell(8).innerHTML=`<button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button>`;}</script></body></html>"""
-LOGIN_PAGE = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Đăng nhập</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{background:linear-gradient(135deg,#f0f2f5 0%,#d9e2ec 100%);height:100vh;display:flex;align-items:center;justify-content:center;}.card{width:400px;padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.1);}.btn-primary{background-color:#0078d4;width:100%;}</style></head><body><div class="card"><h3 class="text-center mb-4 text-primary fw-bold">NetOps Login</h3><form method="POST"><input type="text" name="username" class="form-control mb-3" placeholder="Username" required><input type="password" name="password" class="form-control mb-4" placeholder="Password" required><button type="submit" class="btn btn-primary w-100">Sign In</button></form></div></body></html>"""
-USER_MANAGEMENT_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-4"><div class="card"><div class="card-header bg-white fw-bold">Add User</div><div class="card-body"><form method="POST" action="/users/add"><input name="username" class="form-control mb-2" placeholder="Username" required><input name="password" type="password" class="form-control mb-2" placeholder="Password" required><select name="role" class="form-select mb-3"><option value="user">User</option><option value="admin">Admin</option></select><button class="btn btn-success w-100">Create</button></form></div></div></div><div class="col-md-8"><div class="card"><div class="card-header bg-white fw-bold">Users</div><div class="table-responsive"><table class="table mb-0"><thead class="table-light"><tr><th>ID</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>{% for u in users %}<tr><td>{{ u.id }}</td><td class="fw-bold">{{ u.username }}</td><td><span class="badge bg-secondary">{{ u.role }}</span></td><td>{% if u.username!='admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-danger">Del</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div></div></div>{% endblock %}"""
-BACKUP_RESTORE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-6"><div class="card"><div class="card-header bg-primary text-white">Backup Database</div><div class="card-body"><form action="/backup" method="POST"><input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleCheckboxes(this)"> Select All<hr><input type="checkbox" name="tables" value="users.csv"> Users<br><input type="checkbox" name="tables" value="config_3g.csv"> Config 3G<br><input type="checkbox" name="tables" value="cell_3g.csv"> CELL 3G<br><input type="checkbox" name="tables" value="rf3g.csv"> RF 3G<br><input type="checkbox" name="tables" value="rf4g.csv"> RF 4G<br><input type="checkbox" name="tables" value="rf5g.csv"> RF 5G<br><input type="checkbox" name="tables" value="poi4g.csv"> POI 4G<br><input type="checkbox" name="tables" value="poi5g.csv"> POI 5G<br><input type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G<br><input type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G<br><input type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G<br><input type="checkbox" name="tables" value="qoe_4g.csv"> QoE 4G<br><input type="checkbox" name="tables" value="qos_4g.csv"> QoS 4G<br><button type="submit" class="btn btn-primary w-100 mt-3">Download</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header bg-warning">Restore Database</div><div class="card-body"><form action="/restore" method="POST" enctype="multipart/form-data"><input class="form-control mb-3" type="file" name="file" accept=".zip" required><button type="submit" class="btn btn-warning w-100" onclick="return confirm('Cảnh báo ghi đè toàn bộ dữ liệu. Tiếp tục?')">Restore</button></form></div></div></div></div>{% endblock %}"""
-RF_FORM_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header bg-white fw-bold">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj and col in obj else '' }}"></div>{% endfor %}</div><button type="submit" class="btn btn-primary">Save</button></form></div></div>{% endblock %}"""
-RF_DETAIL_TEMPLATE = """{% extends "base" %}{% block content %}<div class="card"><div class="card-header bg-white fw-bold d-flex justify-content-between"><span>Detail</span><a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm">Quay lại</a></div><div class="card-body p-0"><table class="table table-bordered mb-0">{% for k,v in obj.items() %}<tr><th class="w-25 text-end">{{ k }}</th><td class="fw-bold">{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
-PROFILE_TEMPLATE = """{% extends "base" %}{% block content %}<div class="row justify-content-center"><div class="col-md-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Change Password</div><div class="card-body"><form method="POST" action="/change-password"><input type="password" name="current_password" class="form-control mb-3" placeholder="Current Password" required><input type="password" name="new_password" class="form-control mb-3" placeholder="New Password" required><button class="btn btn-primary w-100 shadow-sm">Save Changes</button></form></div></div></div></div>{% endblock %}"""
+BASE_LAYOUT = """
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>KPI Monitor System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <link href='https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/3.0.0/Control.FullScreen.min.css' rel='stylesheet' />
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/leaflet.fullscreen/3.0.0/Control.FullScreen.min.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { --primary-color: #0078d4; --sidebar-bg: rgba(240, 240, 245, 0.95); }
+        body { background: #f3f4f6; font-family: 'Segoe UI', sans-serif; overflow-x: hidden; }
+        .sidebar { height: 100vh; width: 260px; position: fixed; top: 0; left: 0; background: var(--sidebar-bg); z-index: 1000; transition: all 0.3s; padding-top: 1rem; overflow-y: auto; padding-bottom: 60px; }
+        .sidebar-header { padding: 1.5rem; color: var(--primary-color); font-weight: 600; font-size: 1.5rem; text-align: center; }
+        .sidebar-menu { padding: 0; list-style: none; margin: 1rem 0; }
+        .sidebar-menu a { display: flex; align-items: center; padding: 14px 25px; color: #555; text-decoration: none; font-weight: 500; margin: 4px 12px; border-radius: 8px; transition: all 0.2s ease; }
+        .sidebar-menu a:hover, .sidebar-menu a.active { background: #fff; color: var(--primary-color); box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+        .sidebar-menu i { margin-right: 15px; width: 24px; text-align: center; font-size: 1.1rem; }
+        .main-content { margin-left: 260px; padding: 30px; min-height: 100vh; transition: all 0.3s; }
+        .card { border: none; border-radius: 12px; background: rgba(255, 255, 255, 0.9); box-shadow: 0 4px 12px rgba(0,0,0,0.05); margin-bottom: 1.5rem; }
+        .table { font-size: 0.9rem; } .table thead th { background: rgba(248,249,250,0.8); color: #555; text-transform: uppercase; }
+        @media (max-width: 768px) { .sidebar { margin-left: -260px; } .sidebar.active { margin-left: 0; } .main-content { margin-left: 0; padding: 15px; } }
+        #sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); z-index: 999; }
+        #sidebar-overlay.active { display: block; }
+    </style>
+</head>
+<body>
+    <div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header"><i class="fa-solid fa-network-wired"></i> NetOps</div>
+        <ul class="sidebar-menu">
+            <li><a href="/" class="{{ 'active' if active_page == 'dashboard' else '' }}"><i class="fa-solid fa-gauge"></i> Dashboard</a></li>
+            <li><a href="/gis" class="{{ 'active' if active_page == 'gis' else '' }}"><i class="fa-solid fa-map-location-dot"></i> Bản đồ GIS</a></li>
+            <li><a href="/kpi" class="{{ 'active' if active_page == 'kpi' else '' }}"><i class="fa-solid fa-chart-line"></i> KPI Analytics</a></li>
+            <li><a href="/qoe-qos" class="{{ 'active' if active_page == 'qoe_qos' else '' }}"><i class="fa-solid fa-star-half-stroke"></i> QoE QoS</a></li>
+            <li><a href="/optimize" class="{{ 'active' if active_page == 'optimize' else '' }}"><i class="fa-solid fa-wand-magic-sparkles"></i> Tối ưu QoE/QoS</a></li>
+            <li><a href="/rf" class="{{ 'active' if active_page == 'rf' else '' }}"><i class="fa-solid fa-tower-broadcast"></i> RF Database</a></li>
+            <li><a href="/poi" class="{{ 'active' if active_page == 'poi' else '' }}"><i class="fa-solid fa-map-pin"></i> POI Report</a></li>
+            <li><a href="/worst-cell" class="{{ 'active' if active_page == 'worst_cell' else '' }}"><i class="fa-solid fa-triangle-exclamation"></i> Worst Cells</a></li>
+            <li><a href="/conges-3g" class="{{ 'active' if active_page == 'conges_3g' else '' }}"><i class="fa-solid fa-users-slash"></i> Congestion 3G</a></li>
+            <li><a href="/traffic-down" class="{{ 'active' if active_page == 'traffic_down' else '' }}"><i class="fa-solid fa-arrow-trend-down"></i> Traffic Down</a></li>
+            <li><a href="#toolsMenu" data-bs-toggle="collapse" class="{{ 'active' if active_page in ['azimuth', 'script'] else '' }}"><i class="fa-solid fa-toolbox"></i> Tools <i class="fa-solid fa-chevron-down ms-auto" style="font-size:0.8rem"></i></a>
+                <ul class="collapse list-unstyled {{ 'show' if active_page in ['azimuth', 'script'] else '' }}" id="toolsMenu">
+                    <li><a href="/azimuth" class="{{ 'active' if active_page == 'azimuth' else '' }}" style="margin-left:20px"><i class="fa-solid fa-compass"></i> Azimuth</a></li>
+                    <li><a href="/script" class="{{ 'active' if active_page == 'script' else '' }}" style="margin-left:20px"><i class="fa-solid fa-code"></i> Script</a></li>
+                </ul>
+            </li>
+            {% if current_user.role == 'admin' %}
+            <li><a href="/import" class="{{ 'active' if active_page == 'import' else '' }}"><i class="fa-solid fa-cloud-arrow-up"></i> Data Import</a></li>
+            <li class="mt-3 mb-1 text-muted px-4 text-uppercase" style="font-size: 0.75rem;">System</li>
+            <li><a href="/users"><i class="fa-solid fa-users-gear"></i> User Mgmt</a></li>
+            <li><a href="/backup-restore"><i class="fa-solid fa-database"></i> Backup/Restore</a></li>
+            {% endif %}
+            <li><a href="/profile"><i class="fa-solid fa-user-shield"></i> Profile</a></li>
+            <li><a href="/logout"><i class="fa-solid fa-right-from-bracket"></i> Logout</a></li>
+        </ul>
+    </div>
+    <div class="main-content">
+        <button class="btn btn-light shadow-sm d-md-none mb-3 border fw-bold" onclick="toggleSidebar()"><i class="fa-solid fa-bars me-1"></i> Menu</button>
+        <div class="container-fluid p-0">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}{% for category, message in messages %}<div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">{{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>{% endfor %}{% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+    <div class="modal fade" id="chartDetailModal" tabindex="-1"><div class="modal-dialog modal-xl modal-dialog-centered"><div class="modal-content border-0 shadow-lg"><div class="modal-header border-0 pb-0"><h5 class="modal-title text-primary fw-bold" id="modalTitle"></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-4"><div class="chart-container" style="position:relative; height:65vh; width:100%"><canvas id="modalChart"></canvas></div></div></div></div></div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('active'); document.getElementById('sidebar-overlay').classList.toggle('active'); }
+        let modalChartInstance=null;
+        function showDetailModal(cName,date,val,mLabel,allDs,allLbls){ document.getElementById('modalTitle').innerText='Chi tiết '+mLabel; const ctx=document.getElementById('modalChart').getContext('2d'); if(modalChartInstance)modalChartInstance.destroy(); modalChartInstance=new Chart(ctx,{type:'line',data:{labels:allLbls,datasets:allDs},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false}}}); new bootstrap.Modal(document.getElementById('chartDetailModal')).show(); }
+        function toggleCheckboxes(src){ let cbs=document.getElementsByName('tables'); for(let i=0;i<cbs.length;i++) cbs[i].checked=src.checked; }
+    </script>
+</body>
+</html>
+"""
+
+LOGIN_PAGE = """<!DOCTYPE html><html lang="vi"><head><meta charset="UTF-8"><title>Đăng nhập</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet"><style>body{background:linear-gradient(135deg,#f0f2f5 0%,#d9e2ec 100%);height:100vh;display:flex;align-items:center;justify-content:center;}.login-card{width:100%;max-width:400px;background:rgba(255,255,255,0.9);padding:40px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.08);}.btn-primary{background-color:#0078d4;width:100%;}</style></head><body><div class="login-card"><h3 class="text-center mb-4 text-primary fw-bold">NetOps Login</h3><form method="POST"><input type="text" name="username" class="form-control mb-3" placeholder="Username" required><input type="password" name="password" class="form-control mb-4" placeholder="Password" required><button type="submit" class="btn btn-primary w-100">Sign In</button></form></div></body></html>"""
 
 CONTENT_TEMPLATE = """
 {% extends "base" %}
 {% block content %}
-<div class="card mb-4"><div class="card-header bg-white"><span class="fs-5 fw-bold">{{ title }}</span></div><div class="card-body">
+<div class="card mb-4 border-0 shadow-sm"><div class="card-header bg-white"><span class="fs-5 fw-bold">{{ title }}</span></div><div class="card-body">
     
     {% if active_page == 'dashboard' %}
         {% if dashboard_data and dashboard_data.labels %}
@@ -128,33 +204,33 @@ CONTENT_TEMPLATE = """
         </script>
     
     {% elif active_page == 'optimize' %}
-        <form method="GET" action="/optimize" class="row g-3 mb-4 bg-light p-3"><div class="col-md-8"><select name="week_name" class="form-select">{% for w in all_weeks %}<option value="{{ w }}" {% if w == latest_week %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></div><div class="col-md-4 d-flex gap-2"><button type="submit" name="action" value="filter" class="btn btn-danger w-100">Lọc</button><button type="submit" name="action" value="export" class="btn btn-success w-100">Export</button></div></form>
+        <form method="GET" action="/optimize" class="row g-3 mb-4 bg-light p-3 rounded shadow-sm"><div class="col-md-8"><select name="week_name" class="form-select">{% for w in all_weeks %}<option value="{{ w }}" {% if w == latest_week %}selected{% endif %}>{{ w }}</option>{% endfor %}</select></div><div class="col-md-4 d-flex gap-2"><button type="submit" name="action" value="filter" class="btn btn-danger w-100">Lọc</button><button type="submit" name="action" value="export" class="btn btn-success w-100">Export</button></div></form>
         <div class="table-responsive"><table class="table table-hover table-bordered text-center align-middle"><thead class="table-light"><tr><th rowspan="2">Cell Name</th><th colspan="2">1. Macro</th><th colspan="4">2. Micro</th><th rowspan="2">3. Chẩn đoán</th><th rowspan="2">4. Giải pháp</th></tr><tr><th>QoE</th><th>QoS</th><th>PRB</th><th>Thput</th><th>CQI</th><th>Drop</th></tr></thead><tbody>{% for row in optimized_data %}<tr><td class="fw-bold text-primary">{{ row.cell_name }}</td><td>{{ row.qoe_score }}</td><td>{{ row.qos_score }}</td><td>{{ row.prb }}</td><td>{{ row.thput }}</td><td>{{ row.cqi }}</td><td>{{ row.drop }}</td><td class="text-danger text-start"><ul>{% for i in row.issues %}<li>{{ i }}</li>{% endfor %}</ul></td><td class="text-success text-start"><ul>{% for a in row.actions %}<li>{{ a }}</li>{% endfor %}</ul></td></tr>{% else %}<tr><td colspan="9">Không có dữ liệu vi phạm.</td></tr>{% endfor %}</tbody></table></div>
     
     {% elif active_page == 'gis' %}
-        <form method="POST" action="/gis" enctype="multipart/form-data" class="row g-3 mb-3 bg-light p-3"><div class="col-md-2"><select name="tech" class="form-select"><option value="3g" {% if selected_tech=='3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech=='4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech=='5g' %}selected{% endif %}>5G</option></select></div><div class="col-md-2"><input type="text" name="site_code" class="form-control" placeholder="Site Code" value="{{ site_code_input }}"></div><div class="col-md-3"><input type="text" name="cell_name" class="form-control" placeholder="Cell Name" value="{{ cell_name_input }}"></div><div class="col-md-3"><input type="file" name="its_file" class="form-control" accept=".txt,.csv" multiple></div><div class="col-md-2 d-flex gap-2"><button type="submit" name="action" value="search" class="btn btn-primary w-100">Tìm</button><button type="submit" name="action" value="show_log" class="btn btn-warning w-100">Log</button></div></form>
-        <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px;"></div>
+        <form method="POST" action="/gis" enctype="multipart/form-data" class="row g-3 mb-3 bg-light p-3 rounded shadow-sm"><div class="col-md-2"><select name="tech" class="form-select"><option value="3g" {% if selected_tech=='3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech=='4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech=='5g' %}selected{% endif %}>5G</option></select></div><div class="col-md-2"><input type="text" name="site_code" class="form-control" placeholder="Site Code" value="{{ site_code_input }}"></div><div class="col-md-3"><input type="text" name="cell_name" class="form-control" placeholder="Cell Name" value="{{ cell_name_input }}"></div><div class="col-md-3"><input type="file" name="its_file" class="form-control" accept=".txt,.csv" multiple></div><div class="col-md-2 d-flex gap-2"><button type="submit" name="action" value="search" class="btn btn-primary w-100">Tìm</button><button type="submit" name="action" value="show_log" class="btn btn-warning w-100">Log</button></div></form>
+        <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index:1;"></div>
         <script>document.addEventListener('DOMContentLoaded', function() { var gisData = {{ gis_data|tojson|safe if gis_data else '[]' }}; var map = L.map('gisMap').setView([19.8, 105.7], 9); L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {maxZoom:22, subdomains:['mt0','mt1','mt2','mt3']}).addTo(map); gisData.forEach(c => { if(c.lat&&c.lon) L.circleMarker([c.lat, c.lon], {radius:5}).bindPopup('<b>'+c.cell_name+'</b>').addTo(map); }); if(gisData.length>0 && gisData[0].lat) map.setView([gisData[0].lat, gisData[0].lon], 15); });</script>
     
     {% elif active_page == 'kpi' %}
-        <form method="GET" action="/kpi" class="row g-3 mb-4 bg-light p-3"><div class="col-md-2"><select name="tech" class="form-select"><option value="3g" {% if selected_tech=='3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech=='4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech=='5g' %}selected{% endif %}>5G</option></select></div><div class="col-md-4"><input type="text" name="poi_name" list="poi_list_kpi" class="form-control" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-4"><input type="text" name="cell_name" class="form-control" placeholder="Cell Name..." value="{{ cell_name_input }}"></div><div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Xem</button></div></form>
+        <form method="GET" action="/kpi" class="row g-3 mb-4 bg-light p-3 rounded shadow-sm"><div class="col-md-2"><select name="tech" class="form-select"><option value="3g" {% if selected_tech=='3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech=='4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech=='5g' %}selected{% endif %}>5G</option></select></div><div class="col-md-4"><input type="text" name="poi_name" list="poi_list_kpi" class="form-control" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-4"><input type="text" name="cell_name" class="form-control" placeholder="Cell Name..." value="{{ cell_name_input }}"></div><div class="col-md-2"><button type="submit" class="btn btn-primary w-100">Xem</button></div></form>
         {% for cid, cd in charts.items() %}<div class="card mb-4"><div class="card-body"><h6 class="fw-bold">{{ cd.title }}</h6><div style="height:45vh;"><canvas id="{{ cid }}"></canvas></div></div></div><script>new Chart(document.getElementById('{{ cid }}'), {type:'line', data:{{ cd|tojson }}, options:{responsive:true, maintainAspectRatio:false}});</script>{% endfor %}
     
     {% elif active_page == 'qoe_qos' %}
-        <form method="GET" action="/qoe-qos" class="row g-3 mb-4 bg-light p-3"><div class="col-md-8"><input type="text" name="cell_name" class="form-control" placeholder="Cell Name 4G..." value="{{ cell_name_input }}" required></div><div class="col-md-4"><button type="submit" class="btn btn-primary w-100">Xem</button></div></form>
+        <form method="GET" action="/qoe-qos" class="row g-3 mb-4 bg-light p-3 rounded shadow-sm"><div class="col-md-8"><input type="text" name="cell_name" class="form-control" placeholder="Cell Name 4G..." value="{{ cell_name_input }}" required></div><div class="col-md-4"><button type="submit" class="btn btn-primary w-100">Xem</button></div></form>
         <div class="row">{% for cid, cd in charts.items() %}<div class="col-md-6 mb-4"><div class="card"><div class="card-body"><h6 class="fw-bold">{{ cd.title }}</h6><div style="height:35vh;"><canvas id="{{ cid }}"></canvas></div></div></div></div><script>new Chart(document.getElementById('{{ cid }}'), {type:'line', data:{{ cd|tojson }}, options:{responsive:true, maintainAspectRatio:false}});</script>{% endfor %}</div>
     
     {% elif active_page == 'poi' %}
-        <form method="GET" action="/poi" class="row g-3 mb-4 bg-light p-3"><div class="col-md-8"><input type="text" name="poi_name" list="poi_list" class="form-control" placeholder="Tên POI..." value="{{ selected_poi }}"><datalist id="poi_list">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-4"><button type="submit" class="btn btn-primary w-100">Xem Báo Cáo</button></div></form>
+        <form method="GET" action="/poi" class="row g-3 mb-4 bg-light p-3 rounded shadow-sm"><div class="col-md-8"><input type="text" name="poi_name" list="poi_list" class="form-control" placeholder="Tên POI..." value="{{ selected_poi }}"><datalist id="poi_list">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div><div class="col-md-4"><button type="submit" class="btn btn-primary w-100">Xem Báo Cáo</button></div></form>
         <div class="row">{% for cid, cd in poi_charts.items() %}<div class="col-md-6 mb-4"><div class="card"><div class="card-body"><h6 class="fw-bold">{{ cd.title }}</h6><div style="height:35vh;"><canvas id="{{ cid }}"></canvas></div></div></div></div><script>new Chart(document.getElementById('{{ cid }}'), {type:'line', data:{{ cd|tojson }}, options:{responsive:true, maintainAspectRatio:false}});</script>{% endfor %}</div>
     
     {% elif active_page == 'worst_cell' %}
-        <form method="GET" action="/worst-cell" class="row g-3 mb-4 bg-light p-3"><div class="col-auto"><select name="duration" class="form-select"><option value="1">1 Ngày</option><option value="3">3 Ngày</option><option value="7">7 Ngày</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-danger">Lọc</button><button type="submit" name="action" value="export" class="btn btn-success ms-2">Export</button></div></form>
+        <form method="GET" action="/worst-cell" class="row g-3 mb-4 bg-light p-3 rounded shadow-sm"><div class="col-auto"><select name="duration" class="form-select"><option value="1">1 Ngày</option><option value="3">3 Ngày</option><option value="7">7 Ngày</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-danger">Lọc</button><button type="submit" name="action" value="export" class="btn btn-success ms-2">Export</button></div></form>
         <div class="table-responsive"><table class="table table-hover table-bordered text-center"><thead class="table-light"><tr><th>Cell Name</th><th>Avg Thput</th><th>Avg PRB</th><th>Avg CQI</th><th>Avg Drop Rate</th></tr></thead><tbody>{% for r in worst_cells %}<tr><td class="fw-bold text-primary">{{ r.cell_name }}</td><td>{{ r.avg_thput }}</td><td>{{ r.avg_res_blk }}</td><td>{{ r.avg_cqi }}</td><td>{{ r.avg_drop }}</td></tr>{% endfor %}</tbody></table></div>
     
     {% elif active_page == 'traffic_down' %}
-        <form method="GET" action="/traffic-down" class="row g-3 mb-4 bg-light p-3"><div class="col-auto"><select name="tech" class="form-select"><option value="3g">3G</option><option value="4g">4G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success ms-2">Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-warning ms-2">Degraded</button></div></form>
-        <div class="row"><div class="col-md-6"><div class="card"><div class="card-header bg-danger text-white">Zero Traffic</div><div class="card-body p-0"><table class="table table-striped mb-0"><tr><th>Cell</th><th>Today</th><th>Avg 7D</th></tr>{% for r in zero_traffic %}<tr><td>{{ r.cell_name }}</td><td>{{ r.traffic_today }}</td><td>{{ r.avg_last_7 }}</td></tr>{% endfor %}</table></div></div></div><div class="col-md-6"><div class="card"><div class="card-header bg-warning">Degraded</div><div class="card-body p-0"><table class="table table-striped mb-0"><tr><th>Cell</th><th>Today</th><th>Last Wk</th><th>Degrade</th></tr>{% for r in degraded %}<tr><td>{{ r.cell_name }}</td><td>{{ r.traffic_today }}</td><td>{{ r.traffic_last_week }}</td><td>-{{ r.degrade_percent }}%</td></tr>{% endfor %}</table></div></div></div></div>
+        <form method="GET" action="/traffic-down" class="row g-3 mb-4 bg-light p-3 rounded shadow-sm"><div class="col-auto"><select name="tech" class="form-select"><option value="3g">3G</option><option value="4g">4G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success ms-2">Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-warning ms-2">Degraded</button></div></form>
+        <div class="row"><div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Zero Traffic</div><div class="card-body p-0"><table class="table table-striped mb-0"><tr><th>Cell</th><th>Today</th><th>Avg 7D</th></tr>{% for r in zero_traffic %}<tr><td>{{ r.cell_name }}</td><td>{{ r.traffic_today }}</td><td>{{ r.avg_last_7 }}</td></tr>{% endfor %}</table></div></div></div><div class="col-md-6"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Degraded</div><div class="card-body p-0"><table class="table table-striped mb-0"><tr><th>Cell</th><th>Today</th><th>Last Wk</th><th>Degrade</th></tr>{% for r in degraded %}<tr><td>{{ r.cell_name }}</td><td>{{ r.traffic_today }}</td><td>{{ r.traffic_last_week }}</td><td>-{{ r.degrade_percent }}%</td></tr>{% endfor %}</table></div></div></div></div>
     
     {% elif active_page == 'conges_3g' %}
         <form method="GET" action="/conges-3g" class="mb-4"><button type="submit" name="action" value="execute" class="btn btn-primary">Thực hiện</button><button type="submit" name="action" value="export" class="btn btn-success ms-2">Export</button></form>
@@ -189,11 +265,18 @@ CONTENT_TEMPLATE = """
 {% endblock %}
 """
 
-app.jinja_loader = jinja2.DictLoader({'base': BASE_LAYOUT, 'backup_restore': BACKUP_RESTORE_TEMPLATE})
-def render_page(tpl, **kwargs): return render_template_string(tpl, **kwargs)
+app.jinja_loader = jinja2.DictLoader({
+    'base': BASE_LAYOUT,
+    'backup_restore': """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-6"><div class="card"><div class="card-header bg-primary text-white">Backup Database</div><div class="card-body"><form action="/backup" method="POST"><input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleCheckboxes(this)"> Select All<hr><input type="checkbox" name="tables" value="users.csv"> Users<br><input type="checkbox" name="tables" value="config_3g.csv"> Config 3G<br><input type="checkbox" name="tables" value="cell_3g.csv"> CELL 3G<br><input type="checkbox" name="tables" value="rf3g.csv"> RF 3G<br><input type="checkbox" name="tables" value="rf4g.csv"> RF 4G<br><input type="checkbox" name="tables" value="rf5g.csv"> RF 5G<br><input type="checkbox" name="tables" value="poi4g.csv"> POI 4G<br><input type="checkbox" name="tables" value="poi5g.csv"> POI 5G<br><input type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G<br><input type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G<br><input type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G<br><input type="checkbox" name="tables" value="qoe_4g.csv"> QoE 4G<br><input type="checkbox" name="tables" value="qos_4g.csv"> QoS 4G<br><button type="submit" class="btn btn-primary w-100 mt-3">Download</button></form></div></div></div><div class="col-md-6"><div class="card"><div class="card-header bg-warning">Restore Database</div><div class="card-body"><form action="/restore" method="POST" enctype="multipart/form-data"><input class="form-control mb-3" type="file" name="file" accept=".zip" required><button type="submit" class="btn btn-warning w-100" onclick="return confirm('Cảnh báo ghi đè toàn bộ dữ liệu. Tiếp tục?')">Restore</button></form></div></div></div></div>{% endblock %}""",
+    'users': """{% extends "base" %}{% block content %}<div class="row"><div class="col-md-4"><div class="card"><div class="card-header bg-white fw-bold">Add User</div><div class="card-body"><form method="POST" action="/users/add"><input name="username" class="form-control mb-2" placeholder="Username" required><input name="password" type="password" class="form-control mb-2" placeholder="Password" required><select name="role" class="form-select mb-3"><option value="user">User</option><option value="admin">Admin</option></select><button class="btn btn-success w-100">Create</button></form></div></div></div><div class="col-md-8"><div class="card"><div class="card-header bg-white fw-bold">Users</div><div class="table-responsive"><table class="table mb-0"><thead class="table-light"><tr><th>ID</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>{% for u in users %}<tr><td>{{ u.id }}</td><td class="fw-bold">{{ u.username }}</td><td><span class="badge bg-secondary">{{ u.role }}</span></td><td>{% if u.username!='admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-danger">Del</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div></div></div>{% endblock %}""",
+    'profile': """{% extends "base" %}{% block content %}<div class="row justify-content-center"><div class="col-md-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Change Password</div><div class="card-body"><form method="POST" action="/change-password"><input type="password" name="current_password" class="form-control mb-3" placeholder="Current Password" required><input type="password" name="new_password" class="form-control mb-3" placeholder="New Password" required><button class="btn btn-primary w-100 shadow-sm">Save Changes</button></form></div></div></div></div>{% endblock %}""",
+    'rf_form': """{% extends "base" %}{% block content %}<div class="card"><div class="card-header bg-white fw-bold">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small text-muted">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj and col in obj else '' }}"></div>{% endfor %}</div><button type="submit" class="btn btn-primary">Save</button></form></div></div>{% endblock %}""",
+    'rf_detail': """{% extends "base" %}{% block content %}<div class="card"><div class="card-header bg-white fw-bold d-flex justify-content-between"><span>Detail</span><a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm">Quay lại</a></div><div class="card-body p-0"><table class="table table-bordered mb-0">{% for k,v in obj.items() %}<tr><th class="w-25 text-end">{{ k }}</th><td class="fw-bold">{{ v }}</td></tr>{% endfor %}</table></div></div>{% endblock %}"""
+})
+def render_page(tpl, **kwargs): return render_template_string(tpl if tpl.startswith('{%') else app.jinja_loader.get_source(app.jinja_env, tpl)[0], **kwargs)
 
 # ==============================================================================
-# 5. API & ROUTES CỐT LÕI (NHẬP DỮ LIỆU & GỘP FILE 3G THÔNG MINH)
+# 5. API IMPORT DỮ LIỆU & GỘP FILE 3G
 # ==============================================================================
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
@@ -303,7 +386,7 @@ def import_data():
                                             except: clean_row[k] = val
                                         else: clean_row[k] = val[:250] if len(val)>250 else val
                             
-                            # ÉP CHUẨN IN HOA CHỐNG LỖI LỆCH KHÓA CHÍNH (Vd: 3G_BSN001 == 3g_bsn001)
+                            # TỰ ĐỘNG ÉP IN HOA KHÓA CHÍNH
                             if 'cell_code' in clean_row and clean_row['cell_code']:
                                 clean_row['cell_code'] = str(clean_row['cell_code']).strip().upper()
                                 
@@ -339,7 +422,7 @@ def import_data():
                     flash(f'Import hoàn tất file {file.filename} ({total_inserted} dòng)', 'success')
                 except Exception as e: db.session.rollback(); flash(f'Lỗi file {file.filename}: {e}', 'danger')
                     
-            # TỰ ĐỘNG GỘP 2 BẢNG CONFIG VÀ CELL VÀO RF3G CHÍNH SAU KHI NẠP XONG
+            # TỰ ĐỘNG GỘP BẢNG CONFIG VÀ CELL VÀO RF3G CHÍNH
             if itype == '3g':
                 try:
                     db.session.query(RF3G).delete(); db.session.commit()
@@ -360,117 +443,17 @@ def import_data():
 
         return redirect(url_for('import_data'))
 
+    d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
+    d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
+    d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
+    today = datetime.now()
+    start_w = today - timedelta(days=today.weekday())
+    next_w_str = f"Tuần {today.isocalendar()[1]:02d} ({start_w.strftime('%d/%m')}-{(start_w + timedelta(days=6)).strftime('%d/%m')})"
+    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), next_qoe=next_w_str, next_qos=next_w_str)
+
 # ==============================================================================
-# 6. CÁC ROUTES KHÁC VÀ TÍNH NĂNG MỞ RỘNG MỚI ĐƯỢC PHỤC HỒI
+# 6. API TÌM KIẾM, TỐI ƯU (BẢO TOÀN LOGIC QUERY CHỐNG TRỐNG DỮ LIỆU)
 # ==============================================================================
-def send_telegram_message(chat_id, text_content):
-    if not TELEGRAM_BOT_TOKEN: return
-    requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage", json={"chat_id": chat_id, "text": text_content, "parse_mode": "HTML"})
-
-def send_telegram_photo(chat_id, photo_url, caption=""):
-    if not TELEGRAM_BOT_TOKEN: return
-    requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto", json={"chat_id": chat_id, "photo": photo_url, "caption": caption, "parse_mode": "HTML"})
-
-def process_bot_command(text):
-    text = str(text).strip().upper()
-    parts = text.split()
-    if not parts: return "🤖 Lỗi cú pháp!"
-    cmd = parts[0]
-    
-    if cmd == 'HELP': return "Hướng dẫn: DASHBOARD, KPI [Mã], CTS [Mã], RF [Mã]"
-    with app.app_context():
-        if cmd == 'DASHBOARD':
-            records = db.session.query(KPI4G.thoi_gian, func.sum(KPI4G.traffic).label('traffic'), func.avg(KPI4G.user_dl_avg_thput).label('user_dl_avg_thput')).group_by(KPI4G.thoi_gian).order_by(KPI4G.thoi_gian.desc()).limit(7).all()
-            if not records: return "❌ Chưa có dữ liệu hệ thống 4G."
-            records.reverse()
-            labels = [r[0] for r in records if r[0]]
-            def create_dash_url(label, data, color, title):
-                cfg = {"type": "line", "data": {"labels": labels, "datasets": [{"label": label, "data": data, "borderColor": color, "fill": False}]}, "options": {"title": {"display": True, "text": title}}}
-                return f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(cfg))}&w=600&h=350&bkg=white"
-            charts = []
-            metrics = [("Total Traffic (GB)", [round(r[1] or 0, 2) for r in records], "#0078d4", "Tổng Traffic 4G"), ("Avg Thput (Mbps)", [round(r[2] or 0, 2) for r in records], "#107c10", "Tốc độ DL")]
-            for l, d, c, t in metrics: charts.append({"type": "photo", "url": create_dash_url(l, d, c, t), "caption": f"📈 {t}"})
-            return charts
-
-        if len(parts) < 2: return "🤖 Vui lòng nhập đúng mẫu. (VD: KPI THA001)"
-        target = parts[-1] 
-        if cmd == 'CTS':
-            qoe = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).first()
-            if not qoe: return f"❌ Không tìm thấy QoE cho {target}"
-            return f"🌟 THÔNG SỐ QoE - {target}\nTuần: {qoe.week_name}\nĐiểm: {qoe.qoe_score} ⭐"
-
-        tech = '4g'
-        if len(parts) >= 3 and parts[1].lower() in ['3g', '4g', '5g']: tech = parts[1].lower()
-
-        if cmd == 'KPI':
-            Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
-            record = Model.query.filter(Model.ten_cell.ilike(f"%{target}%")).order_by(Model.id.desc()).first() if Model else None
-            if record: return f"📊 KPI {tech.upper()} - {record.ten_cell}\nNgày: {record.thoi_gian}\nTraffic: {record.traffic} GB"
-            return f"❌ Không có KPI cho {target}"
-            
-        elif cmd == 'RF':
-            Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-            record = Model.query.filter(Model.cell_code.ilike(f"%{target}%")).first() if Model else None
-            if record: return f"📡 RF {tech.upper()} - {record.cell_code}\nTọa độ: {record.latitude}, {record.longitude}\nAzimuth: {record.azimuth}"
-            return f"❌ Không có RF cho {target}"
-    return "🤖 Cú pháp không hỗ trợ."
-
-@app.route('/telegram/webhook', methods=['POST'])
-def telegram_webhook():
-    data = request.json
-    if data and 'message' in data:
-        chat_id = data['message']['chat']['id']
-        text = data['message'].get('text', '')
-        if text:
-            reply = process_bot_command(text)
-            if isinstance(reply, list):
-                for item in reply: send_telegram_photo(chat_id, item['url'], item.get('caption', ''))
-            else: send_telegram_message(chat_id, str(reply))
-    return jsonify({"status": "success"}), 200
-
-@app.route('/telegram/set_webhook')
-def set_telegram_webhook():
-    if not TELEGRAM_BOT_TOKEN: return "Missing Bot Token", 400
-    webhook_url = request.host_url.rstrip('/') + url_for('telegram_webhook')
-    try: return jsonify(requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}").json())
-    except Exception as e: return str(e), 500
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if current_user.is_authenticated: return redirect(url_for('index'))
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.check_password(request.form['password']): login_user(user); return redirect(url_for('index'))
-        flash('Login failed', 'danger')
-    return render_template_string(LOGIN_PAGE)
-
-@app.route('/logout')
-@login_required
-def logout(): logout_user(); return redirect(url_for('login'))
-
-@app.route('/')
-@login_required
-def index():
-    dashboard_data = {'labels': [], 'traffic': [], 'thput': [], 'prb': [], 'cqi': []}
-    try:
-        records = db.session.query(KPI4G.thoi_gian, func.sum(KPI4G.traffic).label('traffic'), func.avg(KPI4G.user_dl_avg_thput).label('user_dl_avg_thput'), func.avg(KPI4G.res_blk_dl).label('res_blk_dl'), func.avg(KPI4G.cqi_4g).label('cqi_4g')).group_by(KPI4G.thoi_gian).all()
-        if records:
-            agg = {r[0]: {'traf': r[1] or 0, 'thput': r[2] or 0, 'prb': r[3] or 0, 'cqi': r[4] or 0} for r in records if r[0]}
-            sorted_dates = sorted(agg.keys(), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
-            dashboard_data['labels'] = sorted_dates
-            for d in sorted_dates:
-                dashboard_data['traffic'].append(round(agg[d]['traf'], 2))
-                dashboard_data['thput'].append(round(agg[d]['thput'], 2))
-                dashboard_data['prb'].append(round(agg[d]['prb'], 2))
-                dashboard_data['cqi'].append(round(agg[d]['cqi'], 2))
-    except: pass
-    gc.collect()
-    return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', dashboard_data=dashboard_data)
-
-@app.route('/azimuth')
-@login_required
-def azimuth(): return render_page(CONTENT_TEMPLATE, title="Azimuth", active_page='azimuth')
-
 @app.route('/optimize')
 @login_required
 def optimize():
@@ -478,9 +461,7 @@ def optimize():
     qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
     qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
     all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
-    
-    selected_week = request.args.get('week_name')
-    if not selected_week and all_weeks: selected_week = all_weeks[0]
+    selected_week = request.args.get('week_name') or (all_weeks[0] if all_weeks else None)
     
     bad_cells_dict = {}
     if selected_week:
@@ -490,17 +471,12 @@ def optimize():
         
         def is_trash(c_name):
             c_str = str(c_name).strip().upper()
-            if not c_str or c_str in ['NAN', 'NONE', 'NULL']: return True
-            if len(c_str) < 5: return True
-            if c_str.replace('.', '', 1).isdigit(): return True 
-            if c_str in l900_cells: return True
-            if c_str.startswith('VNP-4G') or c_str.startswith('MBF_TH'): return True
+            if not c_str or c_str in ['NAN', 'NONE', 'NULL'] or len(c_str) < 5 or c_str.replace('.', '', 1).isdigit() or c_str in l900_cells or c_str.startswith('VNP-4G') or c_str.startswith('MBF_TH'): return True
             return False
 
         for r in qoe_bad:
             if is_trash(r.cell_name): continue
             bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
-            
         for r in qos_bad:
             if is_trash(r.cell_name): continue
             if r.cell_name not in bad_cells_dict: bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
@@ -509,7 +485,6 @@ def optimize():
         if bad_cells_dict:
             cell_names = list(bad_cells_dict.keys())
             latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
-            
             if latest_dates:
                 kpi_records = db.session.query(KPI4G.ten_cell, func.avg(KPI4G.res_blk_dl).label('avg_prb'), func.avg(KPI4G.user_dl_avg_thput).label('avg_thput'), func.avg(KPI4G.cqi_4g).label('avg_cqi'), func.avg(KPI4G.service_drop_all).label('avg_drop')).filter(KPI4G.ten_cell.in_(cell_names), KPI4G.thoi_gian.in_(latest_dates)).group_by(KPI4G.ten_cell).all()
                 for r in kpi_records:
@@ -530,7 +505,7 @@ def optimize():
         optimized_data.append(data)
         
     if action == 'export':
-        df = pd.DataFrame([{'Cell': d.get('cell_name'), 'QoE': d.get('qoe_score'), 'QoS': d.get('qos_score'), 'PRB': d.get('prb'), 'Thput': d.get('thput'), 'CQI': d.get('cqi'), 'Drop': d.get('drop'), 'Issues': " | ".join(d.get('issues',[])), 'Actions': " | ".join(d.get('actions',[]))} for d in optimized_data])
+        df = pd.DataFrame([{'Cell Name': d.get('cell_name'), 'QoE Score': d.get('qoe_score'), 'QoE %': d.get('qoe_percent'), 'QoS Score': d.get('qos_score'), 'QoS %': d.get('qos_percent'), 'PRB (%)': d.get('prb'), 'Thput (Mbps)': d.get('thput'), 'CQI (%)': d.get('cqi'), 'Drop (%)': d.get('drop'), 'Chẩn đoán': " | ".join(d.get('issues',[])), 'Giải pháp': " | ".join(d.get('actions',[]))} for d in optimized_data])
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
         output.seek(0)
@@ -550,9 +525,7 @@ def gis():
 
     def clean_val(v):
         if pd.isna(v) or v is None or str(v).strip() in ['-', '', 'nan', 'none']: return None
-        try:
-            f = float(v)
-            return str(int(f)) if f.is_integer() else str(f)
+        try: return str(int(float(v))) if float(v).is_integer() else str(float(v))
         except: return str(v).strip().upper()
 
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
@@ -578,7 +551,6 @@ def gis():
                     if len(lines) > 1:
                         headers = [h.strip().lower() for h in lines[0].split('|' if '|' in lines[0] else ',')]
                         lat_i, lon_i, node_i, cell_i, lvl_i, tech_i, qual_i = (headers.index(k) if k in headers else -1 for k in ['latitude', 'longitude', 'node', 'cellid', 'level', 'networktech', 'qual'])
-                        
                         if lat_i != -1 and lon_i != -1:
                             for line in lines[1:]:
                                 p = line.split('|' if '|' in line else ',')
@@ -610,7 +582,6 @@ def gis():
                 if 8 <= lat <= 24 and 102 <= lon <= 110:
                     gis_data.append({'cell_name': getattr(r, 'cell_name', str(r.cell_code)), 'site_code': r.site_code, 'lat': lat, 'lon': lon, 'azi': int(getattr(r, 'azimuth', 0) or 0), 'tech': tech, 'info': {c: getattr(r, c) or '' for c in cols}})
             except: pass
-    gc.collect()
     return render_page(CONTENT_TEMPLATE, title="Bản đồ GIS", active_page='gis', selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data, its_data=its_data, show_its=show_its, action_type=action_type, rf_cols=cols)
 
 @app.route('/kpi')
@@ -641,7 +612,6 @@ def kpi():
             for x in data: data_by_cell[str(x.ten_cell).strip().upper()].append(x)
 
             metrics = {'3g': [('pstraffic', 'PS TRAFFIC (GB)'), ('traffic', 'CS TRAFFIC (Erl)'), ('psconges', 'PS CONG (%)'), ('csconges', 'CS CONG (%)')], '4g': [('traffic', 'TRAFFIC (GB)'), ('user_dl_avg_thput', 'THPUT (Mbps)'), ('res_blk_dl', 'PRB (%)'), ('cqi_4g', 'CQI 4G'), ('service_drop_all', 'DROP (%)')], '5g': [('traffic', 'TRAFFIC (GB)'), ('user_dl_avg_throughput', 'THPUT (Mbps)'), ('cqi_5g', 'CQI 5G')]}.get(selected_tech, [])
-            
             colors = generate_colors(max(len(target_cells), 10))
             for key, lbl in metrics:
                 ds = []
@@ -682,7 +652,6 @@ def qoe_qos():
                     if m: r.week_name = week_map[int(m.group(1))]
 
             all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
-            
             if qoe_records:
                 qoe_score_map = {r.week_name: r.qoe_score or 0 for r in qoe_records}
                 qoe_percent_map = {r.week_name: r.qoe_percent or 0 for r in qoe_records}
@@ -698,7 +667,6 @@ def qoe_qos():
                             qoe_details.append({'week': r.week_name, 'data': d})
                         except: pass
                 qoe_details.reverse()
-            
             if qos_records:
                 qos_score_map = {r.week_name: r.qos_score or 0 for r in qos_records}
                 qos_percent_map = {r.week_name: r.qos_percent or 0 for r in qos_records}
@@ -728,7 +696,6 @@ def poi():
     if pname:
         c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
         c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
-        
         if c4:
             k4 = db.session.query(KPI4G.thoi_gian, KPI4G.traffic, KPI4G.user_dl_avg_thput).filter(KPI4G.ten_cell.in_(c4)).all()
             if k4:
@@ -739,7 +706,6 @@ def poi():
                     if r.user_dl_avg_thput is not None: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
                 charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': [{'label': 'Traffic', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue'}]}
                 charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': [{'label': 'Thput', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green'}]}
-        
         if c5:
             k5 = db.session.query(KPI5G.thoi_gian, KPI5G.traffic, KPI5G.user_dl_avg_throughput).filter(KPI5G.ten_cell.in_(c5)).all()
             if k5:
@@ -794,31 +760,25 @@ def traffic_down():
     if action in ['execute', 'export_zero', 'export_degraded', 'export_poi_degraded']:
         Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
         POI_Model = {'4g': POI4G, '5g': POI5G}.get(tech)
-        
         if Model:
             dates = sorted([datetime.strptime(d[0], '%d/%m/%Y') for d in db.session.query(Model.thoi_gian).distinct().all() if d[0]], reverse=True)
             if dates:
                 latest = dates[0]
                 analysis_date = latest.strftime('%d/%m/%Y')
-                needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
-                needed_str = [d.strftime('%d/%m/%Y') for d in needed]
-                
+                needed_str = [d.strftime('%d/%m/%Y') for d in [latest] + [latest - timedelta(days=i) for i in range(1, 8)]]
                 records = db.session.query(Model.ten_cell, Model.thoi_gian, Model.traffic).filter(Model.thoi_gian.in_(needed_str)).all()
                 data_map = defaultdict(dict)
                 for r in records:
                     if r.ten_cell.startswith('MBF') or r.ten_cell.startswith('VNP'): continue
                     try: data_map[r.ten_cell][datetime.strptime(r.thoi_gian, '%d/%m/%Y')] = r.traffic or 0
                     except: pass
-                
                 last_week = latest - timedelta(days=7)
                 for cell, d_map in data_map.items():
-                    t0 = d_map.get(latest, 0)
-                    t_last = d_map.get(last_week, 0)
+                    t0 = d_map.get(latest, 0); t_last = d_map.get(last_week, 0)
                     if t0 < 0.1:
                         avg7 = sum(d_map.get(latest - timedelta(days=i), 0) for i in range(1,8)) / 7
                         if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
-                    if t_last > 1 and t0 < 0.7 * t_last:
-                        degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+                    if t_last > 1 and t0 < 0.7 * t_last: degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
                 
                 if POI_Model:
                     poi_map = {r.cell_code: r.poi_name for r in db.session.query(POI_Model).all()}
@@ -829,28 +789,20 @@ def traffic_down():
                             poi_traffic[p_name]['today'] += d_map.get(latest, 0)
                             poi_traffic[p_name]['last_week'] += d_map.get(last_week, 0)
                     for pname, traf in poi_traffic.items():
-                        t0 = traf['today']
-                        t_last = traf['last_week']
-                        if t_last > 5 and t0 < 0.7 * t_last:
-                             degraded_pois.append({'poi_name': pname, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+                        t0 = traf['today']; t_last = traf['last_week']
+                        if t_last > 5 and t0 < 0.7 * t_last: degraded_pois.append({'poi_name': pname, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
         gc.collect()
         if action == 'export_zero':
             df = pd.DataFrame(zero_traffic)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
+            output = BytesIO(); df.to_excel(output, engine='openpyxl', index=False); output.seek(0)
             return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_degraded':
             df = pd.DataFrame(degraded)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
+            output = BytesIO(); df.to_excel(output, engine='openpyxl', index=False); output.seek(0)
             return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
         elif action == 'export_poi_degraded':
             df = pd.DataFrame(degraded_pois)
-            output = BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
-            output.seek(0)
+            output = BytesIO(); df.to_excel(output, engine='openpyxl', index=False); output.seek(0)
             return send_file(output, download_name=f'POIDegraded_{tech}.xlsx', as_attachment=True)
     return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, degraded_pois=degraded_pois, tech=tech, analysis_date=analysis_date)
 
@@ -876,9 +828,7 @@ def conges_3g():
     gc.collect()
     if action == 'export':
         df = pd.DataFrame(conges_data)
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Congestion 3G')
-        output.seek(0)
+        output = BytesIO(); df.to_excel(output, engine='openpyxl', index=False, sheet_name='Congestion 3G'); output.seek(0)
         return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
     return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
 
@@ -886,46 +836,50 @@ def conges_3g():
 @login_required
 def rf():
     tech = request.args.get('tech', '4g')
+    search_query = request.args.get('cell_search', '').strip()
     Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
     cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id']) if Model else []
-    data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in (Model.query.limit(100).all() if Model else [])]
-    return render_page(CONTENT_TEMPLATE, title="RF Database", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data)
+    
+    if Model:
+        query = Model.query
+        if search_query: query = query.filter(or_(Model.cell_code.ilike(f"%{search_query}%"), Model.site_code.ilike(f"%{search_query}%")))
+        data = [{c: getattr(r, c) for c in cols} | {'id': r.id} for r in query.limit(100).all()]
+    else: data = []
+    
+    return render_page(CONTENT_TEMPLATE, title="RF Database", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data, search_query=search_query)
 
-@app.route('/rf/detail/<tech>/<int:id>')
+# ==============================================================================
+# CÁC API KHÁC (USER, BACKUP, SCRIPT...)
+# ==============================================================================
+@app.route('/script', methods=['GET', 'POST'])
 @login_required
-def rf_detail(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
-    return render_page(RF_DETAIL_TEMPLATE, obj={c: getattr(obj, c) for c in cols if hasattr(obj, c)}, tech=tech)
-
-@app.route('/rf/add', methods=['GET', 'POST'])
-@login_required
-def rf_add():
-    tech = request.args.get('tech', '3g')
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+def script():
+    script_result = ""
     if request.method == 'POST':
-        db.session.add(Model(**{k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}))
-        db.session.commit(); return redirect(url_for('rf', tech=tech))
-    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
-    return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=cols, tech=tech, obj={})
+        tech = request.form.get('tech')
+        rns, srns, hsns, hpns, rcns = request.form.getlist('rn[]'), request.form.getlist('srn[]'), request.form.getlist('hsn[]'), request.form.getlist('hpn[]'), request.form.getlist('rcn[]')
+        lines = []
+        for i in range(len(rns)): lines.append(f"ADD RRUCHAIN: RCN={rcns[i]}, TT=CHAIN, BM=COLD, AT=LOCALPORT, HSRN=0, HSN={hsns[i]}, HPN={hpns[i]}, CR=AUTO, USERDEFRATENEGOSW=OFF;")
+        script_result = "\n".join(lines)
+    return render_page(CONTENT_TEMPLATE, title="Generate Script", active_page='script', script_result=script_result)
 
-@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@app.route('/backup', methods=['POST'])
 @login_required
-def rf_edit(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    obj = db.session.get(Model, id)
-    if request.method == 'POST':
-        for k,v in request.form.items(): setattr(obj, k, v)
-        db.session.commit(); return redirect(url_for('rf', tech=tech))
-    cols = RF_COLS_ORDER.get(tech, [c.key for c in Model.__table__.columns if c.key != 'id'])
-    return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=cols, tech=tech, obj=obj.__dict__)
-
-@app.route('/rf/delete/<tech>/<int:id>')
-@login_required
-def rf_delete(tech, id):
-    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
-    db.session.delete(db.session.get(Model, id)); db.session.commit(); return redirect(url_for('rf', tech=tech))
+def backup_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    selected_tables = request.form.getlist('tables')
+    stream = BytesIO()
+    models_map = {'users.csv': User, 'config_3g.csv': Config3G, 'cell_3g.csv': Cell3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+    with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for fname in selected_tables:
+            if fname in models_map:
+                Model = models_map[fname]
+                cols = [c.key for c in Model.__table__.columns]
+                data = db.session.query(Model).all()
+                df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data]) if data else pd.DataFrame(columns=cols)
+                zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
+    stream.seek(0); gc.collect()
+    return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
