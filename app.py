@@ -112,6 +112,39 @@ class User(UserMixin, db.Model):
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
+# --- NEW MODELS FOR 3G ---
+class Cell3G(db.Model):
+    __tablename__ = 'cell_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50), index=True)
+    site_code = db.Column(db.String(50))
+    cell_name = db.Column(db.String(100))
+    csht_code = db.Column(db.String(50))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    antena = db.Column(db.String(100))
+    azimuth = db.Column(db.Integer)
+    anten_height = db.Column(db.Float)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
+    equipment = db.Column(db.String(50))
+    hang_sx = db.Column(db.String(50))
+    swap = db.Column(db.String(50))
+    start_day = db.Column(db.String(50))
+    ghi_chu = db.Column(db.String(255))
+
+class Config3G(db.Model):
+    __tablename__ = 'config_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    cell_code = db.Column(db.String(50), index=True)
+    frequency = db.Column(db.String(50))
+    psc = db.Column(db.String(50))
+    dl_uarfcn = db.Column(db.String(50))
+    bsc_lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+# ---------------------------
+
 class RF3G(db.Model):
     __tablename__ = 'rf_3g'
     id = db.Column(db.Integer, primary_key=True)
@@ -558,6 +591,60 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+@app.route('/sync-rf3g', methods=['POST'])
+@login_required
+def sync_rf3g():
+    if current_user.role != 'admin': 
+        return redirect(url_for('index'))
+    
+    try:
+        # 1. Xóa toàn bộ dữ liệu RF3G cũ
+        db.session.query(RF3G).delete()
+        
+        # 2. Lấy dữ liệu từ 2 bảng gốc
+        cells = Cell3G.query.all()
+        configs = {c.cell_code: c for c in Config3G.query.all()} # Map theo cell_code để tra cứu nhanh (O(1))
+        
+        # 3. Gộp dữ liệu và tạo record mới cho RF3G
+        rf3g_records = []
+        for cell in cells:
+            conf = configs.get(cell.cell_code)
+            record = RF3G(
+                cell_code=cell.cell_code,
+                site_code=cell.site_code,
+                cell_name=cell.cell_name,
+                csht_code=cell.csht_code,
+                latitude=cell.latitude,
+                longitude=cell.longitude,
+                antena=cell.antena,
+                azimuth=cell.azimuth,
+                total_tilt=cell.total_tilt,
+                equipment=cell.equipment,
+                anten_height=cell.anten_height,
+                m_t=cell.m_t,
+                e_t=cell.e_t,
+                hang_sx=cell.hang_sx,
+                swap=cell.swap,
+                start_day=cell.start_day,
+                ghi_chu=cell.ghi_chu,
+                frequency=conf.frequency if conf else None,
+                psc=conf.psc if conf else None,
+                dl_uarfcn=conf.dl_uarfcn if conf else None,
+                bsc_lac=conf.bsc_lac if conf else None,
+                ci=conf.ci if conf else None
+            )
+            rf3g_records.append(record)
+            
+        if rf3g_records:
+            db.session.bulk_save_objects(rf3g_records)
+        db.session.commit()
+        flash(f'Đã ghép nối và đồng bộ thành công {len(rf3g_records)} trạm vào Database RF 3G!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
+        
+    return redirect(url_for('import_data'))
 
 @app.route('/')
 @login_required
@@ -1375,7 +1462,8 @@ def import_data():
                             flash(f'Import thành công {len(records)} dòng.', 'success')
                 except Exception as e: flash(f'Lỗi: {e}', 'danger')
         else:
-            cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+            # MAP THÊM 2 BẢNG MỚI VÀO CẤU HÌNH IMPORT
+            cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
             Model = cfg.get(itype)
             if Model:
                 valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
@@ -1418,6 +1506,8 @@ def reset_data():
     target = request.form.get('target')
     try:
         if target == 'rf':
+            db.session.query(Cell3G).delete()
+            db.session.query(Config3G).delete()
             db.session.query(RF3G).delete()
             db.session.query(RF4G).delete()
             db.session.query(RF5G).delete()
@@ -1444,7 +1534,7 @@ def backup_db():
         return redirect(url_for('backup_restore'))
         
     stream = BytesIO()
-    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+    models_map = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
     
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
         for fname in selected_tables:
@@ -1469,7 +1559,7 @@ def restore_db():
         try:
             file_bytes = BytesIO(file.read())
             with zipfile.ZipFile(file_bytes) as zf:
-                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+                models = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
                 for fname in zf.namelist():
                     if fname in models:
                         Model = models[fname]
