@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white fw-bold">Change Password</div>
+            <div class="card-body">
+                <form method="POST" action="/change-password">
+                    <input type="password" name="current_password" class="form-control mb-3" placeholder="Current Password" required>
+                    <input type="password" name="new_password" class="form-control mb-3" placeholder="New Password" required>
+                    <button class="btn btn-primary w-100 shadow-sm">Save Changes</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

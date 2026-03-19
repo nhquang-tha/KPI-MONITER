@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-bold">{{ title }}</div>
+    <div class="card-body">
+        <form method="POST">
+            <div class="row">
+                {% for col in columns %}
+                <div class="col-md-4 mb-3">
+                    <label class="small text-muted fw-bold">{{ col }}</label>
+                    <input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}">
+                </div>
+                {% endfor %}
+            </div>
+            <button type="submit" class="btn btn-primary shadow-sm">Save</button>
+            <a href="/rf?tech={{ tech }}" class="btn btn-secondary shadow-sm ms-2">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

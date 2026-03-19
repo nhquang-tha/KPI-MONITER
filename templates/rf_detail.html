@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center">
+        <span>Detail</span>
+        <a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm shadow-sm">Quay lại</a>
+    </div>
+    <div class="card-body p-0 table-responsive">
+        <table class="table table-bordered mb-0 table-striped">
+            {% for k,v in obj.items() %}
+            <tr>
+                <th class="w-25 text-end text-muted">{{ k }}</th>
+                <td class="fw-bold">{{ v }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}

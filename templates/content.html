@@ -1,0 +1,1017 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center bg-white border-bottom">
+        <span class="fs-5 fw-bold text-secondary">{{ title }}</span>
+        <span class="badge bg-soft-primary text-primary px-3 py-2 rounded-pill border">{{ current_user.role | upper }}</span>
+    </div>
+    <div class="card-body">
+        {% if active_page == 'dashboard' %}
+            <h5 class="fw-bold text-secondary mb-4"><i class="fa-solid fa-chart-pie me-2"></i>Tổng quan Chất lượng Mạng 4G Toàn Hệ thống</h5>
+            {% if dashboard_data and dashboard_data.labels %}
+                <div class="row g-4">
+                    <div class="col-md-6"><div class="card border border-light shadow-sm h-100"><div class="card-body p-3"><h6 class="fw-bold text-primary mb-3">Tổng Traffic 4G (GB)</h6><div class="chart-container" style="position: relative; height:30vh; width:100%"><canvas id="chartTraffic"></canvas></div></div></div></div>
+                    <div class="col-md-6"><div class="card border border-light shadow-sm h-100"><div class="card-body p-3"><h6 class="fw-bold text-success mb-3">Trung bình User DL Thput (Mbps)</h6><div class="chart-container" style="position: relative; height:30vh; width:100%"><canvas id="chartThput"></canvas></div></div></div></div>
+                    <div class="col-md-6"><div class="card border border-light shadow-sm h-100"><div class="card-body p-3"><h6 class="fw-bold text-warning mb-3">Trung bình Tài nguyên PRB DL (%)</h6><div class="chart-container" style="position: relative; height:30vh; width:100%"><canvas id="chartPrb"></canvas></div></div></div></div>
+                    <div class="col-md-6"><div class="card border border-light shadow-sm h-100"><div class="card-body p-3"><h6 class="fw-bold text-info mb-3">Trung bình Chất lượng Vô tuyến (CQI 4G)</h6><div class="chart-container" style="position: relative; height:30vh; width:100%"><canvas id="chartCqi"></canvas></div></div></div></div>
+                </div>
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const labels = {{ dashboard_data.labels | tojson }};
+                        function createDashChart(id, label, color, bgColor, dataArr, titleStr) {
+                            const ds = [{ label: label, data: dataArr, borderColor: color, backgroundColor: bgColor, fill: true, tension: 0.3, borderWidth: 2 }];
+                            new Chart(document.getElementById(id).getContext('2d'), { type: 'line', data: { labels: labels, datasets: ds }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, interaction: { mode: 'nearest', axis: 'x', intersect: false }, onClick: (e, el) => { if (el.length > 0) showDetailModal(ds[0].label, labels[el[0].index], ds[0].data[el[0].index], titleStr, ds, labels); } } });
+                        }
+                        createDashChart('chartTraffic', 'Traffic (GB)', '#0078d4', 'rgba(0,120,212,0.1)', {{ dashboard_data.traffic | tojson }}, 'Tổng Traffic 4G');
+                        createDashChart('chartThput', 'Avg Thput (Mbps)', '#107c10', 'rgba(16,124,16,0.1)', {{ dashboard_data.thput | tojson }}, 'Trung bình Thput');
+                        createDashChart('chartPrb', 'Avg PRB (%)', '#ffaa44', 'rgba(255,170,68,0.1)', {{ dashboard_data.prb | tojson }}, 'Trung bình PRB');
+                        createDashChart('chartCqi', 'Avg CQI', '#00bcf2', 'rgba(0,188,242,0.1)', {{ dashboard_data.cqi | tojson }}, 'Trung bình CQI');
+                    });
+                </script>
+            {% else %}
+                <div class="alert alert-info border-0 shadow-sm"><i class="fa-solid fa-circle-info me-2"></i>Chưa có dữ liệu KPI 4G để hiển thị biểu đồ.</div>
+            {% endif %}
+
+        {% elif active_page == 'azimuth' %}
+            <div class="card border border-light shadow-sm">
+                <div class="card-body p-1">
+                    <div id="azimuthMap" style="height: 75vh; width: 100%; border-radius: 8px; z-index: 1;"></div>
+                </div>
+            </div>
+
+            <!-- Panel công cụ (Sẽ được gắn vào trong Bản đồ như một Control Nổi) -->
+            <div id="azimuthFormContainer" class="shadow-lg" style="background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; width: 320px; max-width: 90vw; max-height: 65vh; overflow-y: auto; border: 1px solid #dee2e6;">
+                <h6 class="fw-bold text-primary mb-2"><i class="fa-solid fa-compass me-2"></i>Tọa độ Điểm O (Gốc)</h6>
+                <div class="mb-2 text-muted" style="font-size: 0.75rem;"><i class="fa-solid fa-info-circle me-1"></i><i>Mẹo: Click lên Bản đồ để chọn nhanh Điểm O</i></div>
+                <div class="mb-2">
+                    <label class="form-label small fw-bold mb-1">Vĩ độ (Latitude)</label>
+                    <input type="text" id="latO" class="form-control form-control-sm" placeholder="VD: 21.028511" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-bold mb-1">Kinh độ (Longitude)</label>
+                    <input type="text" id="lngO" class="form-control form-control-sm" placeholder="VD: 105.804817" required>
+                </div>
+                <button type="button" class="btn btn-outline-secondary btn-sm w-100 mb-3 fw-bold" onclick="getGPS()"><i class="fa-solid fa-location-crosshairs me-1"></i>Lấy GPS của tôi</button>
+
+                <hr class="my-3">
+
+                <h6 class="fw-bold text-success mb-2"><i class="fa-solid fa-pencil me-2"></i>Thêm Điểm Kết Nối</h6>
+                <form id="azimuthForm">
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold mb-1">Tên điểm tới</label>
+                        <input type="text" id="ptName" class="form-control form-control-sm" placeholder="VD: Trạm A" required>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label small fw-bold mb-1">Góc Azimuth (Độ)</label>
+                        <input type="number" id="ptAzimuth" class="form-control form-control-sm" min="0" max="360" step="any" placeholder="0 - 360" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold mb-1">Khoảng cách (Mét)</label>
+                        <input type="number" id="ptDistance" class="form-control form-control-sm" min="0" step="any" placeholder="Nhập số mét..." required>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm w-100 shadow-sm fw-bold mb-2"><i class="fa-solid fa-plus me-1"></i>Vẽ đường nối</button>
+                    <button type="button" class="btn btn-danger btn-sm w-100 shadow-sm fw-bold" onclick="clearDrawnPoints()"><i class="fa-solid fa-trash-can me-1"></i>Xóa các đường đã vẽ</button>
+                </form>
+            </div>
+
+            <script>
+                var azMap, markerO;
+                var drawnItems = L.layerGroup();
+                var drawnPointsData = []; 
+
+                document.addEventListener('DOMContentLoaded', function() {
+                    azMap = L.map('azimuthMap', {
+                        center: [16.0, 106.0], 
+                        zoom: 5,
+                        zoomControl: true, // Mở lại zoom mặc định ở góc topleft
+                        fullscreenControl: true, // Bật plugin FullScreen gốc
+                        fullscreenControlOptions: { position: 'topleft' } // Đặt ở góc trên bên trái
+                    });
+
+                    var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    }).addTo(azMap);
+                    
+                    var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    });
+
+                    L.control.layers({"Bản đồ (Google)": googleStreets, "Vệ tinh (Google)": googleHybrid}, null, {position: 'topright'}).addTo(azMap);
+                    
+                    drawnItems.addTo(azMap);
+
+                    // --- CHUYỂN FORM VÀO TRONG BẢN ĐỒ VÀ TẠO NÚT TOGGLE ẨN/HIỆN LÊN ĐIỆN THOẠI ---
+                    var formControl = L.control({position: 'topright'});
+                    formControl.onAdd = function (map) {
+                        var wrapper = L.DomUtil.create('div', 'leaflet-control');
+                        
+                        // Nút thu gọn
+                        var toggleBtn = L.DomUtil.create('button', 'btn btn-primary btn-sm shadow-lg mb-2 w-100 fw-bold', wrapper);
+                        toggleBtn.innerHTML = '<i class="fa-solid fa-sliders me-1"></i>Công Cụ Vẽ';
+                        toggleBtn.style.border = '2px solid white';
+                        toggleBtn.style.borderRadius = '8px';
+
+                        var formDiv = document.getElementById('azimuthFormContainer');
+                        wrapper.appendChild(formDiv);
+                        
+                        // Tự động thu gọn form nếu dùng trên điện thoại
+                        if (window.innerWidth <= 768) {
+                            formDiv.style.display = 'none';
+                        }
+
+                        L.DomEvent.disableClickPropagation(wrapper);
+                        L.DomEvent.disableScrollPropagation(wrapper);
+
+                        L.DomEvent.on(toggleBtn, 'click', function(e) {
+                            L.DomEvent.preventDefault(e);
+                            L.DomEvent.stopPropagation(e);
+                            if (formDiv.style.display === 'none') {
+                                formDiv.style.display = 'block';
+                            } else {
+                                formDiv.style.display = 'none';
+                            }
+                        });
+
+                        return wrapper;
+                    };
+                    formControl.addTo(azMap);
+
+                    // Sự kiện Click lên bản đồ để lấy toạ độ Điểm O
+                    azMap.on('click', function(e) {
+                        if (!markerO) { // CHỈ TẠO LẦN ĐẦU TIÊN
+                            document.getElementById('latO').value = e.latlng.lat.toFixed(6);
+                            document.getElementById('lngO').value = e.latlng.lng.toFixed(6);
+                            drawOrigin();
+                        }
+                    });
+
+                    document.getElementById('azimuthForm').addEventListener('submit', function(e) {
+                        e.preventDefault();
+                        drawAzimuth();
+                    });
+                });
+
+                function flyToOrigin(lat, lng) {
+                    azMap.flyTo([lat, lng], 17, { animate: true, duration: 1.5 });
+                }
+
+                function getGPS() {
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(function(position) {
+                            document.getElementById('latO').value = position.coords.latitude.toFixed(6);
+                            document.getElementById('lngO').value = position.coords.longitude.toFixed(6);
+                            flyToOrigin(position.coords.latitude, position.coords.longitude);
+                            drawOrigin();
+                        }, function(error) {
+                            alert("Lỗi không lấy được GPS: " + error.message);
+                        });
+                    } else {
+                        alert("Trình duyệt của bạn không hỗ trợ Geolocation.");
+                    }
+                }
+
+                function calculateDistanceAndBearing(lat1, lon1, lat2, lon2) {
+                    const R = 6371e3;
+                    const f1 = lat1 * Math.PI/180;
+                    const f2 = lat2 * Math.PI/180;
+                    const df = (lat2-lat1) * Math.PI/180;
+                    const dl = (lon2-lon1) * Math.PI/180;
+
+                    const a = Math.sin(df/2) * Math.sin(df/2) + Math.cos(f1) * Math.cos(f2) * Math.sin(dl/2) * Math.sin(dl/2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                    const dist = R * c;
+
+                    const y = Math.sin(dl) * Math.cos(f2);
+                    const x = Math.cos(f1)*Math.sin(f2) - Math.sin(f1)*Math.cos(f2)*Math.cos(dl);
+                    let brng = Math.atan2(y, x) * 180 / Math.PI;
+                    brng = (brng + 360) % 360;
+
+                    return { distance: dist, bearing: brng };
+                }
+
+                function updateAllLines() {
+                    var latO = parseFloat(document.getElementById('latO').value);
+                    var lngO = parseFloat(document.getElementById('lngO').value);
+                    if(isNaN(latO) || isNaN(lngO)) return;
+
+                    drawnPointsData.forEach(function(obj) {
+                        var posB = obj.marker.getLatLng();
+                        var calc = calculateDistanceAndBearing(latO, lngO, posB.lat, posB.lng);
+                        
+                        obj.line.setLatLngs([[latO, lngO], posB]);
+                        var popupContent = "<div class='text-center'><b>" + obj.name + "</b><hr class='my-1'>Góc Azimuth: <b class='text-danger'>" + calc.bearing.toFixed(2) + "°</b><br>Khoảng cách: <b class='text-primary'>" + calc.distance.toFixed(2) + " m</b></div>";
+                        if(obj.marker.getPopup()) obj.marker.getPopup().setContent(popupContent);
+                    });
+                }
+
+                function drawOrigin() {
+                    var latO = document.getElementById('latO').value;
+                    var lngO = document.getElementById('lngO').value;
+                    if (!latO || !lngO) return;
+                    
+                    if (markerO) { azMap.removeLayer(markerO); }
+                    
+                    var iconO = L.divIcon({className: 'custom-div-icon', html: "<div style='background-color:#c0392b;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 8px rgba(0,0,0,0.8);'></div>", iconSize: [18, 18], iconAnchor: [9, 9]});
+                    
+                    markerO = L.marker([latO, lngO], {icon: iconO, draggable: true})
+                        .bindTooltip("<b class='text-danger'>Điểm O</b>", {permanent: true, direction: 'left', className: 'bg-white border-danger rounded shadow-sm px-1 py-0'})
+                        .addTo(azMap);
+                        
+                    markerO.on('drag', function(e) {
+                        var newPos = e.target.getLatLng();
+                        document.getElementById('latO').value = newPos.lat.toFixed(6);
+                        document.getElementById('lngO').value = newPos.lng.toFixed(6);
+                        updateAllLines();
+                    });
+
+                    updateAllLines();
+                }
+
+                document.getElementById('latO').addEventListener('change', function() {
+                    drawOrigin();
+                    var lat = document.getElementById('latO').value;
+                    var lng = document.getElementById('lngO').value;
+                    if(lat && lng) flyToOrigin(lat, lng);
+                });
+                
+                document.getElementById('lngO').addEventListener('change', function() {
+                    drawOrigin();
+                    var lat = document.getElementById('latO').value;
+                    var lng = document.getElementById('lngO').value;
+                    if(lat && lng) flyToOrigin(lat, lng);
+                });
+
+                function calculateDestinationPoint(lat1, lon1, brng, dist) {
+                    const R = 6371e3;
+                    const d = parseFloat(dist);
+                    const brngRad = parseFloat(brng) * Math.PI / 180;
+                    const lat1Rad = parseFloat(lat1) * Math.PI / 180;
+                    const lon1Rad = parseFloat(lon1) * Math.PI / 180;
+
+                    const lat2Rad = Math.asin(Math.sin(lat1Rad) * Math.cos(d/R) + Math.cos(lat1Rad) * Math.sin(d/R) * Math.cos(brngRad));
+                    const lon2Rad = lon1Rad + Math.atan2(Math.sin(brngRad) * Math.sin(d/R) * Math.cos(lat1Rad), Math.cos(d/R) - Math.sin(lat1Rad) * Math.sin(lat2Rad));
+
+                    return [lat2Rad * 180 / Math.PI, lon2Rad * 180 / Math.PI];
+                }
+
+                function drawAzimuth() {
+                    var latO = document.getElementById('latO').value;
+                    var lngO = document.getElementById('lngO').value;
+                    var ptName = document.getElementById('ptName').value;
+                    var az = document.getElementById('ptAzimuth').value;
+                    var dist = document.getElementById('ptDistance').value;
+
+                    if (!latO || !lngO || !ptName || !az || !dist) {
+                        alert("Vui lòng nhập đủ Điểm O, Tên điểm, Góc và Khoảng cách!");
+                        return;
+                    }
+
+                    drawOrigin();
+                    var pointB = calculateDestinationPoint(latO, lngO, az, dist);
+
+                    var iconB = L.divIcon({className: 'custom-div-icon', html: "<div style='background-color:#2980b9;width:14px;height:14px;border-radius:50%;border:2px solid white;box-shadow:0 0 6px rgba(0,0,0,0.6);'></div>", iconSize: [14, 14], iconAnchor: [7, 7]});
+                    
+                    var popupContent = "<div class='text-center'><b>" + ptName + "</b><hr class='my-1'>Góc Azimuth: <b class='text-danger'>" + parseFloat(az).toFixed(2) + "°</b><br>Khoảng cách: <b class='text-primary'>" + parseFloat(dist).toFixed(2) + " m</b></div>";
+                    
+                    var markerB = L.marker(pointB, {icon: iconB, draggable: true})
+                        .bindTooltip("<b>" + ptName + "</b>", {permanent: true, direction: 'right', className: 'text-primary border-primary rounded shadow-sm px-1 py-0'})
+                        .bindPopup(popupContent, {autoPan: false})
+                        .addTo(drawnItems);
+
+                    markerB.on('dragstart', function(e) {
+                        this.openPopup();
+                    });
+
+                    var polyline = L.polyline([[latO, lngO], pointB], {
+                        color: '#000000',
+                        weight: 4,
+                        opacity: 1.0
+                    }).addTo(drawnItems);
+                    
+                    var drawnObj = { marker: markerB, line: polyline, name: ptName };
+                    drawnPointsData.push(drawnObj);
+                    
+                    markerB.on('drag', function(e) {
+                        var newPos = e.target.getLatLng();
+                        var curLatO = parseFloat(document.getElementById('latO').value);
+                        var curLngO = parseFloat(document.getElementById('lngO').value);
+                        
+                        var calc = calculateDistanceAndBearing(curLatO, curLngO, newPos.lat, newPos.lng);
+                        drawnObj.line.setLatLngs([[curLatO, curLngO], newPos]);
+                        
+                        var newPopup = "<div class='text-center'><b>" + ptName + "</b><hr class='my-1'>Góc Azimuth: <b class='text-danger'>" + calc.bearing.toFixed(2) + "°</b><br>Khoảng cách: <b class='text-primary'>" + calc.distance.toFixed(2) + " m</b></div>";
+                        drawnObj.marker.getPopup().setContent(newPopup);
+                    });
+
+                    var group = new L.featureGroup([markerO, drawnItems]);
+                    azMap.fitBounds(group.getBounds(), {padding: [50, 50]});
+                    
+                    document.getElementById('ptName').value = '';
+                    document.getElementById('ptAzimuth').value = '';
+                    document.getElementById('ptDistance').value = '';
+                    document.getElementById('ptName').focus();
+                }
+                
+                function clearDrawnPoints() {
+                    drawnItems.clearLayers();
+                    drawnPointsData = [];
+                    if(markerO) azMap.setView(markerO.getLatLng(), 15);
+                }
+            </script>
+            
+        {% elif active_page == 'optimize' %}
+            <div class="alert alert-info border-0 shadow-sm mb-4">
+                <h5 class="fw-bold text-primary mb-3"><i class="fa-solid fa-book-open-reader me-2"></i>Quy trình Tối ưu 5 Bước</h5>
+                <ol class="mb-0 text-dark">
+                    <li class="mb-1"><strong>Thu thập Vĩ mô:</strong> Tự động lọc Top Cell tệ từ báo cáo QoE/QoS Tuần.</li>
+                    <li class="mb-1"><strong>Chẩn đoán Vi mô:</strong> Tự động ghép nối KPI Ngày để tìm nguyên nhân gốc rễ (Nghẽn, Nhiễu, Lỗi Phần cứng).</li>
+                    <li class="mb-1"><strong>Giải pháp Tối ưu:</strong> Đề xuất hành động cho RNO, NOC, UCTT xử lý.</li>
+                    <li class="mb-1"><strong>Giám sát Tức thời:</strong> Xem nhanh biểu đồ KPI sau khi thực hiện tác động.</li>
+                    <li><strong>Đóng vòng Tối ưu:</strong> Theo dõi sự cải thiện điểm QoE/QoS ở tuần tiếp theo.</li>
+                </ol>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/optimize" class="row g-3 align-items-center bg-white p-3 rounded-3 border shadow-sm">
+                        <div class="col-md-8">
+                            <label class="form-label fw-bold small text-muted">CHỌN TUẦN PHÂN TÍCH (BƯỚC 1)</label>
+                            <select name="week_name" class="form-select border-0 shadow-sm bg-light">
+                                {% for w in all_weeks %}
+                                <option value="{{ w }}" {% if w == latest_week %}selected{% endif %}>{{ w }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4 align-self-end d-flex gap-2">
+                            <button type="submit" name="action" value="filter" class="btn btn-danger w-100 shadow-sm"><i class="fa-solid fa-filter me-1"></i>Lọc</button>
+                            <button type="submit" name="action" value="export" class="btn btn-success w-100 shadow-sm"><i class="fa-solid fa-file-excel me-1"></i>Export</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-between align-items-center mb-3 mt-4">
+                <h6 class="fw-bold text-danger mb-0"><i class="fa-solid fa-list-check me-2"></i>Danh sách Trạm Cần Xử lý ({{ latest_week or 'Chưa có dữ liệu' }})</h6>
+            </div>
+            
+            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 65vh;">
+                 <table class="table table-hover table-bordered mb-0 align-middle" style="font-size: 0.85rem;">
+                     <thead class="table-light text-center position-sticky top-0" style="z-index: 10;">
+                         <tr>
+                             <th rowspan="2" class="align-middle">Cell Name</th>
+                             <th colspan="2">1. Báo cáo Tuần (Macro)</th>
+                             <th colspan="4">2. KPI Ngày Gần Nhất (Micro)</th>
+                             <th rowspan="2" class="align-middle">3. Chẩn đoán (Bệnh)</th>
+                             <th rowspan="2" class="align-middle">4. Giải pháp (Action)</th>
+                             <th rowspan="2" class="align-middle">5. Giám sát</th>
+                         </tr>
+                         <tr>
+                             <th>Điểm QoE</th><th>Điểm QoS</th>
+                             <th>PRB (%)</th><th>Thput (Mbps)</th><th>CQI (%)</th><th>Drop (%)</th>
+                         </tr>
+                     </thead>
+                     <tbody>
+                         {% for row in optimized_data %}
+                         <tr>
+                             <td class="fw-bold text-primary text-nowrap">{{ row.cell_name }}</td>
+                             <td class="text-center {{ 'text-danger fw-bold' if row.qoe_score != '-' and row.qoe_score <= 2 }}">{{ row.qoe_score }}{% if row.qoe_percent != '-' %}<br><small class="text-muted">({{ row.qoe_percent }}%)</small>{% endif %}</td>
+                             <td class="text-center {{ 'text-danger fw-bold' if row.qos_score != '-' and row.qos_score <= 3 }}">{{ row.qos_score }}{% if row.qos_percent != '-' %}<br><small class="text-muted">({{ row.qos_percent }}%)</small>{% endif %}</td>
+                             <td class="text-center {{ 'text-danger fw-bold' if row.prb != '-' and row.prb > 20 }}">{{ row.prb }}</td>
+                             <td class="text-center {{ 'text-danger fw-bold' if row.thput != '-' and row.thput < 10 }}">{{ row.thput }}</td>
+                             <td class="text-center {{ 'text-danger fw-bold' if row.cqi != '-' and row.cqi < 93 }}">{{ row.cqi }}</td>
+                             <td class="text-center {{ 'text-danger fw-bold' if row.drop != '-' and row.drop > 0.3 }}">{{ row.drop }}</td>
+                             <td>
+                                 <ul class="mb-0 ps-3 text-danger fw-bold" style="min-width: 150px;">
+                                     {% for issue in row.issues %}<li>{{ issue }}</li>{% endfor %}
+                                 </ul>
+                             </td>
+                             <td>
+                                 <ul class="mb-0 ps-3 text-success" style="min-width: 180px;">
+                                     {% for action in row.actions %}<li>{{ action }}</li>{% endfor %}
+                                 </ul>
+                             </td>
+                             <td class="text-center p-2" style="min-width: 100px;">
+                                 <a href="/kpi?tech=4g&cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-primary mb-1 w-100 py-0 shadow-sm" style="font-size: 0.75rem;"><i class="fa-solid fa-chart-line me-1"></i>Xem KPI</a>
+                                 <a href="/qoe-qos?cell_name={{ row.cell_name }}" class="btn btn-sm btn-outline-warning w-100 py-0 text-dark shadow-sm" style="font-size: 0.75rem;"><i class="fa-solid fa-star-half-stroke me-1"></i>Xem QoE</a>
+                             </td>
+                         </tr>
+                         {% else %}
+                         <tr><td colspan="10" class="text-center py-5 text-muted"><i class="fa-solid fa-face-smile fa-3x mb-3 text-success d-block"></i>Tuyệt vời! Không phát hiện Cell nào vi phạm ngưỡng tệ trong tuần gần nhất.</td></tr>
+                         {% endfor %}
+                     </tbody>
+                 </table>
+            </div>
+        
+        {% elif active_page == 'gis' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="POST" action="/gis" enctype="multipart/form-data" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-2"><label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option></select></div>
+                        <div class="col-md-2"><label class="form-label fw-bold small text-muted">SITE CODE</label><input type="text" name="site_code" class="form-control border-0 shadow-sm" placeholder="VD: THA001" value="{{ site_code_input }}"></div>
+                        <div class="col-md-3"><label class="form-label fw-bold small text-muted">CELL NAME</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}"></div>
+                        <div class="col-md-3"><label class="form-label fw-bold small text-muted text-warning"><i class="fa-solid fa-file-lines me-1"></i>LOG ITS (.TXT/.CSV)</label><input type="file" name="its_file" class="form-control border-0 shadow-sm" accept=".txt,.csv" multiple></div>
+                        <div class="col-md-2 d-flex flex-column gap-2 mt-4 pt-1"><button type="submit" name="action" value="search" class="btn btn-primary btn-sm w-100 shadow-sm fw-bold"><i class="fa-solid fa-search me-1"></i>Tìm kiếm</button><button type="submit" name="action" value="show_log" class="btn btn-warning btn-sm w-100 shadow-sm fw-bold text-white"><i class="fa-solid fa-route me-1"></i>Xem Log</button></div>
+                    </form>
+                </div>
+            </div>
+            <div class="card border border-light shadow-sm">
+                <div class="card-body p-1 position-relative">
+                    <div id="gisMap" style="height: 65vh; width: 100%; border-radius: 8px; z-index: 1;"></div>
+                </div>
+            </div>
+            <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var gisData = {{ gis_data | tojson | safe if gis_data else '[]' }};
+                    var itsData = {{ its_data | tojson | safe if its_data else '[]' }};
+                    var actionType = "{{ action_type }}";
+                    var searchSite = "{{ site_code_input }}";
+                    var searchCell = "{{ cell_name_input }}";
+                    var isShowIts = {{ 'true' if show_its else 'false' }};
+                    var hasGisData = gisData.length > 0;
+                    var hasItsData = isShowIts && itsData.length > 0;
+                    
+                    if(!document.getElementById('gisMap')) return;
+
+                    var mapCenter = [19.807, 105.776];
+                    var mapZoom = 9;
+
+                    var map = L.map('gisMap', {
+                        center: mapCenter,
+                        zoom: mapZoom,
+                        zoomControl: true, // Bật zoom ở góc topleft
+                        fullscreenControl: true, // Bật FullScreen
+                        fullscreenControlOptions: { position: 'topleft' } // Chuyển lên góc topleft
+                    });
+
+                    var googleStreets = L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    }).addTo(map);
+                    
+                    var googleHybrid = L.tileLayer('https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                        maxZoom: 22,
+                        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+                        detectRetina: true,
+                        attribution: '© Google Maps'
+                    });
+
+                    L.control.layers({"Bản đồ (Google)": googleStreets, "Vệ tinh (Google)": googleHybrid}).addTo(map);
+
+                    // Add Custom Settings Control
+                    if (hasGisData || hasItsData) {
+                        var settingsControl = L.control({position: 'topright'});
+                        settingsControl.onAdd = function (map) {
+                            var div = L.DomUtil.create('div', 'info settings-control shadow-sm');
+                            div.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                            div.style.padding = '12px';
+                            div.style.borderRadius = '8px';
+                            div.style.border = '1px solid #dee2e6';
+                            
+                            L.DomEvent.disableClickPropagation(div);
+
+                            var html = '<div class="d-flex flex-column gap-2">';
+
+                            if (hasGisData) {
+                                html += '<div class="d-flex align-items-center justify-content-between">';
+                                html += '<label class="small fw-bold text-muted mb-0 me-2" style="white-space: nowrap;"><i class="fa-solid fa-wifi text-info me-1"></i>Bán kính quạt:</label>';
+                                html += '<input type="range" class="form-range" id="sectorRadiusSlider" min="50" max="2000" step="50" value="350" style="width: 100px;">';
+                                html += '<span id="sectorRadiusVal" class="small text-muted ms-2 fw-bold" style="min-width: 45px; text-align: right;">350m</span>';
+                                html += '</div>';
+                            }
+
+                            if (hasItsData) {
+                                html += '<div class="d-flex align-items-center justify-content-between">';
+                                html += '<label class="small fw-bold text-muted mb-0 me-2" style="white-space: nowrap;"><i class="fa-solid fa-circle text-primary me-1"></i>Cỡ hạt Log:</label>';
+                                html += '<input type="range" class="form-range" id="pointSizeSlider" min="1" max="10" value="3" style="width: 100px;">';
+                                html += '</div>';
+
+                                html += '<div class="d-flex align-items-center mt-1 pt-2 border-top">';
+                                html += '<div class="form-check form-switch mb-0 w-100 d-flex align-items-center ps-0">';
+                                html += '<label class="form-check-label small fw-bold text-muted me-3" for="showLinesToggle" style="cursor: pointer;"><i class="fa-solid fa-link text-success me-1"></i>Nối vệt tia</label>';
+                                html += '<input class="form-check-input mt-0 ms-auto float-none" type="checkbox" id="showLinesToggle" checked style="cursor: pointer;">';
+                                html += '</div>';
+                                html += '</div>';
+                            }
+
+                            html += '</div>';
+                            div.innerHTML = html;
+                            return div;
+                        };
+                        settingsControl.addTo(map);
+                    }
+
+                    // Bounds Management
+                    var bounds = [];
+                    if (isShowIts && itsData.length > 0) {
+                        itsData.forEach(function(pt) { bounds.push([pt.lat, pt.lon]); });
+                    }
+                    if (actionType === 'show_log' && gisData.length > 0) {
+                        gisData.forEach(function(cell) { bounds.push([cell.lat, cell.lon]); });
+                    }
+
+                    if (actionType === 'search' && (searchSite || searchCell) && gisData.length > 0) {
+                        var targetCell = gisData[0];
+                        for (var i = 0; i < gisData.length; i++) {
+                            var sCode = (gisData[i].site_code || "").toLowerCase();
+                            var cName = (gisData[i].cell_name || "").toLowerCase();
+                            var sInput = searchSite.toLowerCase();
+                            var cInput = searchCell.toLowerCase();
+                            if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) { targetCell = gisData[i]; break; }
+                        }
+                        if (targetCell.lat && targetCell.lon) { map.setView([targetCell.lat, targetCell.lon], 15); } 
+                        else { map.setView(mapCenter, mapZoom); }
+                    } else if (bounds.length > 0) {
+                        map.fitBounds(bounds, {padding: [30, 30], maxZoom: 16});
+                    } else {
+                        map.setView(mapCenter, mapZoom);
+                    }
+
+                    var siteLayerGroup = L.layerGroup().addTo(map);
+                    var sectorLayerGroup = L.layerGroup().addTo(map);
+                    var itsLayerGroup = L.layerGroup().addTo(map);
+                    var cellLookup = {};
+                    var renderedSites = {};
+
+                    var techColors = {'3g': '#0078d4', '4g': '#107c10', '5g': '#ffaa44'};
+
+                    function getSectorMidPoint(lat, lon, azimuth, distanceMeters) {
+                        var latFactor = 111320;
+                        var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
+                        var radMap = (azimuth || 0) * Math.PI / 180;
+                        var dx = (distanceMeters * Math.sin(radMap)) / lonFactor;
+                        var dy = (distanceMeters * Math.cos(radMap)) / latFactor;
+                        return [lat + dy, lon + dx];
+                    }
+
+                    function getSectorPolygon(lat, lon, azimuth, beamwidth, radiusMeters) {
+                        var center = [lat, lon];
+                        var points = [center];
+                        var startAngle = azimuth - beamwidth / 2;
+                        var endAngle = azimuth + beamwidth / 2;
+                        var latFactor = 111320;
+                        var lonFactor = 111320 * Math.cos(lat * Math.PI / 180);
+                        for (var i = startAngle; i <= endAngle; i += 5) {
+                            var radMap = i * Math.PI / 180;
+                            var dx = (radiusMeters * Math.sin(radMap)) / lonFactor; 
+                            var dy = (radiusMeters * Math.cos(radMap)) / latFactor; 
+                            points.push([lat + dy, lon + dx]);
+                        }
+                        points.push(center);
+                        return points;
+                    }
+
+                    gisData.forEach(function(cell) {
+                        if(!cell.lat || !cell.lon) return;
+                        if (!renderedSites[cell.site_code]) {
+                            L.circleMarker([cell.lat, cell.lon], {radius: 5, color: '#333', weight: 1.5, fillColor: '#ffffff', fillOpacity: 1}).bindPopup("<b>Site Code:</b> " + cell.site_code).addTo(siteLayerGroup);
+                            renderedSites[cell.site_code] = true;
+                        }
+                    });
+
+                    function cVal(v) {
+                        if (v === null || v === undefined) return "";
+                        var s = String(v).trim();
+                        if (s.endsWith(".0")) s = s.slice(0, -2);
+                        return s;
+                    }
+
+                    function buildLookupAndDrawSectors() {
+                        sectorLayerGroup.clearLayers();
+                        cellLookup = {};
+
+                        var radiusSlider = document.getElementById('sectorRadiusSlider');
+                        var radiusSlider = document.getElementById('sectorRadiusSlider');
+                        var sectorRadius = radiusSlider ? parseInt(radiusSlider.value) : 350;
+                        var valDisplay = document.getElementById('sectorRadiusVal');
+                        if (valDisplay) valDisplay.innerText = sectorRadius + 'm';
+
+                        var targetCellCoord = null;
+                        var targetPolygon = null;
+
+                        gisData.forEach(function(cell) {
+                            if(!cell.lat || !cell.lon) return;
+
+                            var isMatch = false;
+                            if (actionType === 'search' && (searchSite || searchCell)) {
+                                var sCode = (cell.site_code || "").toLowerCase();
+                                var cName = (cell.cell_name || "").toLowerCase();
+                                var sInput = searchSite.toLowerCase();
+                                var cInput = searchCell.toLowerCase();
+                                if ((sInput && sCode.includes(sInput)) || (cInput && cName.includes(cInput))) { 
+                                    isMatch = true;
+                                    if (!targetCellCoord) targetCellCoord = [cell.lat, cell.lon];
+                                }
+                            }
+
+                            var tech = cell.tech;
+                            var info = cell.info;
+                            var key = "";
+
+                            if (tech === '4g') {
+                                var en = cVal(info.enodeb_id); var lc = cVal(info.lcrid);
+                                if (en && lc) key = en + "_" + lc;
+                            } else if (tech === '3g') {
+                                var ci = cVal(info.ci);
+                                if (ci) key = ci;
+                            } else if (tech === '5g') {
+                                 var gn = cVal(info.gnodeb_id); var lc5 = cVal(info.lcrid);
+                                 if (gn && lc5) key = gn + "_" + lc5;
+                            }
+
+                            if (key) {
+                                cellLookup[key] = getSectorMidPoint(cell.lat, cell.lon, cell.azi, sectorRadius * 0.65);
+                            }
+
+                            var color = techColors[cell.tech] || '#dc3545';
+                            var polyPoints = getSectorPolygon(cell.lat, cell.lon, cell.azi, 60, sectorRadius);
+                            var polygon = L.polygon(polyPoints, {
+                                color: isMatch ? '#ff0000' : color, 
+                                weight: isMatch ? 3 : 1, 
+                                fillColor: isMatch ? '#ff0000' : color, 
+                                fillOpacity: isMatch ? 0.7 : 0.35
+                            }).addTo(sectorLayerGroup);
+
+                            if (isMatch && !targetPolygon) targetPolygon = polygon;
+
+                            var infoHtml = "<div style='max-height: 250px; overflow-y: auto; overflow-x: hidden;'><table class='table table-sm table-bordered mb-0' style='font-size: 0.8rem;'>";
+                            for (const [k, v] of Object.entries(cell.info)) {
+                                if (v !== null && v !== '' && v !== 'None') {
+                                    infoHtml += "<tr><th class='text-muted bg-light w-50'>" + k.toUpperCase() + "</th><td class='fw-bold'>" + v + "</td></tr>";
+                                }
+                            }
+                            infoHtml += "</table></div>";
+
+                            polygon.bindPopup(
+                                "<div class='mb-2 pb-2 border-bottom'><b>Cell:</b> <span class='text-primary fs-6'>" + cell.cell_name + "</span><br>" +
+                                "<b>Site:</b> " + cell.site_code + "<br>" +
+                                "<b>Tọa độ:</b> " + cell.lat + ", " + cell.lon + "</div>" + infoHtml,
+                                { minWidth: 300, maxWidth: 450 }
+                            );
+                        });
+                        
+                        if (actionType === 'search' && targetCellCoord) {
+                            map.setView(targetCellCoord, 16);
+                            if (targetPolygon) setTimeout(() => targetPolygon.openPopup(), 600);
+                        }
+
+                        drawITSData();
+                    }
+
+                    function getSignalColor(tech, level) {
+                        var t = (tech || '').toUpperCase();
+                        if (t.includes('4G') || t.includes('LTE')) {
+                            if (level >= -75) return '#0000FF'; // Blue
+                            if (level >= -85) return '#00FF00'; // Green
+                            if (level >= -95) return '#FFFF00'; // Yellow
+                            if (level >= -105) return '#FFA500'; // Orange
+                            if (level >= -115) return '#FF0000'; // Red
+                            return '#000000'; // Black
+                        } else { 
+                            if (level >= -65) return '#0000FF'; // Blue
+                            if (level >= -75) return '#00FF00'; // Green
+                            if (level >= -85) return '#FFFF00'; // Yellow
+                            if (level >= -95) return '#FFA500'; // Orange
+                            if (level >= -105) return '#FF0000'; // Red
+                            return '#000000'; // Black
+                        }
+                    }
+
+                    function drawITSData() {
+                        if (!isShowIts || itsData.length === 0) return;
+                        itsLayerGroup.clearLayers();
+
+                        var pointSizeSlider = document.getElementById('pointSizeSlider');
+                        var pointSize = pointSizeSlider ? parseInt(pointSizeSlider.value) : 3;
+                        var showLinesToggle = document.getElementById('showLinesToggle');
+                        var showLines = showLinesToggle ? showLinesToggle.checked : false;
+
+                        itsData.forEach(function(pt) {
+                            var ptColor = getSignalColor(pt.tech, pt.level);
+                            var ptCoord = [pt.lat, pt.lon];
+                            
+                            L.circleMarker(ptCoord, {radius: pointSize, fillColor: ptColor, color: "#000", weight: 0.5, fillOpacity: 0.9})
+                            .bindPopup("<div class='small'><b>Tech:</b> " + pt.tech + "<br><b>Level:</b> <span class='fw-bold' style='color:"+ptColor+"'>" + pt.level + " dBm</span><br><b>Qual:</b> " + (pt.qual||'-') + "<br><b>Node/CellID:</b> " + (pt.node||'-') + " / " + pt.cellid + "</div>")
+                            .addTo(itsLayerGroup);
+
+                            if (showLines) {
+                                var ptTech = (pt.tech || '').toLowerCase();
+                                var key = "";
+                                if (ptTech.includes('4g') || ptTech.includes('lte')) {
+                                    if (pt.node && pt.cellid) key = pt.node + "_" + pt.cellid;
+                                } else if (ptTech.includes('3g') || ptTech.includes('wcdma') || ptTech.includes('hspa') || ptTech.includes('umts')) {
+                                    if (pt.cellid) key = pt.cellid;
+                                } else if (ptTech.includes('5g') || ptTech.includes('nr')) {
+                                    if (pt.node && pt.cellid) key = pt.node + "_" + pt.cellid;
+                                }
+
+                                var targetCellCoord = cellLookup[key];
+                                if (targetCellCoord) {
+                                    L.polyline([ptCoord, targetCellCoord], {color: ptColor, weight: 1.5, opacity: 0.6, dashArray: '3, 4'}).addTo(itsLayerGroup);
+                                }
+                            }
+                        });
+                    }
+
+                    buildLookupAndDrawSectors();
+
+                    var radSliderEl = document.getElementById('sectorRadiusSlider');
+                    if (radSliderEl) radSliderEl.addEventListener('input', buildLookupAndDrawSectors);
+
+                    var sliderEl = document.getElementById('pointSizeSlider');
+                    if (sliderEl) sliderEl.addEventListener('input', drawITSData);
+
+                    var toggleEl = document.getElementById('showLinesToggle');
+                    if (toggleEl) toggleEl.addEventListener('change', drawITSData);
+
+                    // Add Legend
+                    if (isShowIts && itsData.length > 0) {
+                        var legend = L.control({position: 'bottomright'});
+                        legend.onAdd = function (map) {
+                            var div = L.DomUtil.create('div', 'info legend shadow-sm');
+                            div.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+                            div.style.padding = '10px 15px';
+                            div.style.borderRadius = '8px';
+                            div.style.fontSize = '0.85rem';
+                            div.style.lineHeight = '1.8';
+                            div.style.border = '1px solid #dee2e6';
+                            
+                            var html = '';
+                            var has4G = itsData.some(pt => (pt.tech || '').toUpperCase().includes('4G') || (pt.tech || '').toUpperCase().includes('LTE'));
+                            var has3G = itsData.some(pt => !(pt.tech || '').toUpperCase().includes('4G') && !(pt.tech || '').toUpperCase().includes('LTE'));
+
+                            if (has4G) {
+                                html += '<strong class="text-primary fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> Chú giải 4G RSRP</strong>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -75)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-85 đến -75)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-95 đến -85)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Kém (-105 đến -95)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-115 đến -105)</div>';
+                                html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -115)</div>';
+                            }
+                            if (has3G) {
+                                if (has4G) html += '<hr class="my-2">';
+                                html += '<strong class="text-success fs-6 d-block mb-2"><i class="fa-solid fa-signal me-1"></i> Chú giải 3G RSCP</strong>';
+                                html += '<div><i style="background:#0000FF; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất tốt (≥ -65)</div>';
+                                html += '<div><i style="background:#00FF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Tốt (-75 đến -65)</div>';
+                                html += '<div><i style="background:#FFFF00; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Khá (-85 đến -75)</div>';
+                                html += '<div><i style="background:#FFA500; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Kém (-95 đến -85)</div>';
+                                html += '<div><i style="background:#FF0000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Rất kém (-105 đến -95)</div>';
+                                html += '<div><i style="background:#000000; width:16px; height:16px; display:inline-block; margin-right:8px; border-radius:3px;"></i> Mất sóng (< -105)</div>';
+                            }
+                            div.innerHTML = html;
+                            return div;
+                        };
+                        legend.addTo(map);
+                    }
+                });
+            </script>
+
+        {% elif active_page == 'kpi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/kpi" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-2"><label class="form-label fw-bold small text-muted">CÔNG NGHỆ</label><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if selected_tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if selected_tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if selected_tech == '5g' %}selected{% endif %}>5G</option></select></div>
+                        <div class="col-md-4"><label class="form-label fw-bold small text-muted">TÌM THEO POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
+                        <div class="col-md-3"><label class="form-label fw-bold small text-muted">NHẬP CELL/SITE</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="Site code, Cell list..." value="{{ cell_name_input }}"></div>
+                        <div class="col-md-2 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Visualize</button></div>
+                    </form>
+                </div>
+            </div>
+            {% if charts %}
+                {% for chart_id, chart_config in charts.items() %}
+                <div class="card mb-4 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ chart_config.title }}</h6><div class="chart-container" style="position: relative; height:45vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div>
+                {% endfor %}
+                <script>{% for chart_id, chart_data in charts.items() %}(function(){const ctx=document.getElementById('{{ chart_id }}').getContext('2d'); const cd={{ chart_data | tojson }}; new Chart(ctx,{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,spanGaps:true,elements:{line:{tension:0.3}},interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0){const i=el[0].index;const di=el[0].datasetIndex;showDetailModal(cd.datasets[di].label,cd.labels[i],cd.datasets[di].data[i],'{{ chart_data.title }}',cd.datasets,cd.labels);}},plugins:{legend:{position:'bottom'},tooltip:{mode:'index',intersect:false}}}});})();{% endfor %}</script>
+            {% elif cell_name_input or selected_poi %}
+                <div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu phù hợp.</div>
+            {% else %}
+                <div class="text-center text-muted py-5 opacity-50"><i class="fa-solid fa-chart-line fa-4x mb-3"></i><p class="fs-5">Vui lòng chọn tiêu chí để xem báo cáo KPI.</p></div>
+            {% endif %}
+
+        {% elif active_page == 'qoe_qos' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/qoe-qos" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-6"><label class="form-label fw-bold small text-muted">NHẬP CELL NAME 4G</label><input type="text" name="cell_name" class="form-control border-0 shadow-sm" placeholder="VD: THA001_1" value="{{ cell_name_input }}" required></div>
+                        <div class="col-md-2 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-search me-2"></i>Tra cứu</button></div>
+                        {% if has_data %}<div class="col-md-3 align-self-end"><a href="/kpi?tech=4g&cell_name={{ cell_name_input }}" class="btn btn-success w-100 shadow-sm"><i class="fa-solid fa-link me-2"></i>Link tới KPI Cell</a></div>{% endif %}
+                    </form>
+                </div>
+            </div>
+            {% if charts %}
+                <div class="row">
+                    {% for chart_id, c in charts.items() %}
+                    <div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ c.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>
+                    <script>(function(){ const cd={{ c | tojson }}; new Chart(document.getElementById('{{ chart_id }}').getContext('2d'),{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,spanGaps:true,elements:{line:{tension:0.3}},interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0)showDetailModal(cd.datasets[el[0].datasetIndex].label,cd.labels[el[0].index],cd.datasets[el[0].datasetIndex].data[el[0].index],'{{ c.title }}',cd.datasets,cd.labels)}}});})();</script>
+                    {% endfor %}
+                </div>
+                {% if qoe_details %}
+                <div class="card mt-2 shadow-sm border-0 mb-4"><div class="card-header bg-white fw-bold text-primary">Dữ liệu gốc QoE Hàng tuần</div><div class="card-body p-0 table-responsive"><table class="table table-bordered table-striped table-hover mb-0 text-nowrap" style="font-size: 0.8rem;"><thead class="table-light"><tr><th>Tuần</th>{% for k in qoe_headers %}<th>{{ k }}</th>{% endfor %}</tr></thead><tbody>{% for row in qoe_details %}<tr><td class="fw-bold text-primary">{{ row.week }}</td>{% for k in qoe_headers %}<td>{{ row.data.get(k, '-') }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></div>
+                {% endif %}
+                {% if qos_details %}
+                <div class="card shadow-sm border-0 mb-4"><div class="card-header bg-white fw-bold text-success">Dữ liệu gốc QoS Hàng tuần</div><div class="card-body p-0 table-responsive"><table class="table table-bordered table-striped table-hover mb-0 text-nowrap" style="font-size: 0.8rem;"><thead class="table-light"><tr><th>Tuần</th>{% for k in qos_headers %}<th>{{ k }}</th>{% endfor %}</tr></thead><tbody>{% for row in qos_details %}<tr><td class="fw-bold text-success">{{ row.week }}</td>{% for k in qos_headers %}<td>{{ row.data.get(k, '-') }}</td>{% endfor %}</tr>{% endfor %}</tbody></table></div></div>
+                {% endif %}
+            {% elif cell_name_input %}
+                <div class="alert alert-warning border-0 shadow-sm"><i class="fa-solid fa-circle-exclamation me-2"></i>Không tìm thấy dữ liệu QoE/QoS cho Cell: <strong>{{ cell_name_input }}</strong>.</div>
+            {% else %}
+                <div class="text-center text-muted py-5"><i class="fa-solid fa-star-half-stroke fa-3x mb-3 opacity-50"></i><p>Nhập mã Cell 4G để xem biểu đồ xu hướng QoE, QoS.</p></div>
+            {% endif %}
+
+        {% elif active_page == 'poi' %}
+            <div class="row mb-4">
+                <div class="col-md-12">
+                    <form method="GET" action="/poi" class="row g-3 align-items-center bg-light p-3 rounded-3 border">
+                        <div class="col-md-8"><label class="form-label fw-bold small text-muted">CHỌN POI</label><input type="text" name="poi_name" list="poi_list_kpi" class="form-control border-0 shadow-sm" placeholder="Chọn POI..." value="{{ selected_poi }}"><datalist id="poi_list_kpi">{% for p in poi_list %}<option value="{{ p }}">{% endfor %}</datalist></div>
+                        <div class="col-md-4 align-self-end"><button type="submit" class="btn btn-primary w-100 shadow-sm">Xem Báo Cáo</button></div>
+                    </form>
+                </div>
+            </div>
+            {% if poi_charts %}
+                <div class="row">
+                    {% for chart_id, c in poi_charts.items() %}
+                    <div class="col-md-6 mb-4"><div class="card h-100 border-0 shadow-sm"><div class="card-body p-4"><h6 class="card-title text-secondary fw-bold mb-3">{{ c.title }}</h6><div class="chart-container" style="position: relative; height:35vh; width:100%"><canvas id="{{ chart_id }}"></canvas></div></div></div></div>
+                    <script>(function(){ const cd={{ c | tojson }}; new Chart(document.getElementById('{{ chart_id }}').getContext('2d'),{type:'line',data:cd,options:{responsive:true,maintainAspectRatio:false,spanGaps:true,elements:{line:{tension:0.3}},interaction:{mode:'nearest',intersect:false,axis:'x'},onClick:(e,el)=>{if(el.length>0)showDetailModal(cd.datasets[el[0].datasetIndex].label,cd.labels[el[0].index],cd.datasets[el[0].datasetIndex].data[el[0].index],'{{ c.title }}',cd.datasets,cd.labels)}}});})();</script>
+                    {% endfor %}
+                </div>
+            {% elif selected_poi %}
+                <div class="alert alert-warning border-0 shadow-sm">Không có dữ liệu cho POI: <strong>{{ selected_poi }}</strong></div>
+            {% else %}
+                <div class="text-center text-muted py-5"><i class="fa-solid fa-map-location-dot fa-3x mb-3"></i><p>Chọn địa điểm POI để xem báo cáo.</p></div>
+            {% endif %}
+
+        {% elif active_page == 'worst_cell' %}
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/worst-cell" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">THỜI GIAN</label></div><div class="col-auto"><select name="duration" class="form-select border-0 shadow-sm"><option value="1" {% if duration == 1 %}selected{% endif %}>1 ngày mới nhất</option><option value="3" {% if duration == 3 %}selected{% endif %}>3 ngày liên tiếp</option><option value="7" {% if duration == 7 %}selected{% endif %}>7 ngày liên tiếp</option><option value="15" {% if duration == 15 %}selected{% endif %}>15 ngày liên tiếp</option><option value="30" {% if duration == 30 %}selected{% endif %}>30 ngày liên tiếp</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-danger shadow-sm">Lọc Worst Cell</button></div><div class="col-auto"><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export Excel</button></div></form></div></div>
+            {% if dates %}<div class="alert alert-info border-0 shadow-sm mb-4"><i class="fa-solid fa-calendar-days me-2"></i><strong>Xét duyệt:</strong> {% for d in dates %}<span class="badge bg-white text-info border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
+            <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 70vh;">
+                <table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light position-sticky top-0" style="z-index: 10;"><tr><th>Cell Name</th><th class="text-center">Avg Thput</th><th class="text-center">Avg PRB</th><th class="text-center">Avg CQI</th><th class="text-center">Avg Drop Rate</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for r in worst_cells %}<tr><td class="fw-bold text-primary">{{ r.cell_name }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_thput < 7000 }}">{{ r.avg_thput }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_res_blk > 20 }}">{{ r.avg_res_blk }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_cqi < 93 }}">{{ r.avg_cqi }}</td><td class="text-center {{ 'text-danger fw-bold' if r.avg_drop > 0.3 }}">{{ r.avg_drop }}</td><td class="text-center"><a href="/kpi?tech=4g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success text-white">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted">Nhấn "Lọc Worst Cell" để xem dữ liệu</td></tr>{% endfor %}</tbody></table>
+            </div>
+
+        {% elif active_page == 'traffic_down' %}
+             <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/traffic-down" class="row g-3 align-items-center bg-light p-3 rounded-3 border"><div class="col-auto"><label class="col-form-label fw-bold text-muted">CÔNG NGHỆ:</label></div><div class="col-auto"><select name="tech" class="form-select border-0 shadow-sm"><option value="3g" {% if tech == '3g' %}selected{% endif %}>3G</option><option value="4g" {% if tech == '4g' %}selected{% endif %}>4G</option><option value="5g" {% if tech == '5g' %}selected{% endif %}>5G</option></select></div><div class="col-auto"><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm">Thực hiện</button><button type="submit" name="action" value="export_zero" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Zero</button><button type="submit" name="action" value="export_degraded" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> Degraded</button><button type="submit" name="action" value="export_poi_degraded" class="btn btn-warning shadow-sm ms-2"><i class="fa-solid fa-file-excel"></i> POI Degraded</button></div><div class="col-auto ms-auto"><span class="badge bg-info text-dark">Ngày phân tích: {{ analysis_date }}</span></div></form></div></div>
+            <div class="row g-4">
+                <div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-danger text-white fw-bold">Cell Không Lưu Lượng (< 0.1 GB)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Avg (7 Days)</th><th class="text-center">Action</th></tr></thead><tbody>{% for r in zero_traffic %}<tr><td class="fw-bold">{{ r.cell_name }}</td><td class="text-end text-danger">{{ r.traffic_today }}</td><td class="text-end">{{ r.avg_last_7 }}</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ r.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+                <div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">Cell Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>Cell Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for r in degraded %}<tr><td class="fw-bold">{{ r.cell_name }}</td><td class="text-end text-danger">{{ r.traffic_today }}</td><td class="text-end">{{ r.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ r.degrade_percent }}%</td><td class="text-center"><a href="/kpi?tech={{ tech }}&cell_name={{ r.cell_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+                 <div class="col-md-4"><div class="card h-100 border-0 shadow-sm"><div class="card-header bg-warning text-dark fw-bold">POI Suy Giảm (> 30%)</div><div class="card-body p-0 table-responsive"><table class="table table-striped mb-0 small"><thead class="table-light"><tr><th>POI Name</th><th class="text-end">Today</th><th class="text-end">Last Week</th><th class="text-end">Degrade %</th><th class="text-center">Action</th></tr></thead><tbody>{% for r in degraded_pois %}<tr><td class="fw-bold">{{ r.poi_name }}</td><td class="text-end text-danger">{{ r.traffic_today }}</td><td class="text-end">{{ r.traffic_last_week }}</td><td class="text-end text-danger fw-bold">-{{ r.degrade_percent }}%</td><td class="text-center"><a href="/poi?poi_name={{ r.poi_name }}" class="btn btn-xs btn-outline-primary"><i class="fa-solid fa-chart-line"></i></a></td></tr>{% endfor %}</tbody></table></div></div></div>
+            </div>
+
+        {% elif active_page == 'conges_3g' %}
+            <div class="row mb-4"><div class="col-md-12"><form method="GET" action="/conges-3g" class="d-flex align-items-center"><div class="alert alert-info border-0 shadow-sm bg-soft-primary text-primary mb-0 flex-grow-1"><strong>Điều kiện:</strong> (CS_CONG > 2% & CS_ATT > 100) OR (PS_CONG > 2% & PS_ATT > 500) (3 ngày liên tiếp)</div><button type="submit" name="action" value="execute" class="btn btn-primary shadow-sm ms-3">Thực hiện</button><button type="submit" name="action" value="export" class="btn btn-success shadow-sm ms-2"><i class="fa-solid fa-file-excel me-2"></i>Export</button></form></div></div>
+            {% if dates %}<div class="mb-3 text-muted small"><i class="fa-solid fa-calendar me-2"></i>Xét duyệt: {% for d in dates %}<span class="badge bg-light text-dark border ms-1">{{ d }}</span>{% endfor %}</div>{% endif %}
+            <div class="table-responsive bg-white rounded shadow-sm border"><table class="table table-hover mb-0" style="font-size: 0.9rem;"><thead class="bg-light"><tr><th>Cell Name</th><th>Avg CS Traffic</th><th>Avg CS Conges (%)</th><th>Avg PS Traffic</th><th>Avg PS Conges (%)</th><th class="text-center">Hành động</th></tr></thead><tbody>{% for r in conges_data %}<tr><td class="fw-bold text-primary">{{ r.cell_name }}</td><td>{{ r.avg_cs_traffic }}</td><td class="{{ 'text-danger fw-bold' if r.avg_cs_conges > 2 }}">{{ r.avg_cs_conges }}</td><td>{{ r.avg_ps_traffic }}</td><td class="{{ 'text-danger fw-bold' if r.avg_ps_conges > 2 }}">{{ r.avg_ps_conges }}</td><td class="text-center"><a href="/kpi?tech=3g&cell_name={{ r.cell_name }}" class="btn btn-sm btn-success text-white shadow-sm">View</a></td></tr>{% else %}<tr><td colspan="6" class="text-center py-5 text-muted opacity-50">Nhấn nút "Thực hiện" để xem kết quả</td></tr>{% endfor %}</tbody></table></div>
+
+        {% elif active_page == 'rf' %}
+             <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 bg-white p-3 rounded shadow-sm border gap-3">
+                 <div class="btn-group shadow-sm">
+                     <a href="/rf?tech=3g" class="btn {{ 'btn-primary' if current_tech == '3g' else 'btn-outline-primary' }}">3G</a>
+                     <a href="/rf?tech=4g" class="btn {{ 'btn-primary' if current_tech == '4g' else 'btn-outline-primary' }}">4G</a>
+                     <a href="/rf?tech=5g" class="btn {{ 'btn-primary' if current_tech == '5g' else 'btn-outline-primary' }}">5G</a>
+                 </div>
+                 
+                 <form method="GET" action="/rf" class="d-flex flex-grow-1 mx-lg-4">
+                     <input type="hidden" name="tech" value="{{ current_tech }}">
+                     <div class="input-group shadow-sm">
+                         <span class="input-group-text bg-light border-end-0"><i class="fa-solid fa-search text-muted"></i></span>
+                         <input type="text" name="cell_search" class="form-control border-start-0 ps-0" placeholder="Nhập Cell Code hoặc Site Code để tìm nhanh..." value="{{ search_query }}">
+                         <button type="submit" class="btn btn-primary px-4 fw-bold">Tìm kiếm</button>
+                     </div>
+                 </form>
+
+                 <div class="d-flex gap-2">
+                     <form method="GET" action="/rf" class="m-0">
+                         <input type="hidden" name="tech" value="{{ current_tech }}">
+                         <input type="hidden" name="cell_search" value="{{ search_query }}">
+                         <button type="submit" name="action" value="export" class="btn btn-success shadow-sm text-white fw-bold"><i class="fa-solid fa-file-excel me-2"></i>Export</button>
+                     </form>
+                     {% if current_user.role == 'admin' %}
+                     <a href="/rf/add?tech={{ current_tech }}" class="btn btn-warning shadow-sm fw-bold"><i class="fa-solid fa-plus me-1"></i>New</a>
+                     {% endif %}
+                 </div>
+             </div>
+             
+             <div class="table-responsive bg-white rounded shadow-sm border" style="max-height: 65vh;">
+                 <table class="table table-hover mb-0" style="font-size: 0.85rem; white-space: nowrap;">
+                     <thead class="table-light position-sticky top-0" style="z-index: 10;">
+                         <tr>
+                             <th class="text-center border-bottom bg-light" style="position: sticky; left: 0; z-index: 20;">Action</th>
+                             {% for col in rf_columns %}<th>{{ col | replace('_', ' ') | upper }}</th>{% endfor %}
+                         </tr>
+                     </thead>
+                     <tbody>
+                         {% for row in rf_data %}
+                         <tr>
+                             <td class="text-center bg-white border-end shadow-sm" style="position: sticky; left: 0; z-index: 5;">
+                                 <a href="/rf/detail/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-primary py-0"><i class="fa-solid fa-eye"></i></a>
+                                 {% if current_user.role == 'admin' %}
+                                 <a href="/rf/edit/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-warning py-0"><i class="fa-solid fa-pen"></i></a>
+                                 <a href="/rf/delete/{{ current_tech }}/{{ row['id'] }}" class="btn btn-sm btn-outline-danger py-0" onclick="return confirm('Xóa?')"><i class="fa-solid fa-trash"></i></a>
+                                 {% endif %}
+                             </td>
+                             {% for col in rf_columns %}<td>{{ row[col] }}</td>{% endfor %}
+                         </tr>
+                         {% else %}
+                         <tr><td colspan="100%" class="text-center py-4 text-muted"><i class="fa-solid fa-magnifying-glass fa-2x mb-2 d-block opacity-50"></i>Không tìm thấy trạm nào.</td></tr>
+                         {% endfor %}
+                     </tbody>
+                 </table>
+             </div>
+
+        {% elif active_page == 'import' %}
+             <div class="row">
+                 <div class="col-md-8">
+                     <div class="tab-content bg-white p-4 rounded-3 shadow-sm border">
+                         <h5 class="mb-3 text-primary"><i class="fa-solid fa-cloud-arrow-up me-2"></i>Data Import</h5>
+                         <ul class="nav nav-tabs mb-4" id="importTabs" role="tablist">
+                             <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabRF" type="button">Import RF</button></li>
+                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPOI" type="button">Import POI</button></li>
+                             <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabKPI" type="button">Import KPI</button></li>
+                             <li class="nav-item"><button class="nav-link text-primary fw-bold" data-bs-toggle="tab" data-bs-target="#tabQoE" type="button">Import QoE/QoS</button></li>
+                             <li class="nav-item"><button class="nav-link text-danger fw-bold" data-bs-toggle="tab" data-bs-target="#tabReset" type="button">Reset Data</button></li>
+                         </ul>
+                         <div class="tab-content">
+                             <div class="tab-pane fade show active" id="tabRF">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option></select></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload RF Data</button>
+                                 </form>
+                             </div>
+                             <div class="tab-pane fade" id="tabPOI">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu POI</label><select name="type" class="form-select"><option value="poi4g">POI 4G</option><option value="poi5g">POI 5G</option></select></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload POI Data</button>
+                                 </form>
+                             </div>
+                             <div class="tab-pane fade" id="tabKPI">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu KPI</label><select name="type" class="form-select"><option value="kpi3g">KPI 3G</option><option value="kpi4g">KPI 4G</option><option value="kpi5g">KPI 5G</option></select></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload KPI Data</button>
+                                 </form>
+                             </div>
+                             <div class="tab-pane fade" id="tabQoE">
+                                 <form action="/import" method="POST" enctype="multipart/form-data">
+                                     <div class="mb-3"><label class="form-label fw-bold text-primary">Chọn Loại Dữ Liệu QoE/QoS</label><select name="type" class="form-select border-primary"><option value="qoe4g">QoE 4G (Hàng Tuần)</option><option value="qos4g">QoS 4G (Hàng Tuần)</option></select></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Tên Tuần (Quan trọng)</label><input type="text" name="week_name" class="form-control" value="{{ default_week_name }}" required></div>
+                                     <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
+                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload Data</button>
+                                 </form>
+                             </div>
+                             <div class="tab-pane fade" id="tabReset">
+                                 <div class="alert alert-warning border-0 shadow-sm mb-4">
+                                     <i class="fa-solid fa-triangle-exclamation me-2"></i><strong>Cảnh báo:</strong> Hành động này sẽ xóa sạch dữ liệu khỏi cơ sở dữ liệu. Không thể hoàn tác!
+                                 </div>
+                                 <div class="d-flex flex-column gap-3">
+                                     <form action="/reset-data" method="POST" onsubmit="return confirm('CẢNH BÁO TỐI KHẨN: Bạn có CHẮC CHẮN muốn xóa sạch toàn bộ dữ liệu cấu hình RF của 3G, 4G, 5G?');">
+                                         <input type="hidden" name="target" value="rf">
+                                         <button type="submit" class="btn btn-danger w-100 shadow-sm fw-bold"><i class="fa-solid fa-trash-can me-2"></i>Reset Toàn Bộ Dữ Liệu RF</button>
+                                     </form>
+                                     <form action="/reset-data" method="POST" onsubmit="return confirm('CẢNH BÁO TỐI KHẨN: Bạn có CHẮC CHẮN muốn xóa sạch toàn bộ dữ liệu địa điểm POI của 4G, 5G?');">
+                                         <input type="hidden" name="target" value="poi">
+                                         <button type="submit" class="btn btn-danger w-100 shadow-sm fw-bold"><i class="fa-solid fa-trash-can me-2"></i>Reset Toàn Bộ Dữ Liệu POI</button>
+                                     </form>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+                 <div class="col-md-4">
+                     <div class="card h-100 border-0 shadow-sm"><div class="card-header bg-white fw-bold text-success border-bottom">Data History</div><div class="card-body p-0 overflow-auto" style="max-height: 400px;"><table class="table table-sm table-striped mb-0 text-center"><thead class="table-light sticky-top"><tr><th>3G</th><th>4G</th><th>5G</th></tr></thead><tbody>{% for r3, r4, r5 in kpi_rows %}<tr><td>{{ r3 or '-' }}</td><td>{{ r4 or '-' }}</td><td>{{ r5 or '-' }}</td></tr>{% endfor %}</tbody></table></div></div>
+                 </div>
+             </div>
+        
+        {% elif active_page == 'script' %}
+             <div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Generate Script</div><div class="card-body">
+                <ul class="nav nav-tabs mb-3" id="scriptTabs" role="tablist">
+                    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab3g900" type="button">3G 900</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab4g" type="button">4G</button></li>
+                    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab3g2100" type="button">3G 2100</button></li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="tab3g900">
+                        <form method="POST" action="/script"><input type="hidden" name="tech" value="3g900"><div class="table-responsive"><table class="table table-bordered" id="rruTable_3g900"><thead class="table-light"><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead><tbody><tr><td><input type="text" name="rn[]" class="form-control" value="RRU1"></td><td><input type="number" name="srn[]" class="form-control" value="70"></td><td><input type="number" name="hsn[]" class="form-control" value="2"></td><td><input type="number" name="hpn[]" class="form-control" value="0"></td><td><input type="number" name="rcn[]" class="form-control" value="0"></td><td><input type="number" name="sectorid[]" class="form-control" value="0"></td><td><input type="number" name="rxnum[]" class="form-control" value="2"></td><td><input type="number" name="txnum[]" class="form-control" value="1"></td><td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td></tr></tbody></table></div><button type="button" class="btn btn-success mb-3" onclick="addRow('3g900')">+ Add RRU</button><br><button class="btn btn-primary shadow-sm">Generate Script</button></form>
+                    </div>
+                     <div class="tab-pane fade" id="tab4g">
+                        <form method="POST" action="/script"><input type="hidden" name="tech" value="4g"><div class="table-responsive"><table class="table table-bordered" id="rruTable_4g"><thead class="table-light"><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead><tbody><tr><td><input type="text" name="rn[]" class="form-control" value="RRU1"></td><td><input type="number" name="srn[]" class="form-control" value="60"></td><td><input type="number" name="hsn[]" class="form-control" value="3"></td><td><input type="number" name="hpn[]" class="form-control" value="0"></td><td><input type="number" name="rcn[]" class="form-control" value="0"></td><td><input type="number" name="sectorid[]" class="form-control" value="0"></td><td><input type="number" name="rxnum[]" class="form-control" value="4"></td><td><input type="number" name="txnum[]" class="form-control" value="4"></td><td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td></tr></tbody></table></div><button type="button" class="btn btn-success mb-3" onclick="addRow('4g')">+ Add RRU</button><br><button class="btn btn-primary shadow-sm">Generate Script</button></form>
+                     </div>
+                     <div class="tab-pane fade" id="tab3g2100">
+                        <form method="POST" action="/script"><input type="hidden" name="tech" value="3g2100"><div class="table-responsive"><table class="table table-bordered" id="rruTable_3g2100"><thead class="table-light"><tr><th>RRU Name</th><th>SRN</th><th>Slot</th><th>Port</th><th>RCN</th><th>SectorID</th><th>RX</th><th>TX</th><th>Action</th></tr></thead><tbody><tr><td><input type="text" name="rn[]" class="form-control" value="RRU1"></td><td><input type="number" name="srn[]" class="form-control" value="80"></td><td><input type="number" name="hsn[]" class="form-control" value="3"></td><td><input type="number" name="hpn[]" class="form-control" value="0"></td><td><input type="number" name="rcn[]" class="form-control" value="0"></td><td><input type="number" name="sectorid[]" class="form-control" value="0"></td><td><input type="number" name="rxnum[]" class="form-control" value="2"></td><td><input type="number" name="txnum[]" class="form-control" value="1"></td><td><button type="button" class="btn btn-danger btn-sm" onclick="this.closest('tr').remove()">X</button></td></tr></tbody></table></div><button type="button" class="btn btn-success mb-3" onclick="addRow('3g2100')">+ Add RRU</button><br><button class="btn btn-primary shadow-sm">Generate Script</button></form>
+                     </div>
+                </div>
+                {% if script_result %}
+                <div class="mt-4"><h5 class="fw-bold text-primary">Result:</h5><textarea class="form-control font-monospace bg-light border-0" rows="12" readonly>{{ script_result }}</textarea></div>
+                {% endif %}
+             </div></div>
+
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
