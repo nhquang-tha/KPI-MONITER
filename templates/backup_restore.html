@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-header bg-primary text-white"><h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Backup Database</h5></div>
+                <div class="card-body">
+                    <form action="/backup" method="POST">
+                        <div class="mb-3"><label class="form-label fw-bold">Select Tables to Backup:</label>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleCheckboxes(this)"><label class="form-check-label fw-bold" for="selectAll">Select All</label></div><hr class="my-2">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="users.csv"> Users</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf3g.csv"> RF 3G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf4g.csv"> RF 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf5g.csv"> RF 5G</div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="poi4g.csv"> POI 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="poi5g.csv"> POI 5G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qoe_4g.csv"> QoE 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qos_4g.csv"> QoS 4G</div>
+                            </div>
+                        </div></div>
+                        <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-file-zipper me-2"></i>Download Selected</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark"><h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Restore Database</h5></div>
+                <div class="card-body">
+                    <div class="alert alert-danger border-0 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong>WARNING:</strong> This will OVERWRITE existing data for the tables found in the zip file.</div>
+                    <form action="/restore" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3"><label class="form-label fw-bold">Select Backup File (.zip)</label><input class="form-control border-0 shadow-sm" type="file" name="file" accept=".zip" required></div>
+                        <button type="submit" class="btn btn-warning w-100 shadow-sm" onclick="return confirm('Are you sure you want to restore? This action cannot be undone.')"><i class="fa-solid fa-rotate-left me-2"></i>Restore Data</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
