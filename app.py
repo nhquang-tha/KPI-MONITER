@@ -77,11 +77,11 @@ def clean_header(col_name):
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
         'CellID': 'cellid', 'NetworkTech': 'networktech',
         'CELL': 'cell_code', 'SITE': 'site_code', 'MÃ CELL': 'cell_code', 'MÃ TRẠM': 'site_code',
-        'UARFCN': 'dl_uarfcn', 'LAC': 'bsc_lac', 'RNC': 'bsc_lac',
-        'TÊN CELL': 'cell_name', 'CELLNAME': 'cell_name', 'TÊN TRẠM': 'site_name',
+        'UARFCN': 'dl_uarfcn', 'LAC': 'bsc_lac', 'RNC': 'bsc_lac', 'BSC': 'bsc_lac',
+        'TÊN CELL': 'cell_name', 'CELLNAME': 'cell_name', 'TÊN TRẠM': 'site_name', 'CELL ID': 'cell_code', 'SITE ID': 'site_code',
         'LAT': 'latitude', 'LONG': 'longitude', 'KINH ĐỘ': 'longitude', 'VĨ ĐỘ': 'latitude',
         'TILT': 'total_tilt', 'ANTEN': 'antena', 'THIẾT BỊ': 'equipment',
-        'FREQ': 'frequency', 'TRẠM': 'site_code'
+        'FREQ': 'frequency', 'TRẠM': 'site_code', 'NODEB': 'site_code', 'NODEB NAME': 'site_name'
     }
     col_upper = col_name.upper()
     for key, val in special_map.items():
@@ -1515,7 +1515,22 @@ def import_data():
                                 if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                     clean_row['traffic'] = clean_row['traffic_vol_dl']
                                     
-                                if clean_row and 'cell_code' in clean_row and str(clean_row['cell_code']).strip() != 'nan':
+                                # Tự động tìm cột thay thế cho cell_code nếu bị thiếu (Fallback)
+                                if 'cell_code' not in clean_row or str(clean_row.get('cell_code', '')).strip() in ['', 'nan', 'None']:
+                                    for fallback in ['cell_name', 'cellid', 'site_code', 'site_name', 'enodeb_id', 'gnodeb_id', 'ci']:
+                                        if fallback in clean_row and str(clean_row[fallback]).strip() not in ['', 'nan', 'None']:
+                                            clean_row['cell_code'] = clean_row[fallback]
+                                            break
+                                            
+                                # Vẫn thiếu? Quét toàn bộ tên cột gốc (extra) để tìm từ khóa liên quan
+                                if 'cell_code' not in clean_row or str(clean_row.get('cell_code', '')).strip() in ['', 'nan', 'None']:
+                                    for ex_k, ex_v in extra.items():
+                                        ex_lower = str(ex_k).lower()
+                                        if 'cell' in ex_lower or 'site' in ex_lower or 'trạm' in ex_lower or 'node' in ex_lower:
+                                            clean_row['cell_code'] = str(ex_v)
+                                            break
+                                            
+                                if clean_row and 'cell_code' in clean_row and str(clean_row['cell_code']).strip() not in ['', 'nan', 'None']:
                                     # Chuyển các cột thừa vào JSON column extra_data
                                     if hasattr(Model, 'extra_data') and extra:
                                         clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
@@ -1526,7 +1541,7 @@ def import_data():
                                 db.session.commit()
                                 flash(f'Đã import {len(records)} dòng từ {file.filename}', 'success')
                             else:
-                                flash(f'Bỏ qua {file.filename}: Không tìm thấy dữ liệu hợp lệ (Cần có cột chứa Mã Cell)', 'warning')
+                                flash(f'Bỏ qua {file.filename}: Không tìm thấy dữ liệu hợp lệ (File không có cột Mã trạm hoặc Tên Cell)', 'warning')
                     except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
         return redirect(url_for('import_data'))
         
