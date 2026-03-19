@@ -77,7 +77,11 @@ def clean_header(col_name):
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
         'CellID': 'cellid', 'NetworkTech': 'networktech',
         'CELL': 'cell_code', 'SITE': 'site_code', 'MÃ CELL': 'cell_code', 'MÃ TRẠM': 'site_code',
-        'UARFCN': 'dl_uarfcn', 'LAC': 'bsc_lac'
+        'UARFCN': 'dl_uarfcn', 'LAC': 'bsc_lac', 'RNC': 'bsc_lac',
+        'TÊN CELL': 'cell_name', 'CELLNAME': 'cell_name', 'TÊN TRẠM': 'site_name',
+        'LAT': 'latitude', 'LONG': 'longitude', 'KINH ĐỘ': 'longitude', 'VĨ ĐỘ': 'latitude',
+        'TILT': 'total_tilt', 'ANTEN': 'antena', 'THIẾT BỊ': 'equipment',
+        'FREQ': 'frequency', 'TRẠM': 'site_code'
     }
     col_upper = col_name.upper()
     for key, val in special_map.items():
@@ -135,6 +139,7 @@ class Cell3G(db.Model):
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
+    extra_data = db.Column(db.Text) # JSON string lưu các cột dư thừa từ file Excel
 
 class Config3G(db.Model):
     __tablename__ = 'config_3g'
@@ -145,6 +150,7 @@ class Config3G(db.Model):
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
     ci = db.Column(db.String(50))
+    extra_data = db.Column(db.Text) # JSON string lưu các cột dư thừa từ file Excel
 # ---------------------------
 
 class RF3G(db.Model):
@@ -172,6 +178,7 @@ class RF3G(db.Model):
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
+    extra_data = db.Column(db.Text) # Chứa toàn bộ cột mở rộng gộp từ Cell3G và Config3G
 
 class RF4G(db.Model):
     __tablename__ = 'rf_4g'
@@ -612,6 +619,18 @@ def sync_rf3g():
         rf3g_records = []
         for cell in cells:
             conf = configs.get(cell.cell_code)
+            
+            # Khôi phục toàn bộ các cột dư thừa (extra_data) từ cả 2 bảng
+            merged_extra = {}
+            if cell.extra_data:
+                try: merged_extra.update(json.loads(cell.extra_data))
+                except: pass
+            if conf and conf.extra_data:
+                try: merged_extra.update(json.loads(conf.extra_data))
+                except: pass
+            
+            extra_str = json.dumps(merged_extra, ensure_ascii=False) if merged_extra else None
+            
             record = RF3G(
                 cell_code=cell.cell_code,
                 site_code=cell.site_code,
@@ -634,14 +653,15 @@ def sync_rf3g():
                 psc=conf.psc if conf else None,
                 dl_uarfcn=conf.dl_uarfcn if conf else None,
                 bsc_lac=conf.bsc_lac if conf else None,
-                ci=conf.ci if conf else None
+                ci=conf.ci if conf else None,
+                extra_data=extra_str # Gắn JSON các trường còn lại vào RF3G
             )
             rf3g_records.append(record)
             
         if rf3g_records:
             db.session.bulk_save_objects(rf3g_records)
         db.session.commit()
-        flash(f'Đã ghép nối và đồng bộ thành công {len(rf3g_records)} trạm vào Database RF 3G!', 'success')
+        flash(f'Đã ghép nối và đồng bộ thành công {len(rf3g_records)} trạm (bao gồm tất cả cột mở rộng) vào Database RF 3G!', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
@@ -954,7 +974,7 @@ def gis():
                 
             records = list(records_dict.values())
 
-        cols = [c.key for c in Model.__table__.columns if c.key not in ['id']]
+        cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
         for r in records:
             try:
                 lat, lon = float(r.latitude), float(r.longitude)
@@ -1347,7 +1367,7 @@ def rf():
     if action == 'export':
         def generate():
             yield '\ufeff'.encode('utf-8')
-            cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+            cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
             yield (','.join(cols) + '\n').encode('utf-8')
             seen_export = set()
             for row in query.all():
@@ -1357,7 +1377,7 @@ def rf():
         return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
 
     rows = query.all()
-    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
     data = []
     seen_cells = set()
     
@@ -1464,25 +1484,43 @@ def import_data():
                             flash(f'Import thành công {len(records)} dòng.', 'success')
                 except Exception as e: flash(f'Lỗi: {e}', 'danger')
         else:
-            # MAP THÊM 2 BẢNG MỚI VÀO CẤU HÌNH IMPORT
             cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
             Model = cfg.get(itype)
             if Model:
-                valid_cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+                # Trừ id và extra_data ra để so sánh
+                valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
                 for file in files:
                     try:
                         if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
                         else: chunks = [pd.read_excel(file)]
                         
                         for df in chunks:
+                            original_columns = list(df.columns)
                             df.columns = [clean_header(c) for c in df.columns]
+                            header_mapping = dict(zip(df.columns, original_columns))
+                            
                             records = []
                             for row in df.to_dict('records'):
-                                clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
+                                clean_row = {}
+                                extra = {}
+                                for k, v in row.items():
+                                    if pd.isna(v): continue
+                                    if k in valid_cols:
+                                        clean_row[k] = v
+                                    else:
+                                        # Lưu tên gốc của các cột không được map vào extra
+                                        orig_name = header_mapping.get(k, k)
+                                        extra[orig_name] = str(v)
+                                        
                                 if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                     clean_row['traffic'] = clean_row['traffic_vol_dl']
+                                    
                                 if clean_row and 'cell_code' in clean_row and str(clean_row['cell_code']).strip() != 'nan':
+                                    # Chuyển các cột thừa vào JSON column extra_data
+                                    if hasattr(Model, 'extra_data') and extra:
+                                        clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
                                     records.append(clean_row)
+                                    
                             if records: 
                                 db.session.bulk_insert_mappings(Model, records)
                                 db.session.commit()
