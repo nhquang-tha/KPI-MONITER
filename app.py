@@ -75,7 +75,9 @@ def clean_header(col_name):
         'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac', 'CI': 'ci',
         'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment',
         'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
-        'CellID': 'cellid', 'NetworkTech': 'networktech'
+        'CellID': 'cellid', 'NetworkTech': 'networktech',
+        'CELL': 'cell_code', 'SITE': 'site_code', 'MÃ CELL': 'cell_code', 'MÃ TRẠM': 'site_code',
+        'UARFCN': 'dl_uarfcn', 'LAC': 'bsc_lac'
     }
     col_upper = col_name.upper()
     for key, val in special_map.items():
@@ -1479,9 +1481,14 @@ def import_data():
                                 clean_row = {k: v for k, v in row.items() if k in valid_cols and not pd.isna(v)}
                                 if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                     clean_row['traffic'] = clean_row['traffic_vol_dl']
-                                records.append(clean_row)
-                            if records: db.session.bulk_insert_mappings(Model, records); db.session.commit()
-                        flash(f'Imported {file.filename}', 'success')
+                                if clean_row and 'cell_code' in clean_row and str(clean_row['cell_code']).strip() != 'nan':
+                                    records.append(clean_row)
+                            if records: 
+                                db.session.bulk_insert_mappings(Model, records)
+                                db.session.commit()
+                                flash(f'Đã import {len(records)} dòng từ {file.filename}', 'success')
+                            else:
+                                flash(f'Bỏ qua {file.filename}: Không tìm thấy dữ liệu hợp lệ (Cần có cột chứa Mã Cell)', 'warning')
                     except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
         return redirect(url_for('import_data'))
         
