@@ -937,11 +937,38 @@
                          </ul>
                          <div class="tab-content">
                              <div class="tab-pane fade show active" id="tabRF">
-                                 <form action="/import" method="POST" enctype="multipart/form-data">
-                                     <div class="mb-3"><label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label><select name="type" class="form-select"><option value="3g">RF 3G</option><option value="4g">RF 4G</option><option value="5g">RF 5G</option></select></div>
-                                     <div class="mb-3"><label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label><input type="file" name="file" class="form-control" multiple required></div>
-                                     <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload RF Data</button>
-                                 </form>
+                                 <div class="row">
+                                     <!-- Cột 1: Form upload file -->
+                                     <div class="col-md-7 border-end">
+                                         <form action="/import" method="POST" enctype="multipart/form-data">
+                                             <div class="mb-3">
+                                                 <label class="form-label fw-bold">Chọn Loại Dữ Liệu RF</label>
+                                                 <select name="type" class="form-select">
+                                                     <option value="cell3g">1. CELL 3G (Thông số trạm, Tọa độ)</option>
+                                                     <option value="config3g">2. CONFIG 3G (Thông số mạng)</option>
+                                                     <option value="4g">RF 4G</option>
+                                                     <option value="5g">RF 5G</option>
+                                                 </select>
+                                             </div>
+                                             <div class="mb-3">
+                                                 <label class="form-label fw-bold">Chọn File (.xlsx, .csv)</label>
+                                                 <input type="file" name="file" class="form-control" multiple required>
+                                             </div>
+                                             <button class="btn btn-primary w-100"><i class="fa-solid fa-upload me-2"></i>Upload File</button>
+                                         </form>
+                                     </div>
+                                     <!-- Cột 2: Nút đồng bộ riêng cho 3G -->
+                                     <div class="col-md-5 d-flex flex-column justify-content-center px-4">
+                                         <div class="alert alert-info py-2 small mb-3 border-0 shadow-sm">
+                                             <i class="fa-solid fa-circle-info me-1"></i> Đối với 3G, bạn cần upload đủ 2 file (CELL 3G và CONFIG 3G), sau đó nhấn nút đồng bộ bên dưới.
+                                         </div>
+                                         <form action="/sync-rf3g" method="POST">
+                                             <button type="submit" class="btn btn-success w-100 fw-bold shadow-sm py-3" onclick="return confirm('Bạn có chắc chắn muốn gộp dữ liệu Cell 3G và Config 3G vào bảng RF 3G chính không?');">
+                                                 <i class="fa-solid fa-object-group me-2"></i>Ghép nối dữ liệu 3G<br><small class="fw-normal">(Sync to RF 3G)</small>
+                                             </button>
+                                         </form>
+                                     </div>
+                                 </div>
                              </div>
                              <div class="tab-pane fade" id="tabPOI">
                                  <form action="/import" method="POST" enctype="multipart/form-data">
