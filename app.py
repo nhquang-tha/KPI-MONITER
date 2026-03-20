@@ -37,7 +37,7 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'
 
 # ==============================================================================
-# 2. UTILS
+# 2. UTILS & ROBUST HEADER MAPPING
 # ==============================================================================
 
 def remove_accents(input_str):
@@ -48,44 +48,117 @@ def remove_accents(input_str):
     return s
 
 def clean_header(col_name):
-    col_name = str(col_name).strip()
-    special_map = {
-        'ENodeBID': 'enodeb_id', 'gNodeB ID': 'gnodeb_id', 'GNODEB_ID': 'gnodeb_id', 'CELL_ID': 'cell_id', 'SITE_NAME': 'site_name', 'CELL_NAME': 'cell_name',
-        'Frenquency': 'frequency', 'Frequency': 'frequency', 'PCI': 'pci', 'TAC': 'tac', 'MIMO': 'mimo', 'UL Traffic Volume (GB)': 'ul_traffic_volume_gb',
-        'DL Traffic Volume (GB)': 'dl_traffic_volume_gb', 'Total Data Traffic Volume (GB)': 'traffic', 'Cell Uplink Average Throughput': 'cell_uplink_average_throughput',
-        'Cell Downlink Average Throughput': 'cell_downlink_average_throughput', 'A User Downlink Average Throughput': 'user_dl_avg_throughput',
-        'Cell avaibility rate': 'cell_avaibility_rate', 'SgNB Addition Success Rate': 'sgnb_addition_success_rate', 'SgNB Abnormal Release Rate': 'sgnb_abnormal_release_rate',
-        'CQI_5G': 'cqi_5g', 'CQI_4G': 'cqi_4g', 'POI': 'poi_name', 'Cell_Code': 'cell_code', 'Site_Code': 'site_code', 'CSHT_code': 'csht_code',
-        'Hãng_SX': 'hang_sx', 'Antena': 'antena', 'Swap': 'swap', 'Start_day': 'start_day', 'Ghi_chú': 'ghi_chu', 'Anten_height': 'anten_height',
-        'Azimuth': 'azimuth', 'M_T': 'm_t', 'E_T': 'e_t', 'Total_tilt': 'total_tilt', 'PSC': 'psc', 'DL_UARFCN': 'dl_uarfcn', 'BSC_LAC': 'bsc_lac',
-        'CI': 'ci', 'Latitude': 'latitude', 'Longitude': 'longitude', 'Equipment': 'equipment', 'nrarfcn': 'nrarfcn', 'Lcrid': 'lcrid', 'Đồng_bộ': 'dong_bo',
-        'CellID': 'cellid', 'NetworkTech': 'networktech', 'CELL': 'cell_code', 'SITE': 'site_code', 'MÃ CELL': 'cell_code', 'MÃ TRẠM': 'site_code',
-        'UARFCN': 'dl_uarfcn', 'LAC': 'bsc_lac', 'RNC': 'bsc_lac', 'BSC': 'bsc_lac', 'TÊN CELL': 'cell_name', 'CELLNAME': 'cell_name',
-        'TÊN TRẠM': 'site_name', 'CELL ID': 'cell_code', 'SITE ID': 'site_code', 'LAT': 'latitude', 'LONG': 'longitude', 'KINH ĐỘ': 'longitude',
-        'VĨ ĐỘ': 'latitude', 'TILT': 'total_tilt', 'ANTEN': 'antena', 'THIẾT BỊ': 'equipment', 'FREQ': 'frequency', 'TRẠM': 'site_code',
-        'NODEB': 'site_code', 'NODEB NAME': 'site_name', 'STT': 'stt', 'Mã Node': 'ma_node', 'Site Code': 'site_code', 'Mã Cell': 'cell_code',
-        'Thiết bị': 'thiet_bi', 'Tỉnh/TP': 'tinh_tp', 'Đơn vị quản lý': 'don_vi_quan_ly', 'Mã CSHT': 'ma_csht', 'Loại trạm': 'loai_tram',
-        'Site Name': 'site_name', 'Cell Name': 'cell_name', 'Cell Name (Alias)': 'cell_name_alias', 'ci': 'ci', 'lac': 'lac', 'rac': 'rac',
-        'Băng tần': 'bang_tan', 'dlPsc': 'dl_psc', 'DL_UARFCN': 'dl_uarfcn', 'cpichPower': 'cpich_power', 'maxPower': 'max_power',
-        'totalPower': 'total_power', 'DC_support': 'dc_support', 'OAM IP': 'oam_ip', 'MechanicalTilt': 'mechanical_tilt', 'ElectricalTilt': 'electrical_tilt',
-        'TotalTilt': 'total_tilt', 'AntennaType': 'antenna_type', 'AntennaGain': 'antenna_gain', 'AntennaHigh': 'antenna_high', 'Cell Type': 'cell_type',
-        'noOfCarrier': 'no_of_carrier', 'SpecialCoverage': 'special_coverage', 'Trạng thái': 'trang_thai', 'Note': 'ghi_chu', 'Tên quản lý': 'ten_quan_ly',
-        'Tên người quản lý': 'ten_quan_ly', 'SDT người quản lý': 'sdt_nguoi_quan_ly', 'Ngày hoạt động': 'ngay_hoat_dong', 'Hoàn cảnh ra đời': 'hoan_canh_ra_doi',
-        'Loại ăn ten': 'loai_anten', 'Antenna Tên hãng SX': 'hang_sx_anten', 'Antenna Dải tần hoạt động': 'anten_dai_tan', 'Antenna dùng chung': 'anten_dung_chung',
-        'Antenna số port': 'anten_so_port', 'Tên loại trạm': 'ten_loai_tram', 'Địa chỉ': 'dia_chi', 'Mã CSHT CỦA TRẠM': 'csht_site',
-        'Mã CSHT CỦA CELL': 'csht_cell', 'Tên đơn vị': 'ten_don_vi', 'Mechainical tilt': 'mechanical_tilt', 'Mechanical tilt': 'mechanical_tilt',
-        'Electrical tilt': 'electrical_tilt', 'Total tilt': 'total_tilt', 'Antenna gain': 'antenna_gain', 'Antenna high': 'antenna_high',
-        'Total power': 'total_power', 'Tên trên hệ thống': 'ten_tren_he_thong'
+    if not isinstance(col_name, str): return str(col_name)
+    
+    # Ép tiêu đề thành chuỗi dính liền, không dấu, chữ thường để chống lỗi khoảng trắng/xuống dòng
+    c_clean = re.sub(r'[^a-z0-9]', '', remove_accents(col_name).lower())
+    
+    strong_map = {
+        'stt': 'stt',
+        'manode': 'ma_node',
+        'sitecode': 'site_code',
+        'macell': 'cell_code',
+        'cellid': 'cell_code',
+        'thietbi': 'thiet_bi',
+        'tinhtp': 'tinh_tp',
+        'donviquanly': 'don_vi_quan_ly',
+        'macsht': 'ma_csht',
+        'loaitram': 'loai_tram',
+        'sitename': 'site_name',
+        'tentram': 'site_name',
+        'cellname': 'cell_name',
+        'tencell': 'cell_name',
+        'cellnamealias': 'cell_name_alias',
+        'ci': 'ci',
+        'lac': 'lac',
+        'bsclac': 'bsc_lac',
+        'rac': 'rac',
+        'bangtan': 'bang_tan',
+        'dlpsc': 'dl_psc',
+        'psc': 'psc',
+        'dluarfcn': 'dl_uarfcn',
+        'uarfcn': 'dl_uarfcn',
+        'cpichpower': 'cpich_power',
+        'maxpower': 'max_power',
+        'totalpower': 'total_power',
+        'dcsupport': 'dc_support',
+        'oamip': 'oam_ip',
+        'mechanicaltilt': 'mechanical_tilt',
+        'mechainicaltilt': 'mechanical_tilt',
+        'electricaltilt': 'electrical_tilt',
+        'totaltilt': 'total_tilt',
+        'tilt': 'total_tilt',
+        'antennatype': 'antenna_type',
+        'antennagain': 'antenna_gain',
+        'gain': 'antenna_gain',
+        'antennahigh': 'antenna_high',
+        'antenheight': 'anten_height',
+        'celltype': 'cell_type',
+        'noofcarrier': 'no_of_carrier',
+        'specialcoverage': 'special_coverage',
+        'trangthai': 'trang_thai',
+        'note': 'ghi_chu',
+        'ghichu': 'ghi_chu',
+        'tenquanly': 'ten_quan_ly',
+        'tennguoiquanly': 'nguoi_quan_ly',
+        'sdtnguoiquanly': 'sdt_nguoi_quan_ly',
+        'ngayhoatdong': 'ngay_hoat_dong',
+        'startday': 'start_day',
+        'hoancanhradoi': 'hoan_canh_ra_doi',
+        'loaianten': 'loai_anten',
+        'antennatenhangsx': 'hang_sx_anten',
+        'hangsx': 'hang_sx',
+        'antennadaitanhoatdong': 'anten_dai_tan',
+        'antennadungchung': 'anten_dung_chung',
+        'antennasoport': 'anten_so_port',
+        'tenloaitram': 'ten_loai_tram',
+        'diachi': 'dia_chi',
+        'macshtcuatram': 'csht_site',
+        'macshtcuacell': 'csht_cell',
+        'tendonvi': 'ten_don_vi',
+        'tentrenhethong': 'ten_tren_he_thong',
+        'latitude': 'latitude',
+        'lat': 'latitude',
+        'longitude': 'longitude',
+        'longtitude': 'longitude',
+        'long': 'longitude',
+        'azimuth': 'azimuth',
+        'enodebid': 'enodeb_id',
+        'gnodebid': 'gnodeb_id',
+        'pci': 'pci',
+        'tac': 'tac',
+        'mimo': 'mimo',
+        'mt': 'm_t',
+        'et': 'e_t',
+        'nrarfcn': 'nrarfcn',
+        'lcrid': 'lcrid',
+        'dongbo': 'dong_bo',
+        'matram': 'ma_tram',
+        'equipment': 'equipment',
+        'frequency': 'frequency',
+        'frenquency': 'frequency',
+        'networktech': 'networktech',
+        'ultrafficvolumegb': 'ul_traffic_volume_gb',
+        'dltrafficvolumegb': 'dl_traffic_volume_gb',
+        'totaldatatrafficvolumegb': 'traffic',
+        'celluplinkaveragethroughput': 'cell_uplink_average_throughput',
+        'celldownlinkaveragethroughput': 'cell_downlink_average_throughput',
+        'auserdownlinkaveragethroughput': 'user_dl_avg_throughput',
+        'cellavaibilityrate': 'cell_avaibility_rate',
+        'sgnbadditionsuccessrate': 'sgnb_addition_success_rate',
+        'sgnbabnormalreleaserate': 'sgnb_abnormal_release_rate',
+        'cqi5g': 'cqi_5g',
+        'cqi4g': 'cqi_4g',
+        'poi': 'poi_name'
     }
-    col_upper = col_name.upper()
-    for key, val in special_map.items():
-        if key.upper() == col_upper: return val
-    clean = re.sub(r'[^a-z0-9]', '_', remove_accents(col_name).lower())
-    clean = re.sub(r'_+', '_', clean)
-    common_map = {
-        'hang_sx': 'hang_sx', 'ghi_chu': 'ghi_chu', 'dong_bo': 'dong_bo', 'ten_cell': 'ten_cell', 'thoi_gian': 'thoi_gian', 'nha_cung_cap': 'nha_cung_cap', 'traffic_vol_dl': 'traffic_vol_dl', 'res_blk_dl': 'res_blk_dl', 'pstraffic': 'pstraffic', 'csconges': 'csconges', 'psconges': 'psconges', 'cs_so_att': 'cs_so_att', 'ps_so_att': 'ps_so_att', 'service_drop_all': 'service_drop_all', 'user_dl_avg_thput': 'user_dl_avg_thput', 'poi': 'poi_name', 'cell_code': 'cell_code', 'site_code': 'site_code'
-    }
-    return common_map.get(clean, clean)
+    
+    if c_clean in strong_map:
+        return strong_map[c_clean]
+        
+    # Fallback cho các cột lạ: Chuyển khoảng trắng thành gạch dưới
+    clean_fb = re.sub(r'[^a-z0-9]', '_', remove_accents(col_name).lower())
+    clean_fb = re.sub(r'_+', '_', clean_fb).strip('_')
+    return clean_fb
 
 def generate_colors(n):
     base = ['#0078d4', '#107c10', '#d13438', '#ffaa44', '#00bcf2', '#5c2d91', '#e3008c', '#b4009e']
@@ -102,13 +175,13 @@ class User(UserMixin, db.Model):
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Cell3G(db.Model):
-    __tablename__='cell_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); ma_node=db.Column(db.String(50)); site_code=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); loai_anten=db.Column(db.String(100)); hang_sx_anten=db.Column(db.String(100)); anten_dai_tan=db.Column(db.String(100)); anten_dung_chung=db.Column(db.String(50)); anten_so_port=db.Column(db.String(50)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); ten_loai_tram=db.Column(db.String(100)); dia_chi=db.Column(db.String(255)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(100)); bang_tan=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(100)); sdt_nguoi_quan_ly=db.Column(db.String(50)); ngay_hoat_dong=db.Column(db.String(50)); hoan_canh_ra_doi=db.Column(db.Text); trang_thai=db.Column(db.String(50)); ghi_chu=db.Column(db.Text); ten_tren_he_thong=db.Column(db.String(100)); extra_data=db.Column(db.Text)
+    __tablename__='cell_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); ma_node=db.Column(db.String(50)); site_code=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); loai_anten=db.Column(db.String(100)); hang_sx_anten=db.Column(db.String(100)); anten_dai_tan=db.Column(db.String(100)); anten_dung_chung=db.Column(db.String(50)); anten_so_port=db.Column(db.String(50)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); ten_loai_tram=db.Column(db.String(100)); dia_chi=db.Column(db.String(255)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(100)); bang_tan=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(100)); nguoi_quan_ly=db.Column(db.String(100)); sdt_nguoi_quan_ly=db.Column(db.String(50)); ngay_hoat_dong=db.Column(db.String(50)); hoan_canh_ra_doi=db.Column(db.Text); trang_thai=db.Column(db.String(50)); ghi_chu=db.Column(db.Text); ten_tren_he_thong=db.Column(db.String(100)); extra_data=db.Column(db.Text)
 
 class Config3G(db.Model):
     __tablename__='config_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); ma_node=db.Column(db.String(50)); site_code=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); don_vi_quan_ly=db.Column(db.String(100)); ma_csht=db.Column(db.String(100)); loai_tram=db.Column(db.String(50)); site_name=db.Column(db.String(100)); cell_name=db.Column(db.String(100)); cell_name_alias=db.Column(db.String(100)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); rac=db.Column(db.String(50)); bang_tan=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(50)); longitude=db.Column(db.Float); latitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(100)); trang_thai=db.Column(db.String(50)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
 
 class RF3G(db.Model):
-    __tablename__='rf_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(50)); ma_node=db.Column(db.String(50)); cell_name=db.Column(db.String(100)); cell_name_alias=db.Column(db.String(100)); site_name=db.Column(db.String(100)); loai_tram=db.Column(db.String(50)); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); don_vi_quan_ly=db.Column(db.String(100)); ma_csht=db.Column(db.String(100)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.String(100)); loai_anten=db.Column(db.String(100)); hang_sx_anten=db.Column(db.String(100)); anten_dai_tan=db.Column(db.String(100)); anten_dung_chung=db.Column(db.String(50)); anten_so_port=db.Column(db.String(50)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); bang_tan=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); rac=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(50)); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(100)); trang_thai=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(100)); sdt_nguoi_quan_ly=db.Column(db.String(50)); ngay_hoat_dong=db.Column(db.String(50)); hoan_canh_ra_doi=db.Column(db.Text); dia_chi=db.Column(db.String(255)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
+    __tablename__='rf_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(50)); ma_node=db.Column(db.String(50)); cell_name=db.Column(db.String(100)); cell_name_alias=db.Column(db.String(100)); site_name=db.Column(db.String(100)); loai_tram=db.Column(db.String(50)); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); don_vi_quan_ly=db.Column(db.String(100)); ma_csht=db.Column(db.String(100)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.String(100)); loai_anten=db.Column(db.String(100)); hang_sx_anten=db.Column(db.String(100)); anten_dai_tan=db.Column(db.String(100)); anten_dung_chung=db.Column(db.String(50)); anten_so_port=db.Column(db.String(50)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); bang_tan=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); rac=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(50)); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(100)); trang_thai=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(100)); nguoi_quan_ly=db.Column(db.String(100)); sdt_nguoi_quan_ly=db.Column(db.String(50)); ngay_hoat_dong=db.Column(db.String(50)); hoan_canh_ra_doi=db.Column(db.Text); dia_chi=db.Column(db.String(255)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
 
 class RF4G(db.Model):
     __tablename__='rf_4g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(50), index=True); site_code=db.Column(db.String(50)); cell_name=db.Column(db.String(100)); csht_code=db.Column(db.String(50)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); antena=db.Column(db.String(100)); azimuth=db.Column(db.Integer); total_tilt=db.Column(db.Float); equipment=db.Column(db.String(50)); frequency=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); pci=db.Column(db.String(50)); tac=db.Column(db.String(50)); enodeb_id=db.Column(db.String(50)); lcrid=db.Column(db.String(50)); anten_height=db.Column(db.Float); m_t=db.Column(db.Float); e_t=db.Column(db.Float); mimo=db.Column(db.String(50)); hang_sx=db.Column(db.String(50)); swap=db.Column(db.String(50)); start_day=db.Column(db.String(50)); ghi_chu=db.Column(db.String(255))
@@ -141,7 +214,6 @@ def init_database():
             if 'config_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('config_3g')]
                 if 'don_vi_quan_ly' not in existing_columns or 'cell_code' not in existing_columns:
-                    print("--> Phát hiện cấu trúc bảng RF/Config 3G cũ. Tiến hành Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS cell_3g")); db.session.execute(text("DROP TABLE IF EXISTS config_3g")); db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
                     db.session.commit()
         except Exception as e: print("Auto-migration check failed:", e)
@@ -155,6 +227,7 @@ init_database()
 # ==============================================================================
 # 4. TELEGRAM & HELPERS
 # ==============================================================================
+
 def send_telegram_message(chat_id, text_content):
     if not TELEGRAM_BOT_TOKEN: return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -195,95 +268,57 @@ Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
                 func.avg(KPI4G.cqi_4g).label('cqi_4g')
             ).group_by(KPI4G.thoi_gian).order_by(KPI4G.thoi_gian.desc()).limit(7).all()
 
-            if not records:
-                return "❌ Chưa có dữ liệu hệ thống 4G."
+            if not records: return "❌ Chưa có dữ liệu hệ thống 4G."
 
             records.reverse()
             labels = [r[0] for r in records if r[0]]
 
             def create_dash_url(label, data, color, title):
-                cfg = {
-                    "type": "line",
-                    "data": {"labels": labels, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]},
-                    "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}
-                }
+                cfg = {"type": "line", "data": {"labels": labels, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]}, "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}}
                 return f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(cfg))}&w=600&h=350&bkg=white"
 
             charts_to_send = []
-            metrics = [
-                ("Total Traffic (GB)", [round(r[1] or 0, 2) for r in records], "#0078d4", "Tổng Traffic 4G (7 Ngày)"),
-                ("Avg Thput (Mbps)", [round(r[2] or 0, 2) for r in records], "#107c10", "Trung bình Tốc độ DL (7 Ngày)"),
-                ("Avg PRB (%)", [round(r[3] or 0, 2) for r in records], "#ffaa44", "Trung bình Tải PRB (7 Ngày)"),
-                ("Avg CQI", [round(r[4] or 0, 2) for r in records], "#00bcf2", "Trung bình CQI 4G (7 Ngày)")
-            ]
-
-            for label, data, color, title in metrics:
-                charts_to_send.append({
-                    "type": "photo",
-                    "url": create_dash_url(label, data, color, title),
-                    "caption": f"📈 <b>{title}</b> toàn mạng."
-                })
+            metrics = [("Total Traffic (GB)", [round(r[1] or 0, 2) for r in records], "#0078d4", "Tổng Traffic 4G (7 Ngày)"), ("Avg Thput (Mbps)", [round(r[2] or 0, 2) for r in records], "#107c10", "Trung bình Tốc độ DL (7 Ngày)"), ("Avg PRB (%)", [round(r[3] or 0, 2) for r in records], "#ffaa44", "Trung bình Tải PRB (7 Ngày)"), ("Avg CQI", [round(r[4] or 0, 2) for r in records], "#00bcf2", "Trung bình CQI 4G (7 Ngày)")]
+            for label, data, color, title in metrics: charts_to_send.append({"type": "photo", "url": create_dash_url(label, data, color, title), "caption": f"📈 <b>{title}</b> toàn mạng."})
             return charts_to_send
 
-        if len(parts) < 2:
-            return "🤖 <b>Lỗi cú pháp!</b> Vui lòng nhập đúng mẫu. (VD: <code>KPI THA001</code>)"
+        if len(parts) < 2: return "🤖 <b>Lỗi cú pháp!</b> Vui lòng nhập đúng mẫu. (VD: <code>KPI THA001</code>)"
 
         target = parts[-1] 
         
         if cmd == 'CTS':
             qoe = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).first()
             qos = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{target}%")).order_by(QoS4G.id.desc()).first()
-
-            if not qoe and not qos:
-                return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
-
+            if not qoe and not qos: return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
             msg = f"🌟 <b>THÔNG SỐ QoE / QoS - {target}</b>\n\n"
-            if qoe:
-                msg += f"📅 <b>{qoe.week_name}</b>\n- Điểm QoE: {qoe.qoe_score} ⭐\n- Tỷ lệ QoE: {qoe.qoe_percent} %\n\n"
+            if qoe: msg += f"📅 <b>{qoe.week_name}</b>\n- Điểm QoE: {qoe.qoe_score} ⭐\n- Tỷ lệ QoE: {qoe.qoe_percent} %\n\n"
             if qos:
-                if not qoe or qoe.week_name != qos.week_name:
-                    msg += f"📅 <b>{qos.week_name}</b>\n"
+                if not qoe or qoe.week_name != qos.week_name: msg += f"📅 <b>{qos.week_name}</b>\n"
                 msg += f"- Điểm QoS: {qos.qos_score} ⭐\n- Tỷ lệ QoS: {qos.qos_percent} %\n"
             return msg
 
         if cmd == 'CHARTCTS':
             qoe_records = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{target}%")).order_by(QoE4G.id.desc()).limit(4).all()
             qos_records = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{target}%")).order_by(QoS4G.id.desc()).limit(4).all()
-
-            if not qoe_records and not qos_records:
-                return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
-
-            all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
-            all_weeks = all_weeks[-4:]
+            if not qoe_records and not qos_records: return f"❌ Không tìm thấy dữ liệu QoE/QoS cho Cell: <b>{target}</b>"
+            all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))[-4:]
 
             def create_cts_url(label, data, color, title):
-                cfg = {
-                    "type": "line",
-                    "data": {"labels": all_weeks, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]},
-                    "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}
-                }
+                cfg = {"type": "line", "data": {"labels": all_weeks, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]}, "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}}
                 return f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(cfg))}&w=600&h=350&bkg=white"
 
             charts_to_send = []
             c_name = (qoe_records[0].cell_name if qoe_records else qos_records[0].cell_name)
-
             if qoe_records:
-                qmap = {r.week_name: r.qoe_score for r in qoe_records}
-                pmap = {r.week_name: r.qoe_percent for r in qoe_records}
-                charts_to_send.append({"type": "photo", "url": create_cts_url("Điểm QoE", [qmap.get(w, 0) for w in all_weeks], "#0078d4", f"Điểm QoE (4 Tuần) - {c_name}"), "caption": f"📈 Điểm QoE của {c_name}"})
-                charts_to_send.append({"type": "photo", "url": create_cts_url("% QoE", [pmap.get(w, 0) for w in all_weeks], "#107c10", f"% QoE (4 Tuần) - {c_name}"), "caption": f"📈 Tỷ lệ % QoE của {c_name}"})
-
+                charts_to_send.append({"type": "photo", "url": create_cts_url("Điểm QoE", [{r.week_name: r.qoe_score for r in qoe_records}.get(w, 0) for w in all_weeks], "#0078d4", f"Điểm QoE (4 Tuần) - {c_name}"), "caption": f"📈 Điểm QoE của {c_name}"})
+                charts_to_send.append({"type": "photo", "url": create_cts_url("% QoE", [{r.week_name: r.qoe_percent for r in qoe_records}.get(w, 0) for w in all_weeks], "#107c10", f"% QoE (4 Tuần) - {c_name}"), "caption": f"📈 Tỷ lệ % QoE của {c_name}"})
             if qos_records:
-                qmap = {r.week_name: r.qos_score for r in qos_records}
-                pmap = {r.week_name: r.qos_percent for r in qos_records}
-                charts_to_send.append({"type": "photo", "url": create_cts_url("Điểm QoS", [qmap.get(w, 0) for w in all_weeks], "#ffaa44", f"Điểm QoS (4 Tuần) - {c_name}"), "caption": f"📈 Điểm QoS của {c_name}"})
-                charts_to_send.append({"type": "photo", "url": create_cts_url("% QoS", [pmap.get(w, 0) for w in all_weeks], "#e3008c", f"% QoS (4 Tuần) - {c_name}"), "caption": f"📈 Tỷ lệ % QoS của {c_name}"})
-
+                charts_to_send.append({"type": "photo", "url": create_cts_url("Điểm QoS", [{r.week_name: r.qos_score for r in qos_records}.get(w, 0) for w in all_weeks], "#ffaa44", f"Điểm QoS (4 Tuần) - {c_name}"), "caption": f"📈 Điểm QoS của {c_name}"})
+                charts_to_send.append({"type": "photo", "url": create_cts_url("% QoS", [{r.week_name: r.qos_percent for r in qos_records}.get(w, 0) for w in all_weeks], "#e3008c", f"% QoS (4 Tuần) - {c_name}"), "caption": f"📈 Tỷ lệ % QoS của {c_name}"})
             return charts_to_send
 
         tech = '4g'
-        if len(parts) >= 3 and parts[1].lower() in ['3g', '4g', '5g']:
-            tech = parts[1].lower()
+        if len(parts) >= 3 and parts[1].lower() in ['3g', '4g', '5g']: tech = parts[1].lower()
 
         if cmd == 'KPI':
             Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
@@ -316,23 +351,15 @@ Vui lòng gõ theo các cú pháp sau (không phân biệt hoa/thường):
             charts_to_send = []
             
             def create_chart_url(label, data, color, title):
-                chart_config = {
-                    "type": "line",
-                    "data": {"labels": labels, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]},
-                    "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}
-                }
+                chart_config = {"type": "line", "data": {"labels": labels, "datasets": [{"label": label, "data": data, "borderColor": color, "backgroundColor": "transparent", "borderWidth": 3}]}, "options": {"title": {"display": True, "text": title, "fontSize": 16}, "elements": {"line": {"tension": 0.3}}}}
                 return f"https://quickchart.io/chart?c={urllib.parse.quote(json.dumps(chart_config))}&w=600&h=350&bkg=white"
 
             cell_name = records[0].ten_cell
-            if tech == '4g':
-                kpis = [("Traffic (GB)", [r.traffic or 0 for r in records], "#0078d4"), ("Avg Thput (Mbps)", [r.user_dl_avg_thput or 0 for r in records], "#107c10"), ("PRB DL (%)", [r.res_blk_dl or 0 for r in records], "#ffaa44"), ("CQI", [r.cqi_4g or 0 for r in records], "#00bcf2")]
-            elif tech == '3g':
-                kpis = [("CS Traffic (Erl)", [r.traffic or 0 for r in records], "#0078d4"), ("PS Traffic (GB)", [r.pstraffic or 0 for r in records], "#107c10"), ("CS Congestion (%)", [r.csconges or 0 for r in records], "#d13438"), ("PS Congestion (%)", [r.psconges or 0 for r in records], "#e3008c")]
-            else:
-                kpis = [("Traffic (GB)", [r.traffic or 0 for r in records], "#0078d4"), ("Avg Thput (Mbps)", [r.user_dl_avg_throughput or 0 for r in records], "#107c10"), ("CQI 5G", [r.cqi_5g or 0 for r in records], "#00bcf2")]
+            if tech == '4g': kpis = [("Traffic (GB)", [r.traffic or 0 for r in records], "#0078d4"), ("Avg Thput (Mbps)", [r.user_dl_avg_thput or 0 for r in records], "#107c10"), ("PRB DL (%)", [r.res_blk_dl or 0 for r in records], "#ffaa44"), ("CQI", [r.cqi_4g or 0 for r in records], "#00bcf2")]
+            elif tech == '3g': kpis = [("CS Traffic (Erl)", [r.traffic or 0 for r in records], "#0078d4"), ("PS Traffic (GB)", [r.pstraffic or 0 for r in records], "#107c10"), ("CS Congestion (%)", [r.csconges or 0 for r in records], "#d13438"), ("PS Congestion (%)", [r.psconges or 0 for r in records], "#e3008c")]
+            else: kpis = [("Traffic (GB)", [r.traffic or 0 for r in records], "#0078d4"), ("Avg Thput (Mbps)", [r.user_dl_avg_throughput or 0 for r in records], "#107c10"), ("CQI 5G", [r.cqi_5g or 0 for r in records], "#00bcf2")]
                 
-            for label, data, color in kpis:
-                charts_to_send.append({"type": "photo", "url": create_chart_url(label, data, color, f"Biểu đồ {label} 7 Ngày - {cell_name}"), "caption": f"📈 <b>{label}</b> của {cell_name}"})
+            for label, data, color in kpis: charts_to_send.append({"type": "photo", "url": create_chart_url(label, data, color, f"Biểu đồ {label} 7 Ngày - {cell_name}"), "caption": f"📈 <b>{label}</b> của {cell_name}"})
             return charts_to_send
             
     return "🤖 Cú pháp không được hỗ trợ. Gõ <code>HELP</code> để xem hướng dẫn."
@@ -350,8 +377,7 @@ def telegram_webhook():
                     if item.get('type') == 'photo': send_telegram_photo(chat_id, item['url'], item.get('caption', ''))
             elif isinstance(reply_data, dict) and reply_data.get('type') == 'photo':
                 send_telegram_photo(chat_id, reply_data['url'], reply_data.get('caption', ''))
-            else:
-                send_telegram_message(chat_id, str(reply_data))
+            else: send_telegram_message(chat_id, str(reply_data))
     return jsonify({"status": "success"}), 200
 
 @app.route('/telegram/set_webhook')
@@ -427,12 +453,12 @@ def import_data():
                     
                     header_idx = 0
                     max_matches = 0
-                    kw = ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý', 'thiết bị', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain']
+                    kw_clean = ['cell', 'site', 'tram', 'uarfcn', 'he thong', 'quan ly', 'thiet bi', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain', 'dia chi', 'csht']
                     
                     if len(df_raw) > 0:
                         for i in range(min(20, len(df_raw))):
-                            row_vals = [str(v).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
-                            matches = sum(1 for k in kw if any(k in val for val in row_vals))
+                            row_vals = [remove_accents(str(v)).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
+                            matches = sum(1 for k in kw_clean if any(k in val for val in row_vals))
                             if matches > max_matches:
                                 max_matches = matches
                                 header_idx = i
@@ -466,7 +492,7 @@ def import_data():
                         for k, v in row.items():
                             if pd.isna(v): continue
                             val_str = str(v).strip()
-                            if val_str in ['', '-', 'nan', 'None', 'N/A', 'null', 'NULL']: continue
+                            if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null']: continue
                             
                             if k in valid_cols:
                                 col_type = str(Model.__table__.columns[k].type)
@@ -491,7 +517,7 @@ def import_data():
                                     c_code = ex_v
                                     break
                         
-                        if c_code and str(c_code).strip() not in ['', 'nan', 'None']:
+                        if c_code and str(c_code).strip().lower() not in ['', 'nan', 'none', 'null']:
                             c_code_clean = str(c_code).strip()
                             clean_row['cell_code'] = c_code_clean
                             
@@ -663,7 +689,7 @@ def sync_rf3g():
                 no_of_carrier=getattr(cfg, 'no_of_carrier', None),
                 special_coverage=getattr(cfg, 'special_coverage', None),
                 trang_thai=getattr(c, 'trang_thai', getattr(cfg, 'trang_thai', None)),
-                ten_quan_ly=getattr(c, 'ten_quan_ly', None),
+                ten_quan_ly=getattr(c, 'ten_quan_ly', getattr(c, 'nguoi_quan_ly', None)),
                 sdt_nguoi_quan_ly=getattr(c, 'sdt_nguoi_quan_ly', None),
                 ngay_hoat_dong=getattr(c, 'ngay_hoat_dong', None),
                 hoan_canh_ra_doi=getattr(c, 'hoan_canh_ra_doi', None),
