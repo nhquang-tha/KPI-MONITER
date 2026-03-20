@@ -81,7 +81,41 @@ def clean_header(col_name):
         'TÊN CELL': 'cell_name', 'CELLNAME': 'cell_name', 'TÊN TRẠM': 'site_name', 'CELL ID': 'cell_code', 'SITE ID': 'site_code',
         'LAT': 'latitude', 'LONG': 'longitude', 'KINH ĐỘ': 'longitude', 'VĨ ĐỘ': 'latitude',
         'TILT': 'total_tilt', 'ANTEN': 'antena', 'THIẾT BỊ': 'equipment',
-        'FREQ': 'frequency', 'TRẠM': 'site_code', 'NODEB': 'site_code', 'NODEB NAME': 'site_name'
+        'FREQ': 'frequency', 'TRẠM': 'site_code', 'NODEB': 'site_code', 'NODEB NAME': 'site_name',
+        # MAPPING CỘT TỪ FILE EXCEL CELL_3G CỦA NGƯỜI DÙNG
+        'Tên người quản lý': 'nguoi_quan_ly',
+        'SDT người quản lý': 'sdt_nguoi_quan_ly',
+        'Ngày hoạt động': 'ngay_hoat_dong',
+        'Hoàn cảnh ra đời': 'hoan_canh_ra_doi',
+        'Tên quản lý': 'ten_quan_ly',
+        'Azimuth': 'azimuth',
+        'Antenna gain': 'antenna_gain',
+        'Antenna high': 'antenna_high',
+        'Mechainical tilt': 'mechanical_tilt',
+        'Mechanical tilt': 'mechanical_tilt',
+        'Electrical tilt': 'electrical_tilt',
+        'Total tilt': 'total_tilt',
+        'Địa chỉ': 'dia_chi',
+        'Mã CSHT CỦA CELL': 'csht_cell',
+        'Mã CSHT CỦA TRẠM': 'csht_site',
+        'Longtitude': 'longitude',
+        'Longitude': 'longitude',
+        'Latitude': 'latitude',
+        'Tên đơn vị': 'ten_don_vi',
+        'Tên thiết bị': 'thiet_bi',
+        'Tên trên hệ thống': 'ten_tren_he_thong',
+        'lac': 'lac',
+        'ci': 'ci',
+        'dl_psc': 'dl_psc',
+        'cpich_power': 'cpich_power',
+        'Total power': 'total_power',
+        'Băng tần': 'bang_tan',
+        'Tên loại trạm': 'ten_loai_tram',
+        'Loại ăn ten': 'loai_anten',
+        'Antenna Tên hãng SX': 'hang_sx_anten',
+        'Antenna Dải tần hoạt động': 'anten_dai_tan',
+        'Antenna dùng chung': 'anten_dung_chung',
+        'Antenna số port': 'anten_so_port'
     }
     col_upper = col_name.upper()
     for key, val in special_map.items():
@@ -123,21 +157,38 @@ class Cell3G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cell_code = db.Column(db.String(50), index=True)
     site_code = db.Column(db.String(50))
-    cell_name = db.Column(db.String(100))
-    csht_code = db.Column(db.String(50))
-    latitude = db.Column(db.Float)
-    longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
+    # Mở rộng theo yêu cầu file Excel
+    nguoi_quan_ly = db.Column(db.String(100))
+    sdt_nguoi_quan_ly = db.Column(db.String(50))
+    ngay_hoat_dong = db.Column(db.String(50))
+    hoan_canh_ra_doi = db.Column(db.Text)
+    ten_quan_ly = db.Column(db.String(100))
     azimuth = db.Column(db.Integer)
-    anten_height = db.Column(db.Float)
-    m_t = db.Column(db.Float)
-    e_t = db.Column(db.Float)
+    antenna_gain = db.Column(db.Float)
+    antenna_high = db.Column(db.Float)
+    mechanical_tilt = db.Column(db.Float)
+    electrical_tilt = db.Column(db.Float)
     total_tilt = db.Column(db.Float)
-    equipment = db.Column(db.String(50))
-    hang_sx = db.Column(db.String(50))
-    swap = db.Column(db.String(50))
-    start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255))
+    dia_chi = db.Column(db.String(255))
+    csht_cell = db.Column(db.String(50))
+    csht_site = db.Column(db.String(50))
+    longitude = db.Column(db.Float)
+    latitude = db.Column(db.Float)
+    ten_don_vi = db.Column(db.String(100))
+    thiet_bi = db.Column(db.String(50))
+    ten_tren_he_thong = db.Column(db.String(100))
+    lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+    dl_psc = db.Column(db.String(50))
+    cpich_power = db.Column(db.Float)
+    total_power = db.Column(db.Float)
+    bang_tan = db.Column(db.String(50))
+    ten_loai_tram = db.Column(db.String(50))
+    loai_anten = db.Column(db.String(50))
+    hang_sx_anten = db.Column(db.String(50))
+    anten_dai_tan = db.Column(db.String(100))
+    anten_dung_chung = db.Column(db.String(50))
+    anten_so_port = db.Column(db.String(20))
     extra_data = db.Column(db.Text)
 
 class Config3G(db.Model):
@@ -156,26 +207,43 @@ class RF3G(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     cell_code = db.Column(db.String(50), index=True)
     site_code = db.Column(db.String(50))
-    cell_name = db.Column(db.String(100))
-    csht_code = db.Column(db.String(50))
-    latitude = db.Column(db.Float)
-    longitude = db.Column(db.Float)
-    antena = db.Column(db.String(100))
+    # Mở rộng toàn bộ các cột từ Cell3G để Sync
+    nguoi_quan_ly = db.Column(db.String(100))
+    sdt_nguoi_quan_ly = db.Column(db.String(50))
+    ngay_hoat_dong = db.Column(db.String(50))
+    hoan_canh_ra_doi = db.Column(db.Text)
+    ten_quan_ly = db.Column(db.String(100))
     azimuth = db.Column(db.Integer)
+    antenna_gain = db.Column(db.Float)
+    antenna_high = db.Column(db.Float)
+    mechanical_tilt = db.Column(db.Float)
+    electrical_tilt = db.Column(db.Float)
     total_tilt = db.Column(db.Float)
-    equipment = db.Column(db.String(50))
+    dia_chi = db.Column(db.String(255))
+    csht_cell = db.Column(db.String(50))
+    csht_site = db.Column(db.String(50))
+    longitude = db.Column(db.Float)
+    latitude = db.Column(db.Float)
+    ten_don_vi = db.Column(db.String(100))
+    thiet_bi = db.Column(db.String(50))
+    ten_tren_he_thong = db.Column(db.String(100))
+    lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+    dl_psc = db.Column(db.String(50))
+    cpich_power = db.Column(db.Float)
+    total_power = db.Column(db.Float)
+    bang_tan = db.Column(db.String(50))
+    ten_loai_tram = db.Column(db.String(50))
+    loai_anten = db.Column(db.String(50))
+    hang_sx_anten = db.Column(db.String(50))
+    anten_dai_tan = db.Column(db.String(100))
+    anten_dung_chung = db.Column(db.String(50))
+    anten_so_port = db.Column(db.String(20))
+    # Cấu hình từ Config3G
     frequency = db.Column(db.String(50))
     psc = db.Column(db.String(50))
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
-    ci = db.Column(db.String(50))
-    anten_height = db.Column(db.Float)
-    m_t = db.Column(db.Float)
-    e_t = db.Column(db.Float)
-    hang_sx = db.Column(db.String(50))
-    swap = db.Column(db.String(50))
-    start_day = db.Column(db.String(50))
-    ghi_chu = db.Column(db.String(255))
     extra_data = db.Column(db.Text)
 
 class RF4G(db.Model):
@@ -626,26 +694,43 @@ def sync_rf3g():
             record = RF3G(
                 cell_code=cell.cell_code,
                 site_code=cell.site_code,
-                cell_name=cell.cell_name,
-                csht_code=cell.csht_code,
-                latitude=cell.latitude,
-                longitude=cell.longitude,
-                antena=cell.antena,
+                # Thông tin từ Cell3G (Hình ảnh Mapping)
+                nguoi_quan_ly=cell.nguoi_quan_ly,
+                sdt_nguoi_quan_ly=cell.sdt_nguoi_quan_ly,
+                ngay_hoat_dong=cell.ngay_hoat_dong,
+                hoan_canh_ra_doi=cell.hoan_canh_ra_doi,
+                ten_quan_ly=cell.ten_quan_ly,
                 azimuth=cell.azimuth,
+                antenna_gain=cell.antenna_gain,
+                antenna_high=cell.antenna_high,
+                mechanical_tilt=cell.mechanical_tilt,
+                electrical_tilt=cell.electrical_tilt,
                 total_tilt=cell.total_tilt,
-                equipment=cell.equipment,
-                anten_height=cell.anten_height,
-                m_t=cell.m_t,
-                e_t=cell.e_t,
-                hang_sx=cell.hang_sx,
-                swap=cell.swap,
-                start_day=cell.start_day,
-                ghi_chu=cell.ghi_chu,
+                dia_chi=cell.dia_chi,
+                csht_cell=cell.csht_cell,
+                csht_site=cell.csht_site,
+                longitude=cell.longitude,
+                latitude=cell.latitude,
+                ten_don_vi=cell.ten_don_vi,
+                thiet_bi=cell.thiet_bi,
+                ten_tren_he_thong=cell.ten_tren_he_thong,
+                lac=cell.lac,
+                ci=cell.ci,
+                dl_psc=cell.dl_psc,
+                cpich_power=cell.cpich_power,
+                total_power=cell.total_power,
+                bang_tan=cell.bang_tan,
+                ten_loai_tram=cell.ten_loai_tram,
+                loai_anten=cell.loai_anten,
+                hang_sx_anten=cell.hang_sx_anten,
+                anten_dai_tan=cell.anten_dai_tan,
+                anten_dung_chung=cell.anten_dung_chung,
+                anten_so_port=cell.anten_so_port,
+                # Thông tin từ Config3G
                 frequency=conf.frequency if conf else None,
                 psc=conf.psc if conf else None,
                 dl_uarfcn=conf.dl_uarfcn if conf else None,
                 bsc_lac=conf.bsc_lac if conf else None,
-                ci=conf.ci if conf else None,
                 extra_data=extra_str
             )
             rf3g_records.append(record)
@@ -1478,11 +1563,10 @@ def import_data():
                         else: 
                             df_raw = pd.read_excel(file)
                         
-                        # --- THUẬT TOÁN TỰ ĐỘNG DÒ HEADER ---
                         header_idx = -1
                         for i, row in df_raw.head(20).iterrows():
                             row_vals = [str(v).lower() for v in row.values if pd.notna(v)]
-                            if any(k in " ".join(row_vals) for k in ['cell', 'site', 'node', 'trạm', 'uarfcn']):
+                            if any(k in " ".join(row_vals) for k in ['cell', 'site', 'node', 'trạm', 'uarfcn', 'tên trên hệ thống']):
                                 header_idx = i
                                 break
                         
@@ -1490,7 +1574,7 @@ def import_data():
                             df_raw.columns = df_raw.iloc[header_idx]
                             df_raw = df_raw.iloc[header_idx + 1:].reset_index(drop=True)
                         
-                        df_raw = df_raw.dropna(how='all') # Bỏ dòng trống hoàn toàn
+                        df_raw = df_raw.dropna(how='all')
                         original_columns = list(df_raw.columns)
                         df_raw.columns = [clean_header(c) for c in df_raw.columns]
                         header_mapping = dict(zip(df_raw.columns, original_columns))
@@ -1510,16 +1594,15 @@ def import_data():
                             if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
                                 clean_row['traffic'] = clean_row['traffic_vol_dl']
                                 
-                            # Fallback cell_code
                             if 'cell_code' not in clean_row or str(clean_row.get('cell_code','')).strip() in ['','nan','None']:
-                                for fb in ['cell_name', 'cellid', 'site_code', 'ci', 'enodeb_id']:
+                                for fb in ['ten_tren_he_thong', 'cell_name', 'cellid', 'site_code', 'ci', 'enodeb_id']:
                                     if fb in clean_row: 
                                         clean_row['cell_code'] = clean_row[fb]
                                         break
                                         
                             if not clean_row.get('cell_code') and extra:
                                 for ex_k, ex_v in extra.items():
-                                    if any(word in str(ex_k).lower() for word in ['cell', 'site', 'trạm', 'node']):
+                                    if any(word in str(ex_k).lower() for word in ['cell', 'site', 'trạm', 'node', 'hệ thống']):
                                         clean_row['cell_code'] = ex_v
                                         break
 
