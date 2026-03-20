@@ -443,7 +443,7 @@ def init_database():
             if 'config_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('config_3g')]
                 if 'don_vi_quan_ly' not in existing_columns or 'cell_code' not in existing_columns:
-                    print("--> Phát hiện cấu trúc bảng RF/Config 3G cũ. Tiến hành Auto-Reset Schema...")
+                    print("--> Phat hien cau truc bang RF/Config 3G cu. Tien hanh Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
                     db.session.execute(text("DROP TABLE IF EXISTS config_3g"))
                     db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
@@ -461,7 +461,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES
+# 4. TEMPLATES 
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -717,7 +717,6 @@ CONTENT_TEMPLATE = """
                 </div>
             </div>
 
-            <!-- Panel công cụ -->
             <div id="azimuthFormContainer" class="shadow-lg" style="background: rgba(255, 255, 255, 0.95); padding: 15px; border-radius: 8px; width: 320px; max-width: 90vw; max-height: 65vh; overflow-y: auto; border: 1px solid #dee2e6;">
                 <h6 class="fw-bold text-primary mb-2"><i class="fa-solid fa-compass me-2"></i>Tọa độ Điểm O (Gốc)</h6>
                 <div class="mb-2 text-muted" style="font-size: 0.75rem;"><i class="fa-solid fa-info-circle me-1"></i><i>Mẹo: Click lên Bản đồ để chọn nhanh Điểm O</i></div>
@@ -1080,7 +1079,6 @@ CONTENT_TEMPLATE = """
                         sectorLayerGroup.clearLayers();
                         cellLookup = {};
 
-                        var radiusSlider = document.getElementById('sectorRadiusSlider');
                         var radiusSlider = document.getElementById('sectorRadiusSlider');
                         var sectorRadius = radiusSlider ? parseInt(radiusSlider.value) : 350;
                         var valDisplay = document.getElementById('sectorRadiusVal');
@@ -1556,6 +1554,88 @@ CONTENT_TEMPLATE = """
         {% endif %}
     </div>
 </div>
+{% endblock %}
+"""
+
+USER_MANAGEMENT_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-4"><div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Add User</div><div class="card-body"><form method="POST" action="/users/add"><input name="username" class="form-control mb-2" placeholder="Username" required><input name="password" type="password" class="form-control mb-2" placeholder="Password" required><select name="role" class="form-select mb-3"><option value="user">User</option><option value="admin">Admin</option></select><button class="btn btn-success w-100 shadow-sm">Create</button></form></div></div></div>
+    <div class="col-md-8"><div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Users</div><div class="table-responsive"><table class="table table-hover mb-0"><thead class="table-light"><tr><th>ID</th><th>User</th><th>Role</th><th>Action</th></tr></thead><tbody>{% for u in users %}<tr><td>{{ u.id }}</td><td class="fw-bold">{{ u.username }}</td><td><span class="badge bg-secondary">{{ u.role }}</span></td><td>{% if u.username!='admin' %}<a href="/users/delete/{{ u.id }}" class="btn btn-sm btn-danger shadow-sm">Del</a>{% endif %}</td></tr>{% endfor %}</tbody></table></div></div></div>
+</div>
+{% endblock %}
+"""
+
+PROFILE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="row justify-content-center"><div class="col-md-6"><div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">Change Password</div><div class="card-body"><form method="POST" action="/change-password"><input type="password" name="current_password" class="form-control mb-3" placeholder="Current Password" required><input type="password" name="new_password" class="form-control mb-3" placeholder="New Password" required><button class="btn btn-primary w-100 shadow-sm">Save Changes</button></form></div></div></div></div>
+{% endblock %}
+"""
+
+BACKUP_RESTORE_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="container py-4">
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-primary">
+                <div class="card-header bg-primary text-white"><h5 class="mb-0"><i class="fa-solid fa-download me-2"></i>Backup Database</h5></div>
+                <div class="card-body">
+                    <form action="/backup" method="POST">
+                        <div class="mb-3"><label class="form-label fw-bold">Select Tables to Backup:</label>
+                        <div class="form-check"><input class="form-check-input" type="checkbox" id="selectAll" onclick="toggleCheckboxes(this)"><label class="form-check-label fw-bold" for="selectAll">Select All</label></div><hr class="my-2">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="users.csv"> Users</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf3g.csv"> RF 3G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf4g.csv"> RF 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="rf5g.csv"> RF 5G</div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="poi4g.csv"> POI 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="poi5g.csv"> POI 5G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi3g.csv"> KPI 3G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi4g.csv"> KPI 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="kpi5g.csv"> KPI 5G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qoe_4g.csv"> QoE 4G</div>
+                                <div class="form-check"><input class="form-check-input" type="checkbox" name="tables" value="qos_4g.csv"> QoS 4G</div>
+                            </div>
+                        </div></div>
+                        <button type="submit" class="btn btn-primary w-100 shadow-sm"><i class="fa-solid fa-file-zipper me-2"></i>Download Selected</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-warning">
+                <div class="card-header bg-warning text-dark"><h5 class="mb-0"><i class="fa-solid fa-upload me-2"></i>Restore Database</h5></div>
+                <div class="card-body">
+                    <div class="alert alert-danger border-0 shadow-sm"><i class="fa-solid fa-triangle-exclamation me-2"></i><strong>WARNING:</strong> This will OVERWRITE existing data for the tables found in the zip file.</div>
+                    <form action="/restore" method="POST" enctype="multipart/form-data">
+                        <div class="mb-3"><label class="form-label fw-bold">Select Backup File (.zip)</label><input class="form-control border-0 shadow-sm" type="file" name="file" accept=".zip" required></div>
+                        <button type="submit" class="btn btn-warning w-100 shadow-sm" onclick="return confirm('Are you sure you want to restore? This action cannot be undone.')"><i class="fa-solid fa-rotate-left me-2"></i>Restore Data</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+"""
+
+RF_FORM_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold">{{ title }}</div><div class="card-body"><form method="POST"><div class="row">{% for col in columns %}<div class="col-md-4 mb-3"><label class="small text-muted fw-bold">{{ col }}</label><input type="text" name="{{ col }}" class="form-control" value="{{ obj[col] if obj else '' }}"></div>{% endfor %}</div><button type="submit" class="btn btn-primary shadow-sm">Save</button><a href="/rf?tech={{ tech }}" class="btn btn-secondary shadow-sm ms-2">Cancel</a></form></div></div>
+{% endblock %}
+"""
+
+RF_DETAIL_TEMPLATE = """
+{% extends "base" %}
+{% block content %}
+<div class="card border-0 shadow-sm"><div class="card-header bg-white fw-bold d-flex justify-content-between align-items-center"><span>Detail</span><a href="/rf?tech={{ tech }}" class="btn btn-secondary btn-sm shadow-sm">Quay lại</a></div><div class="card-body p-0 table-responsive"><table class="table table-bordered mb-0 table-striped">{% for k,v in obj.items() %}<tr><th class="w-25 text-end text-muted">{{ k }}</th><td class="fw-bold">{{ v }}</td></tr>{% endfor %}</table></div></div>
 {% endblock %}
 """
 
