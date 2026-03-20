@@ -118,7 +118,6 @@ class User(UserMixin, db.Model):
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
-# --- NEW MODELS FOR 3G ---
 class Cell3G(db.Model):
     __tablename__ = 'cell_3g'
     id = db.Column(db.Integer, primary_key=True)
@@ -139,7 +138,7 @@ class Cell3G(db.Model):
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
-    extra_data = db.Column(db.Text) # JSON string lưu các cột dư thừa từ file Excel
+    extra_data = db.Column(db.Text)
 
 class Config3G(db.Model):
     __tablename__ = 'config_3g'
@@ -150,8 +149,7 @@ class Config3G(db.Model):
     dl_uarfcn = db.Column(db.String(50))
     bsc_lac = db.Column(db.String(50))
     ci = db.Column(db.String(50))
-    extra_data = db.Column(db.Text) # JSON string lưu các cột dư thừa từ file Excel
-# ---------------------------
+    extra_data = db.Column(db.Text)
 
 class RF3G(db.Model):
     __tablename__ = 'rf_3g'
@@ -178,7 +176,7 @@ class RF3G(db.Model):
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
-    extra_data = db.Column(db.Text) # Chứa toàn bộ cột mở rộng gộp từ Cell3G và Config3G
+    extra_data = db.Column(db.Text)
 
 class RF4G(db.Model):
     __tablename__ = 'rf_4g'
@@ -608,19 +606,13 @@ def sync_rf3g():
         return redirect(url_for('index'))
     
     try:
-        # 1. Xóa toàn bộ dữ liệu RF3G cũ
         db.session.query(RF3G).delete()
-        
-        # 2. Lấy dữ liệu từ 2 bảng gốc
         cells = Cell3G.query.all()
-        configs = {c.cell_code: c for c in Config3G.query.all()} # Map theo cell_code để tra cứu nhanh (O(1))
+        configs = {c.cell_code: c for c in Config3G.query.all()}
         
-        # 3. Gộp dữ liệu và tạo record mới cho RF3G
         rf3g_records = []
         for cell in cells:
             conf = configs.get(cell.cell_code)
-            
-            # Khôi phục toàn bộ các cột dư thừa (extra_data) từ cả 2 bảng
             merged_extra = {}
             if cell.extra_data:
                 try: merged_extra.update(json.loads(cell.extra_data))
@@ -654,14 +646,14 @@ def sync_rf3g():
                 dl_uarfcn=conf.dl_uarfcn if conf else None,
                 bsc_lac=conf.bsc_lac if conf else None,
                 ci=conf.ci if conf else None,
-                extra_data=extra_str # Gắn JSON các trường còn lại vào RF3G
+                extra_data=extra_str
             )
             rf3g_records.append(record)
             
         if rf3g_records:
             db.session.bulk_save_objects(rf3g_records)
         db.session.commit()
-        flash(f'Đã ghép nối và đồng bộ thành công {len(rf3g_records)} trạm (bao gồm tất cả cột mở rộng) vào Database RF 3G!', 'success')
+        flash(f'Đã ghép nối thành công {len(rf3g_records)} trạm vào Database RF 3G!', 'success')
     except Exception as e:
         db.session.rollback()
         flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
@@ -1460,23 +1452,14 @@ def import_data():
                         for i in range(header_row_idx + 1, len(df)):
                             row_data = df.iloc[i]
                             c_name = str(row_data[cell_col_idx]).strip()
-                            
-                            if not c_name or str(c_name).lower() in ['nan', 'none', 'null'] or len(str(c_name)) < 5 or str(c_name).isdigit(): 
-                                continue
-                            
+                            if not c_name or str(c_name).lower() in ['nan', 'none', 'null'] or len(str(c_name)) < 5 or str(c_name).isdigit(): continue
                             try: val1 = float(row_data[cell_col_idx + 2])
                             except: val1 = 0.0
-                            if math.isnan(val1): val1 = 0.0
-                                
                             try: val2 = float(row_data[cell_col_idx + 3])
                             except: val2 = 0.0
-                            if math.isnan(val2): val2 = 0.0
-                                
                             percent, score = max(val1, val2), min(val1, val2)
-                            
                             details_dict = {headers[j]: str(row_data[j]).strip() for j in range(len(headers)) if pd.notna(row_data[j]) and str(row_data[j]).strip() != 'nan'}
                             details_json = json.dumps(details_dict, ensure_ascii=False)
-                            
                             records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
                         if records:
                             db.session.bulk_insert_mappings(TargetModel, records)
@@ -1487,101 +1470,97 @@ def import_data():
             cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
             Model = cfg.get(itype)
             if Model:
-                # Trừ id và extra_data ra để so sánh
                 valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
                 for file in files:
                     try:
-                        if file.filename.endswith('.csv'): chunks = pd.read_csv(file, chunksize=2000, encoding='utf-8-sig', on_bad_lines='skip')
-                        else: chunks = [pd.read_excel(file)]
+                        if file.filename.endswith('.csv'): 
+                            df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip')
+                        else: 
+                            df_raw = pd.read_excel(file)
                         
-                        for df in chunks:
-                            original_columns = list(df.columns)
-                            df.columns = [clean_header(c) for c in df.columns]
-                            header_mapping = dict(zip(df.columns, original_columns))
-                            
-                            records = []
-                            for row in df.to_dict('records'):
-                                clean_row = {}
-                                extra = {}
-                                for k, v in row.items():
-                                    if pd.isna(v): continue
-                                    if k in valid_cols:
-                                        clean_row[k] = v
-                                    else:
-                                        # Lưu tên gốc của các cột không được map vào extra
-                                        orig_name = header_mapping.get(k, k)
-                                        extra[orig_name] = str(v)
+                        # --- THUẬT TOÁN TỰ ĐỘNG DÒ HEADER ---
+                        header_idx = -1
+                        for i, row in df_raw.head(20).iterrows():
+                            row_vals = [str(v).lower() for v in row.values if pd.notna(v)]
+                            if any(k in " ".join(row_vals) for k in ['cell', 'site', 'node', 'trạm', 'uarfcn']):
+                                header_idx = i
+                                break
+                        
+                        if header_idx != -1:
+                            df_raw.columns = df_raw.iloc[header_idx]
+                            df_raw = df_raw.iloc[header_idx + 1:].reset_index(drop=True)
+                        
+                        df_raw = df_raw.dropna(how='all') # Bỏ dòng trống hoàn toàn
+                        original_columns = list(df_raw.columns)
+                        df_raw.columns = [clean_header(c) for c in df_raw.columns]
+                        header_mapping = dict(zip(df_raw.columns, original_columns))
+                        
+                        records = []
+                        for row in df_raw.to_dict('records'):
+                            clean_row = {}
+                            extra = {}
+                            for k, v in row.items():
+                                if pd.isna(v) or str(v).strip() == '': continue
+                                if k in valid_cols:
+                                    clean_row[k] = v
+                                else:
+                                    orig_name = header_mapping.get(k, k)
+                                    extra[orig_name] = str(v)
+                                    
+                            if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
+                                clean_row['traffic'] = clean_row['traffic_vol_dl']
+                                
+                            # Fallback cell_code
+                            if 'cell_code' not in clean_row or str(clean_row.get('cell_code','')).strip() in ['','nan','None']:
+                                for fb in ['cell_name', 'cellid', 'site_code', 'ci', 'enodeb_id']:
+                                    if fb in clean_row: 
+                                        clean_row['cell_code'] = clean_row[fb]
+                                        break
                                         
-                                if itype == 'kpi4g' and 'traffic' not in clean_row and 'traffic_vol_dl' in clean_row:
-                                    clean_row['traffic'] = clean_row['traffic_vol_dl']
-                                    
-                                # Tự động tìm cột thay thế cho cell_code nếu bị thiếu (Fallback)
-                                if 'cell_code' not in clean_row or str(clean_row.get('cell_code', '')).strip() in ['', 'nan', 'None']:
-                                    for fallback in ['cell_name', 'cellid', 'site_code', 'site_name', 'enodeb_id', 'gnodeb_id', 'ci']:
-                                        if fallback in clean_row and str(clean_row[fallback]).strip() not in ['', 'nan', 'None']:
-                                            clean_row['cell_code'] = clean_row[fallback]
-                                            break
-                                            
-                                # Vẫn thiếu? Quét toàn bộ tên cột gốc (extra) để tìm từ khóa liên quan
-                                if 'cell_code' not in clean_row or str(clean_row.get('cell_code', '')).strip() in ['', 'nan', 'None']:
-                                    for ex_k, ex_v in extra.items():
-                                        ex_lower = str(ex_k).lower()
-                                        if 'cell' in ex_lower or 'site' in ex_lower or 'trạm' in ex_lower or 'node' in ex_lower:
-                                            clean_row['cell_code'] = str(ex_v)
-                                            break
-                                            
-                                if clean_row and 'cell_code' in clean_row and str(clean_row['cell_code']).strip() not in ['', 'nan', 'None']:
-                                    # Chuyển các cột thừa vào JSON column extra_data
-                                    if hasattr(Model, 'extra_data') and extra:
-                                        clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
-                                    records.append(clean_row)
-                                    
-                            if records: 
-                                db.session.bulk_insert_mappings(Model, records)
-                                db.session.commit()
-                                flash(f'Đã import {len(records)} dòng từ {file.filename}', 'success')
-                            else:
-                                flash(f'Bỏ qua {file.filename}: Không tìm thấy dữ liệu hợp lệ (File không có cột Mã trạm hoặc Tên Cell)', 'warning')
+                            if not clean_row.get('cell_code') and extra:
+                                for ex_k, ex_v in extra.items():
+                                    if any(word in str(ex_k).lower() for word in ['cell', 'site', 'trạm', 'node']):
+                                        clean_row['cell_code'] = ex_v
+                                        break
+
+                            if clean_row.get('cell_code') and str(clean_row['cell_code']).strip() not in ['','nan','None']:
+                                if hasattr(Model, 'extra_data') and extra:
+                                    clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
+                                records.append(clean_row)
+                                
+                        if records: 
+                            db.session.bulk_insert_mappings(Model, records)
+                            db.session.commit()
+                            flash(f'Đã import {len(records)} dòng từ {file.filename}', 'success')
+                        else:
+                            found_cols = ", ".join([str(c) for c in original_columns[:10]])
+                            flash(f'Lỗi file {file.filename}: Không tìm thấy cột định danh Cell/Trạm. Các cột tìm thấy: {found_cols}', 'danger')
                     except Exception as e: flash(f'Error {file.filename}: {e}', 'danger')
         return redirect(url_for('import_data'))
         
     d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
     d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
     d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    
     today = datetime.now()
-    year, week_num, weekday = today.isocalendar()
+    year, week_num, _ = today.isocalendar()
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)
     default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
-    
     return render_template('content.html', title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
 
 @app.route('/reset-data', methods=['POST'])
 @login_required
 def reset_data():
-    if current_user.role != 'admin':
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     target = request.form.get('target')
     try:
         if target == 'rf':
-            db.session.query(Cell3G).delete()
-            db.session.query(Config3G).delete()
-            db.session.query(RF3G).delete()
-            db.session.query(RF4G).delete()
-            db.session.query(RF5G).delete()
-            db.session.commit()
-            flash('Đã reset thành công toàn bộ dữ liệu RF (3G, 4G, 5G)!', 'success')
+            db.session.query(Cell3G).delete(); db.session.query(Config3G).delete(); db.session.query(RF3G).delete(); db.session.query(RF4G).delete(); db.session.query(RF5G).delete()
+            db.session.commit(); flash('Đã reset dữ liệu RF!', 'success')
         elif target == 'poi':
-            db.session.query(POI4G).delete()
-            db.session.query(POI5G).delete()
-            db.session.commit()
-            flash('Đã reset thành công toàn bộ dữ liệu POI (4G, 5G)!', 'success')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Đã xảy ra lỗi khi reset: {str(e)}', 'danger')
-        
+            db.session.query(POI4G).delete(); db.session.query(POI5G).delete()
+            db.session.commit(); flash('Đã reset dữ liệu POI!', 'success')
+    except Exception as e: db.session.rollback(); flash(f'Lỗi: {e}', 'danger')
     return redirect(url_for('import_data'))
 
 @app.route('/backup', methods=['POST'])
@@ -1589,25 +1568,18 @@ def reset_data():
 def backup_db():
     if current_user.role != 'admin': return redirect(url_for('index'))
     selected_tables = request.form.getlist('tables')
-    if not selected_tables:
-        flash('No tables selected', 'warning')
-        return redirect(url_for('backup_restore'))
-        
+    if not selected_tables: return redirect(url_for('backup_restore'))
     stream = BytesIO()
     models_map = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
-    
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
         for fname in selected_tables:
             if fname in models_map:
                 Model = models_map[fname]
                 cols = [c.key for c in Model.__table__.columns]
                 data = db.session.query(Model).all()
-                if not data: df = pd.DataFrame(columns=cols)
-                else: df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data])
+                df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data]) if data else pd.DataFrame(columns=cols)
                 zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
-    
-    stream.seek(0)
-    gc.collect()
+    stream.seek(0); gc.collect()
     return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
 
 @app.route('/restore', methods=['POST'])
@@ -1625,11 +1597,9 @@ def restore_db():
                         Model = models[fname]
                         with zf.open(fname) as f: df = pd.read_csv(f, encoding='utf-8-sig')
                         db.session.query(Model).delete()
-                        records = df.to_dict('records')
-                        clean_records = [{k: (v if not pd.isna(v) else None) for k, v in r.items() if k in [c.key for c in Model.__table__.columns]} for r in records]
-                        if clean_records: db.session.bulk_insert_mappings(Model, clean_records)
-                db.session.commit()
-                flash('Restore Success', 'success')
+                        records = [{k: (v if not pd.isna(v) else None) for k, v in r.items() if k in [c.key for c in Model.__table__.columns]} for r in df.to_dict('records')]
+                        if records: db.session.bulk_insert_mappings(Model, records)
+                db.session.commit(); flash('Restore Success', 'success')
         except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
     return redirect(url_for('backup_restore'))
 
