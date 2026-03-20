@@ -52,6 +52,7 @@ def clean_header(col_name):
     c_clean = re.sub(r'[^a-z0-9]', '', remove_accents(col_name).lower())
     strong_map = {
         'stt': 'stt', 'manode': 'ma_node', 'sitecode': 'site_code', 'macell': 'cell_code', 'cellid': 'cell_code',
+        'tentrenhethong': 'cell_code',
         'thietbi': 'thiet_bi', 'tinhtp': 'tinh_tp', 'donviquanly': 'don_vi_quan_ly', 'macsht': 'ma_csht', 'loaitram': 'loai_tram',
         'sitename': 'site_name', 'tentram': 'site_name', 'cellname': 'cell_name', 'tencell': 'cell_name', 'cellnamealias': 'cell_name_alias',
         'ci': 'ci', 'lac': 'lac', 'bsclac': 'bsc_lac', 'rac': 'rac', 'bangtan': 'bang_tan', 'dlpsc': 'dl_psc', 'psc': 'psc',
@@ -61,10 +62,10 @@ def clean_header(col_name):
         'antennagain': 'antenna_gain', 'gain': 'antenna_gain', 'antennahigh': 'antenna_high', 'antenheight': 'anten_height',
         'celltype': 'cell_type', 'noofcarrier': 'no_of_carrier', 'specialcoverage': 'special_coverage', 'trangthai': 'trang_thai',
         'note': 'ghi_chu', 'ghichu': 'ghi_chu', 'tenquanly': 'ten_quan_ly', 'tennguoiquanly': 'nguoi_quan_ly', 'sdtnguoiquanly': 'sdt_nguoi_quan_ly',
-        'ngayhoatdong': 'ngay_hoat_dong', 'startday': 'start_day', 'hoancanhradoi': 'hoan_canh_ra_doi', 'loaianten': 'loai_anten',
-        'antennatenhangsx': 'hang_sx_anten', 'hangsx': 'hang_sx', 'antennadaitanhoatdong': 'anten_dai_tan', 'antennadungchung': 'anten_dung_chung',
+        'ngayhoatdong': 'start_day', 'startday': 'start_day', 'hoancanhradoi': 'ghi_chu', 'loaianten': 'loai_anten',
+        'antennatenhangsx': 'hang_sx', 'hangsx': 'hang_sx', 'antennadaitanhoatdong': 'anten_dai_tan', 'antennadungchung': 'swap',
         'antennasoport': 'anten_so_port', 'tenloaitram': 'ten_loai_tram', 'diachi': 'dia_chi', 'macshtcuatram': 'csht_site',
-        'macshtcuacell': 'csht_cell', 'tendonvi': 'ten_don_vi', 'tentrenhethong': 'ten_tren_he_thong', 'latitude': 'latitude',
+        'macshtcuacell': 'csht_cell', 'tendonvi': 'ten_don_vi', 'latitude': 'latitude',
         'lat': 'latitude', 'longitude': 'longitude', 'longtitude': 'longitude', 'long': 'longitude', 'azimuth': 'azimuth',
         'enodebid': 'enodeb_id', 'gnodebid': 'gnodeb_id', 'pci': 'pci', 'tac': 'tac', 'mimo': 'mimo', 'mt': 'm_t', 'et': 'e_t',
         'nrarfcn': 'nrarfcn', 'lcrid': 'lcrid', 'dongbo': 'dong_bo', 'matram': 'ma_tram', 'equipment': 'equipment',
@@ -94,13 +95,13 @@ class User(UserMixin, db.Model):
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Cell3G(db.Model):
-    __tablename__='cell_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); ma_node=db.Column(db.String(100)); site_code=db.Column(db.String(100)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); loai_anten=db.Column(db.String(255)); hang_sx_anten=db.Column(db.String(255)); anten_dai_tan=db.Column(db.String(255)); anten_dung_chung=db.Column(db.String(100)); anten_so_port=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); ten_loai_tram=db.Column(db.String(255)); dia_chi=db.Column(db.Text); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(255)); bang_tan=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(255)); nguoi_quan_ly=db.Column(db.String(255)); sdt_nguoi_quan_ly=db.Column(db.String(100)); ngay_hoat_dong=db.Column(db.String(100)); hoan_canh_ra_doi=db.Column(db.Text); trang_thai=db.Column(db.String(100)); ghi_chu=db.Column(db.Text); ten_tren_he_thong=db.Column(db.String(255)); cpich_power=db.Column(db.Float); total_power=db.Column(db.Float); dl_psc=db.Column(db.String(50)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); extra_data=db.Column(db.Text)
+    __tablename__='cell_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); ma_node=db.Column(db.String(100)); site_code=db.Column(db.String(100)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); loai_anten=db.Column(db.String(255)); hang_sx=db.Column(db.String(255)); anten_dai_tan=db.Column(db.String(255)); swap=db.Column(db.String(100)); anten_so_port=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); ten_loai_tram=db.Column(db.String(255)); dia_chi=db.Column(db.Text); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(255)); bang_tan=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(255)); nguoi_quan_ly=db.Column(db.String(255)); sdt_nguoi_quan_ly=db.Column(db.String(100)); start_day=db.Column(db.String(100)); trang_thai=db.Column(db.String(100)); ghi_chu=db.Column(db.Text); cpich_power=db.Column(db.Float); total_power=db.Column(db.Float); dl_psc=db.Column(db.String(50)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); extra_data=db.Column(db.Text)
 
 class Config3G(db.Model):
     __tablename__='config_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); ma_node=db.Column(db.String(100)); site_code=db.Column(db.String(100)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); don_vi_quan_ly=db.Column(db.String(255)); ma_csht=db.Column(db.String(100)); loai_tram=db.Column(db.String(100)); site_name=db.Column(db.String(255)); cell_name=db.Column(db.String(255)); cell_name_alias=db.Column(db.String(255)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); rac=db.Column(db.String(50)); bang_tan=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(100)); longitude=db.Column(db.Float); latitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.Text); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(255)); trang_thai=db.Column(db.String(100)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
 
 class RF3G(db.Model):
-    __tablename__='rf_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(100)); ma_node=db.Column(db.String(100)); cell_name=db.Column(db.String(255)); cell_name_alias=db.Column(db.String(255)); site_name=db.Column(db.String(255)); loai_tram=db.Column(db.String(100)); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); don_vi_quan_ly=db.Column(db.String(255)); ma_csht=db.Column(db.String(100)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(255)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.Text); loai_anten=db.Column(db.String(255)); hang_sx_anten=db.Column(db.String(255)); anten_dai_tan=db.Column(db.String(255)); anten_dung_chung=db.Column(db.String(100)); anten_so_port=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); bang_tan=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); rac=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(100)); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(255)); trang_thai=db.Column(db.String(100)); ten_quan_ly=db.Column(db.String(255)); nguoi_quan_ly=db.Column(db.String(255)); sdt_nguoi_quan_ly=db.Column(db.String(100)); ngay_hoat_dong=db.Column(db.String(100)); hoan_canh_ra_doi=db.Column(db.Text); dia_chi=db.Column(db.Text); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
+    __tablename__='rf_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(100)); ma_node=db.Column(db.String(100)); cell_name=db.Column(db.String(255)); cell_name_alias=db.Column(db.String(255)); site_name=db.Column(db.String(255)); loai_tram=db.Column(db.String(100)); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); don_vi_quan_ly=db.Column(db.String(255)); ma_csht=db.Column(db.String(100)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(255)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.Text); loai_anten=db.Column(db.String(255)); hang_sx=db.Column(db.String(255)); anten_dai_tan=db.Column(db.String(255)); swap=db.Column(db.String(100)); anten_so_port=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); bang_tan=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); rac=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(100)); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(255)); trang_thai=db.Column(db.String(100)); ten_quan_ly=db.Column(db.String(255)); nguoi_quan_ly=db.Column(db.String(255)); sdt_nguoi_quan_ly=db.Column(db.String(100)); start_day=db.Column(db.String(100)); dia_chi=db.Column(db.Text); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
 
 class RF4G(db.Model):
     __tablename__='rf_4g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(50), index=True); site_code=db.Column(db.String(50)); cell_name=db.Column(db.String(100)); csht_code=db.Column(db.String(50)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); antena=db.Column(db.Text); azimuth=db.Column(db.Integer); total_tilt=db.Column(db.Float); equipment=db.Column(db.String(100)); frequency=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); pci=db.Column(db.String(50)); tac=db.Column(db.String(50)); enodeb_id=db.Column(db.String(50)); lcrid=db.Column(db.String(50)); anten_height=db.Column(db.Float); m_t=db.Column(db.Float); e_t=db.Column(db.Float); mimo=db.Column(db.String(50)); hang_sx=db.Column(db.String(100)); swap=db.Column(db.String(50)); start_day=db.Column(db.String(100)); ghi_chu=db.Column(db.Text)
@@ -130,9 +131,9 @@ def init_database():
     with app.app_context():
         try:
             inspector = inspect(db.engine)
-            if 'config_3g' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('config_3g')]
-                if 'don_vi_quan_ly' not in existing_columns or 'cell_code' not in existing_columns:
+            if 'cell_3g' in inspector.get_table_names():
+                existing_columns = [col['name'] for col in inspector.get_columns('cell_3g')]
+                if 'hang_sx_anten' in existing_columns:
                     print("--> Phát hiện cấu trúc bảng RF/Config 3G cũ. Tiến hành Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS cell_3g")); db.session.execute(text("DROP TABLE IF EXISTS config_3g")); db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
                     db.session.commit()
@@ -604,9 +605,9 @@ def sync_rf3g():
                 total_tilt=getattr(c, 'total_tilt', getattr(cfg, 'total_tilt', None)),
                 antenna_type=getattr(cfg, 'antenna_type', getattr(c, 'loai_anten', None)),
                 loai_anten=getattr(c, 'loai_anten', None),
-                hang_sx_anten=getattr(c, 'hang_sx_anten', None),
+                hang_sx=getattr(c, 'hang_sx', getattr(cfg, 'hang_sx', None)),
                 anten_dai_tan=getattr(c, 'anten_dai_tan', None),
-                anten_dung_chung=getattr(c, 'anten_dung_chung', None),
+                swap=getattr(c, 'swap', None),
                 anten_so_port=getattr(c, 'anten_so_port', None),
                 antenna_gain=getattr(c, 'antenna_gain', getattr(cfg, 'antenna_gain', None)),
                 antenna_high=getattr(c, 'antenna_high', getattr(cfg, 'antenna_high', None)),
@@ -627,9 +628,9 @@ def sync_rf3g():
                 trang_thai=getattr(c, 'trang_thai', getattr(cfg, 'trang_thai', None)),
                 ten_quan_ly=getattr(c, 'ten_quan_ly', getattr(c, 'nguoi_quan_ly', None)),
                 sdt_nguoi_quan_ly=getattr(c, 'sdt_nguoi_quan_ly', None),
-                ngay_hoat_dong=getattr(c, 'ngay_hoat_dong', None),
-                hoan_canh_ra_doi=getattr(c, 'hoan_canh_ra_doi', None),
-                dia_chi=getattr(c, 'dia_chi', None),
+                start_day=getattr(c, 'start_day', getattr(cfg, 'start_day', None)),
+                dia_chi=getattr(c, 'dia_chi', getattr(cfg, 'dia_chi', None)),
+                ghi_chu=getattr(c, 'ghi_chu', getattr(cfg, 'ghi_chu', None)),
                 extra_data=json.dumps(merged_extra, ensure_ascii=False) if merged_extra else None
             )
             rf3g_records.append(record)
