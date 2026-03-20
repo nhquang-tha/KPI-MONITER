@@ -167,7 +167,7 @@ def generate_colors(n):
     return base + ["#"+''.join([random.choice('0123456789ABCDEF') for j in range(6)]) for i in range(n - len(base))]
 
 # ==============================================================================
-# 3. MODELS
+# 3. MODELS (ĐÃ MỞ RỘNG TEXT CHO CÁC TRƯỜNG DÀI)
 # ==============================================================================
 
 class User(UserMixin, db.Model):
@@ -176,34 +176,34 @@ class User(UserMixin, db.Model):
     def check_password(self, password): return check_password_hash(self.password_hash, password)
 
 class Cell3G(db.Model):
-    __tablename__='cell_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); ma_node=db.Column(db.String(50)); site_code=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); loai_anten=db.Column(db.String(100)); hang_sx_anten=db.Column(db.String(100)); anten_dai_tan=db.Column(db.String(100)); anten_dung_chung=db.Column(db.String(50)); anten_so_port=db.Column(db.String(50)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); ten_loai_tram=db.Column(db.String(100)); dia_chi=db.Column(db.String(255)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(100)); bang_tan=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(100)); nguoi_quan_ly=db.Column(db.String(100)); sdt_nguoi_quan_ly=db.Column(db.String(50)); ngay_hoat_dong=db.Column(db.String(50)); hoan_canh_ra_doi=db.Column(db.Text); trang_thai=db.Column(db.String(50)); ghi_chu=db.Column(db.Text); ten_tren_he_thong=db.Column(db.String(100)); extra_data=db.Column(db.Text)
+    __tablename__='cell_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); ma_node=db.Column(db.String(100)); site_code=db.Column(db.String(100)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); loai_anten=db.Column(db.String(255)); hang_sx_anten=db.Column(db.String(255)); anten_dai_tan=db.Column(db.String(255)); anten_dung_chung=db.Column(db.String(100)); anten_so_port=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); ten_loai_tram=db.Column(db.String(255)); dia_chi=db.Column(db.Text); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(255)); bang_tan=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(255)); nguoi_quan_ly=db.Column(db.String(255)); sdt_nguoi_quan_ly=db.Column(db.String(100)); ngay_hoat_dong=db.Column(db.String(100)); hoan_canh_ra_doi=db.Column(db.Text); trang_thai=db.Column(db.String(100)); ghi_chu=db.Column(db.Text); ten_tren_he_thong=db.Column(db.String(255)); cpich_power=db.Column(db.Float); total_power=db.Column(db.Float); dl_psc=db.Column(db.String(50)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); extra_data=db.Column(db.Text)
 
 class Config3G(db.Model):
-    __tablename__='config_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); ma_node=db.Column(db.String(50)); site_code=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); don_vi_quan_ly=db.Column(db.String(100)); ma_csht=db.Column(db.String(100)); loai_tram=db.Column(db.String(50)); site_name=db.Column(db.String(100)); cell_name=db.Column(db.String(100)); cell_name_alias=db.Column(db.String(100)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); rac=db.Column(db.String(50)); bang_tan=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(50)); longitude=db.Column(db.Float); latitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(100)); trang_thai=db.Column(db.String(50)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
+    __tablename__='config_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); ma_node=db.Column(db.String(100)); site_code=db.Column(db.String(100)); cell_code=db.Column(db.String(100), index=True); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); don_vi_quan_ly=db.Column(db.String(255)); ma_csht=db.Column(db.String(100)); loai_tram=db.Column(db.String(100)); site_name=db.Column(db.String(255)); cell_name=db.Column(db.String(255)); cell_name_alias=db.Column(db.String(255)); ci=db.Column(db.String(50)); lac=db.Column(db.String(50)); rac=db.Column(db.String(50)); bang_tan=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(100)); longitude=db.Column(db.Float); latitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.Text); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(255)); trang_thai=db.Column(db.String(100)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
 
 class RF3G(db.Model):
-    __tablename__='rf_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(20)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(50)); ma_node=db.Column(db.String(50)); cell_name=db.Column(db.String(100)); cell_name_alias=db.Column(db.String(100)); site_name=db.Column(db.String(100)); loai_tram=db.Column(db.String(50)); thiet_bi=db.Column(db.String(50)); tinh_tp=db.Column(db.String(100)); don_vi_quan_ly=db.Column(db.String(100)); ma_csht=db.Column(db.String(100)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.String(100)); loai_anten=db.Column(db.String(100)); hang_sx_anten=db.Column(db.String(100)); anten_dai_tan=db.Column(db.String(100)); anten_dung_chung=db.Column(db.String(50)); anten_so_port=db.Column(db.String(50)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); bang_tan=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); rac=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(50)); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(100)); trang_thai=db.Column(db.String(50)); ten_quan_ly=db.Column(db.String(100)); nguoi_quan_ly=db.Column(db.String(100)); sdt_nguoi_quan_ly=db.Column(db.String(50)); ngay_hoat_dong=db.Column(db.String(50)); hoan_canh_ra_doi=db.Column(db.Text); dia_chi=db.Column(db.String(255)); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
+    __tablename__='rf_3g'; id=db.Column(db.Integer, primary_key=True); stt=db.Column(db.String(50)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(100)); ma_node=db.Column(db.String(100)); cell_name=db.Column(db.String(255)); cell_name_alias=db.Column(db.String(255)); site_name=db.Column(db.String(255)); loai_tram=db.Column(db.String(100)); thiet_bi=db.Column(db.String(100)); tinh_tp=db.Column(db.String(255)); don_vi_quan_ly=db.Column(db.String(255)); ma_csht=db.Column(db.String(100)); csht_site=db.Column(db.String(100)); csht_cell=db.Column(db.String(100)); ten_don_vi=db.Column(db.String(255)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); azimuth=db.Column(db.Integer); mechanical_tilt=db.Column(db.Float); electrical_tilt=db.Column(db.Float); total_tilt=db.Column(db.Float); antenna_type=db.Column(db.Text); loai_anten=db.Column(db.String(255)); hang_sx_anten=db.Column(db.String(255)); anten_dai_tan=db.Column(db.String(255)); anten_dung_chung=db.Column(db.String(100)); anten_so_port=db.Column(db.String(100)); antenna_gain=db.Column(db.Float); antenna_high=db.Column(db.Float); bang_tan=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); rac=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); dl_psc=db.Column(db.String(50)); cpich_power=db.Column(db.Float); max_power=db.Column(db.Float); total_power=db.Column(db.Float); dc_support=db.Column(db.String(50)); oam_ip=db.Column(db.String(100)); cell_type=db.Column(db.String(50)); no_of_carrier=db.Column(db.String(50)); special_coverage=db.Column(db.String(255)); trang_thai=db.Column(db.String(100)); ten_quan_ly=db.Column(db.String(255)); nguoi_quan_ly=db.Column(db.String(255)); sdt_nguoi_quan_ly=db.Column(db.String(100)); ngay_hoat_dong=db.Column(db.String(100)); hoan_canh_ra_doi=db.Column(db.Text); dia_chi=db.Column(db.Text); ghi_chu=db.Column(db.Text); extra_data=db.Column(db.Text)
 
 class RF4G(db.Model):
-    __tablename__='rf_4g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(50), index=True); site_code=db.Column(db.String(50)); cell_name=db.Column(db.String(100)); csht_code=db.Column(db.String(50)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); antena=db.Column(db.String(100)); azimuth=db.Column(db.Integer); total_tilt=db.Column(db.Float); equipment=db.Column(db.String(50)); frequency=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); pci=db.Column(db.String(50)); tac=db.Column(db.String(50)); enodeb_id=db.Column(db.String(50)); lcrid=db.Column(db.String(50)); anten_height=db.Column(db.Float); m_t=db.Column(db.Float); e_t=db.Column(db.Float); mimo=db.Column(db.String(50)); hang_sx=db.Column(db.String(50)); swap=db.Column(db.String(50)); start_day=db.Column(db.String(50)); ghi_chu=db.Column(db.String(255))
+    __tablename__='rf_4g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(100)); cell_name=db.Column(db.String(255)); csht_code=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); antena=db.Column(db.Text); azimuth=db.Column(db.Integer); total_tilt=db.Column(db.Float); equipment=db.Column(db.String(100)); frequency=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); pci=db.Column(db.String(50)); tac=db.Column(db.String(50)); enodeb_id=db.Column(db.String(50)); lcrid=db.Column(db.String(50)); anten_height=db.Column(db.Float); m_t=db.Column(db.Float); e_t=db.Column(db.Float); mimo=db.Column(db.String(50)); hang_sx=db.Column(db.String(100)); swap=db.Column(db.String(50)); start_day=db.Column(db.String(100)); ghi_chu=db.Column(db.Text)
 
 class RF5G(db.Model):
-    __tablename__='rf_5g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(50), index=True); site_code=db.Column(db.String(50)); site_name=db.Column(db.String(100)); csht_code=db.Column(db.String(50)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); antena=db.Column(db.String(100)); azimuth=db.Column(db.Integer); total_tilt=db.Column(db.Float); equipment=db.Column(db.String(50)); frequency=db.Column(db.String(50)); nrarfcn=db.Column(db.String(50)); pci=db.Column(db.String(50)); tac=db.Column(db.String(50)); gnodeb_id=db.Column(db.String(50)); lcrid=db.Column(db.String(50)); anten_height=db.Column(db.Float); m_t=db.Column(db.Float); e_t=db.Column(db.Float); mimo=db.Column(db.String(50)); hang_sx=db.Column(db.String(50)); dong_bo=db.Column(db.String(50)); start_day=db.Column(db.String(50)); ghi_chu=db.Column(db.String(255))
+    __tablename__='rf_5g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(100)); site_name=db.Column(db.String(255)); csht_code=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); antena=db.Column(db.Text); azimuth=db.Column(db.Integer); total_tilt=db.Column(db.Float); equipment=db.Column(db.String(100)); frequency=db.Column(db.String(50)); nrarfcn=db.Column(db.String(50)); pci=db.Column(db.String(50)); tac=db.Column(db.String(50)); gnodeb_id=db.Column(db.String(50)); lcrid=db.Column(db.String(50)); anten_height=db.Column(db.Float); m_t=db.Column(db.Float); e_t=db.Column(db.Float); mimo=db.Column(db.String(50)); hang_sx=db.Column(db.String(100)); dong_bo=db.Column(db.String(50)); start_day=db.Column(db.String(100)); ghi_chu=db.Column(db.Text)
 
-class POI4G(db.Model): __tablename__='poi_4g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(50)); site_code=db.Column(db.String(50)); poi_name=db.Column(db.String(200), index=True)
-class POI5G(db.Model): __tablename__='poi_5g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(50)); site_code=db.Column(db.String(50)); poi_name=db.Column(db.String(200), index=True)
-class QoE4G(db.Model): __tablename__='qoe_4g'; id=db.Column(db.Integer, primary_key=True); cell_name=db.Column(db.String(100), index=True); week_name=db.Column(db.String(100)); qoe_score=db.Column(db.Float); qoe_percent=db.Column(db.Float); details=db.Column(db.Text)
-class QoS4G(db.Model): __tablename__='qos_4g'; id=db.Column(db.Integer, primary_key=True); cell_name=db.Column(db.String(100), index=True); week_name=db.Column(db.String(100)); qos_score=db.Column(db.Float); qos_percent=db.Column(db.Float); details=db.Column(db.Text)
-class ITSLog(db.Model): __tablename__='its_log'; id=db.Column(db.Integer, primary_key=True); timestamp=db.Column(db.String(50)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); networktech=db.Column(db.String(20)); level=db.Column(db.Float); qual=db.Column(db.Float); cellid=db.Column(db.String(50))
+class POI4G(db.Model): __tablename__='poi_4g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(100)); site_code=db.Column(db.String(100)); poi_name=db.Column(db.String(255), index=True)
+class POI5G(db.Model): __tablename__='poi_5g'; id=db.Column(db.Integer, primary_key=True); cell_code=db.Column(db.String(100)); site_code=db.Column(db.String(100)); poi_name=db.Column(db.String(255), index=True)
+class QoE4G(db.Model): __tablename__='qoe_4g'; id=db.Column(db.Integer, primary_key=True); cell_name=db.Column(db.String(255), index=True); week_name=db.Column(db.String(100)); qoe_score=db.Column(db.Float); qoe_percent=db.Column(db.Float); details=db.Column(db.Text)
+class QoS4G(db.Model): __tablename__='qos_4g'; id=db.Column(db.Integer, primary_key=True); cell_name=db.Column(db.String(255), index=True); week_name=db.Column(db.String(100)); qos_score=db.Column(db.Float); qos_percent=db.Column(db.Float); details=db.Column(db.Text)
+class ITSLog(db.Model): __tablename__='its_log'; id=db.Column(db.Integer, primary_key=True); timestamp=db.Column(db.String(50)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); networktech=db.Column(db.String(20)); level=db.Column(db.Float); qual=db.Column(db.Float); cellid=db.Column(db.String(100))
 
 class KPI3G(db.Model):
-    __tablename__='kpi_3g'; id=db.Column(db.Integer, primary_key=True); ten_cell=db.Column(db.String(100), index=True); thoi_gian=db.Column(db.String(50)); traffic=db.Column(db.Float); pstraffic=db.Column(db.Float); cssr=db.Column(db.Float); dcr=db.Column(db.Float); ps_cssr=db.Column(db.Float); ps_dcr=db.Column(db.Float); hsdpa_throughput=db.Column(db.Float); hsupa_throughput=db.Column(db.Float); cs_so_att=db.Column(db.Float); ps_so_att=db.Column(db.Float); csconges=db.Column(db.Float); psconges=db.Column(db.Float); stt=db.Column(db.String(50)); nha_cung_cap=db.Column(db.String(50)); tinh=db.Column(db.String(50)); ten_rnc=db.Column(db.String(100)); ma_vnp=db.Column(db.String(50)); loai_ne=db.Column(db.String(50)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50))
+    __tablename__='kpi_3g'; id=db.Column(db.Integer, primary_key=True); ten_cell=db.Column(db.String(255), index=True); thoi_gian=db.Column(db.String(50)); traffic=db.Column(db.Float); pstraffic=db.Column(db.Float); cssr=db.Column(db.Float); dcr=db.Column(db.Float); ps_cssr=db.Column(db.Float); ps_dcr=db.Column(db.Float); hsdpa_throughput=db.Column(db.Float); hsupa_throughput=db.Column(db.Float); cs_so_att=db.Column(db.Float); ps_so_att=db.Column(db.Float); csconges=db.Column(db.Float); psconges=db.Column(db.Float); stt=db.Column(db.String(50)); nha_cung_cap=db.Column(db.String(100)); tinh=db.Column(db.String(255)); ten_rnc=db.Column(db.String(255)); ma_vnp=db.Column(db.String(100)); loai_ne=db.Column(db.String(100)); lac=db.Column(db.String(50)); ci=db.Column(db.String(50))
 
 class KPI4G(db.Model):
-    __tablename__='kpi_4g'; id=db.Column(db.Integer, primary_key=True); ten_cell=db.Column(db.String(100), index=True); thoi_gian=db.Column(db.String(50)); traffic=db.Column(db.Float); traffic_vol_dl=db.Column(db.Float); traffic_vol_ul=db.Column(db.Float); cell_dl_avg_thputs=db.Column(db.Float); cell_ul_avg_thput=db.Column(db.Float); user_dl_avg_thput=db.Column(db.Float); user_ul_avg_thput=db.Column(db.Float); erab_ssrate_all=db.Column(db.Float); service_drop_all=db.Column(db.Float); unvailable=db.Column(db.Float); res_blk_dl=db.Column(db.Float); cqi_4g=db.Column(db.Float); stt=db.Column(db.String(50)); nha_cung_cap=db.Column(db.String(50)); tinh=db.Column(db.String(50)); ten_rnc=db.Column(db.String(100)); ma_vnp=db.Column(db.String(50)); loai_ne=db.Column(db.String(50)); enodeb_id=db.Column(db.String(50)); cell_id=db.Column(db.String(50))
+    __tablename__='kpi_4g'; id=db.Column(db.Integer, primary_key=True); ten_cell=db.Column(db.String(255), index=True); thoi_gian=db.Column(db.String(50)); traffic=db.Column(db.Float); traffic_vol_dl=db.Column(db.Float); traffic_vol_ul=db.Column(db.Float); cell_dl_avg_thputs=db.Column(db.Float); cell_ul_avg_thput=db.Column(db.Float); user_dl_avg_thput=db.Column(db.Float); user_ul_avg_thput=db.Column(db.Float); erab_ssrate_all=db.Column(db.Float); service_drop_all=db.Column(db.Float); unvailable=db.Column(db.Float); res_blk_dl=db.Column(db.Float); cqi_4g=db.Column(db.Float); stt=db.Column(db.String(50)); nha_cung_cap=db.Column(db.String(100)); tinh=db.Column(db.String(255)); ten_rnc=db.Column(db.String(255)); ma_vnp=db.Column(db.String(100)); loai_ne=db.Column(db.String(100)); enodeb_id=db.Column(db.String(100)); cell_id=db.Column(db.String(100))
 
 class KPI5G(db.Model):
-    __tablename__='kpi_5g'; id=db.Column(db.Integer, primary_key=True); ten_cell=db.Column(db.String(100), index=True); thoi_gian=db.Column(db.String(50)); traffic=db.Column(db.Float); dl_traffic_volume_gb=db.Column(db.Float); ul_traffic_volume_gb=db.Column(db.Float); cell_downlink_average_throughput=db.Column(db.Float); cell_uplink_average_throughput=db.Column(db.Float); user_dl_avg_throughput=db.Column(db.Float); cqi_5g=db.Column(db.Float); cell_avaibility_rate=db.Column(db.Float); sgnb_addition_success_rate=db.Column(db.Float); sgnb_abnormal_release_rate=db.Column(db.Float); nha_cung_cap=db.Column(db.String(50)); tinh=db.Column(db.String(50)); ten_gnodeb=db.Column(db.String(100)); ma_vnp=db.Column(db.String(50)); loai_ne=db.Column(db.String(50)); gnodeb_id=db.Column(db.String(50)); cell_id=db.Column(db.String(50))
+    __tablename__='kpi_5g'; id=db.Column(db.Integer, primary_key=True); ten_cell=db.Column(db.String(255), index=True); thoi_gian=db.Column(db.String(50)); traffic=db.Column(db.Float); dl_traffic_volume_gb=db.Column(db.Float); ul_traffic_volume_gb=db.Column(db.Float); cell_downlink_average_throughput=db.Column(db.Float); cell_uplink_average_throughput=db.Column(db.Float); user_dl_avg_throughput=db.Column(db.Float); cqi_5g=db.Column(db.Float); cell_avaibility_rate=db.Column(db.Float); sgnb_addition_success_rate=db.Column(db.Float); sgnb_abnormal_release_rate=db.Column(db.Float); nha_cung_cap=db.Column(db.String(100)); tinh=db.Column(db.String(255)); ten_gnodeb=db.Column(db.String(255)); ma_vnp=db.Column(db.String(100)); loai_ne=db.Column(db.String(100)); gnodeb_id=db.Column(db.String(100)); cell_id=db.Column(db.String(100))
 
 @login_manager.user_loader
 def load_user(user_id): return db.session.get(User, int(user_id))
@@ -227,7 +227,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TELEGRAM & HELPERS
+# 4. TELEGRAM BOT
 # ==============================================================================
 
 def send_telegram_message(chat_id, text_content):
@@ -392,7 +392,7 @@ def set_telegram_webhook():
     except Exception as e: return str(e), 500
 
 # ==============================================================================
-# 5. CORE WEB ROUTES
+# 5. CORE WEB ROUTES (ALL ROUTES RESTORED)
 # ==============================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -445,7 +445,10 @@ def import_data():
         Model = cfg.get(itype)
         
         if Model:
-            valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
+            valid_cols = set(c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data'])
+            float_cols = {c.key for c in Model.__table__.columns if 'FLOAT' in str(c.type).upper()}
+            int_cols = {c.key for c in Model.__table__.columns if 'INTEGER' in str(c.type).upper()}
+            
             for file in files:
                 try:
                     if file.filename.endswith('.csv'):
@@ -485,6 +488,7 @@ def import_data():
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
                     header_mapping = dict(zip(df_raw.columns, original_columns))
                     
+                    # Convert to dict immediately to free up Pandas memory
                     dict_records = df_raw.to_dict('records')
                     del df_raw
                     gc.collect()
@@ -492,7 +496,6 @@ def import_data():
                     records = []
                     inserted_count = 0
                     BATCH_SIZE = 1000
-                    col_types = {k: str(Model.__table__.columns[k].type) for k in valid_cols if k in Model.__table__.columns}
                     
                     for row in dict_records:
                         clean_row, extra = {}, {}
@@ -502,15 +505,12 @@ def import_data():
                             if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null', '?']: continue
                             
                             if k in valid_cols:
-                                col_type = col_types.get(k, '')
-                                if 'FLOAT' in col_type or 'INTEGER' in col_type:
-                                    try:
-                                        v_clean = val_str.replace(',', '.')
-                                        v_num = float(v_clean)
-                                        if 'INTEGER' in col_type: v_num = int(math.floor(v_num))
-                                        clean_row[k] = v_num
-                                    except:
-                                        clean_row[k] = None
+                                if k in float_cols:
+                                    try: clean_row[k] = float(val_str.replace(',', '.'))
+                                    except: clean_row[k] = None
+                                elif k in int_cols:
+                                    try: clean_row[k] = int(math.floor(float(val_str.replace(',', '.'))))
+                                    except: clean_row[k] = None
                                 else:
                                     clean_row[k] = val_str
                             else: 
@@ -554,8 +554,8 @@ def import_data():
                 except Exception as e: 
                     err_msg = str(e)
                     db.session.rollback()
-                    if 'Unknown column' in err_msg:
-                        flash('CẤU TRÚC DB BỊ LỖI: Bạn cần Reset Database cấu hình trước khi import!', 'danger')
+                    if 'Unknown column' in err_msg or 'DataError' in err_msg:
+                        flash('CẤU TRÚC DB BỊ LỖI: Cột dữ liệu không khớp. Hãy vào tab "Reset Data" (màu đỏ) và bấm "Reset Toàn Bộ Dữ Liệu RF" để làm mới hệ thống!', 'danger')
                     else:
                         flash(f'Lỗi file {file.filename}: {err_msg}', 'danger')
         
@@ -736,27 +736,6 @@ def sync_rf3g():
     except Exception as e:
         db.session.rollback()
         flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
-    return redirect(url_for('import_data'))
-
-@app.route('/reset-data', methods=['POST'])
-@login_required
-def reset_data():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    target = request.form.get('target')
-    try:
-        if target == 'rf':
-            db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
-            db.session.execute(text("DROP TABLE IF EXISTS config_3g"))
-            db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
-            db.session.execute(text("DROP TABLE IF EXISTS rf_4g"))
-            db.session.execute(text("DROP TABLE IF EXISTS rf_5g"))
-            db.session.commit()
-            db.create_all()
-            flash('Đã Reset và cập nhật cấu trúc bảng RF thành công!', 'success')
-        elif target == 'poi':
-            db.session.query(POI4G).delete(); db.session.query(POI5G).delete()
-            db.session.commit(); flash('Đã reset dữ liệu POI!', 'success')
-    except Exception as e: db.session.rollback(); flash(f'Lỗi: {e}', 'danger')
     return redirect(url_for('import_data'))
 
 @app.route('/gis', methods=['GET', 'POST'])
