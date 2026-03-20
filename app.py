@@ -1,4 +1,5 @@
 import os
+import jinja2
 import pandas as pd
 import json
 import gc
@@ -10,7 +11,7 @@ import requests
 import urllib.parse
 from io import BytesIO, StringIO
 from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
+from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -214,6 +215,7 @@ def init_database():
             if 'config_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('config_3g')]
                 if 'don_vi_quan_ly' not in existing_columns or 'cell_code' not in existing_columns:
+                    print("--> Phát hiện cấu trúc bảng RF/Config 3G cũ. Tiến hành Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS cell_3g")); db.session.execute(text("DROP TABLE IF EXISTS config_3g")); db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
                     db.session.commit()
         except Exception as e: print("Auto-migration check failed:", e)
@@ -483,32 +485,33 @@ def import_data():
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
                     header_mapping = dict(zip(df_raw.columns, original_columns))
                     
+                    dict_records = df_raw.to_dict('records')
+                    del df_raw
+                    gc.collect()
+
                     records = []
                     inserted_count = 0
-                    BATCH_SIZE = 500
+                    BATCH_SIZE = 1000
+                    col_types = {k: str(Model.__table__.columns[k].type) for k in valid_cols if k in Model.__table__.columns}
                     
-                    for index, row in df_raw.iterrows():
+                    for row in dict_records:
                         clean_row, extra = {}, {}
                         for k, v in row.items():
                             if pd.isna(v): continue
                             val_str = str(v).strip()
-                            # Loại bỏ các ký tự rác phổ biến trong file Excel
                             if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null', '?']: continue
                             
                             if k in valid_cols:
-                                col_type = str(Model.__table__.columns[k].type)
+                                col_type = col_types.get(k, '')
                                 if 'FLOAT' in col_type or 'INTEGER' in col_type:
                                     try:
-                                        # Hỗ trợ parse số thập phân dùng dấu phẩy tiếng Việt (vd: 17,5)
                                         v_clean = val_str.replace(',', '.')
                                         v_num = float(v_clean)
                                         if 'INTEGER' in col_type: v_num = int(math.floor(v_num))
                                         clean_row[k] = v_num
                                     except:
-                                        # NẾU CỘT LÀ SỐ NHƯNG LÀ CHỮ RÁC KHÔNG CONVERT ĐƯỢC -> ĐỂ NULL
                                         clean_row[k] = None
                                 else:
-                                    # NẾU CỘT LÀ STRING -> GIỮ NGUYÊN VẸN CÓ DẤU (Địa chỉ, Tên, v.v...)
                                     clean_row[k] = val_str
                             else: 
                                 extra[header_mapping.get(k, k)] = val_str
@@ -536,7 +539,6 @@ def import_data():
                             db.session.commit()
                             inserted_count += len(records)
                             records = [] 
-                            gc.collect()
                     
                     if records:
                         db.session.bulk_insert_mappings(Model, records)
@@ -564,34 +566,47 @@ def import_data():
                 try:
                     df = pd.read_excel(file, header=None, dtype=str) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None, dtype=str)
                     header_row_idx, cell_col_idx = -1, -1
-                    for i, row in df.iterrows():
-                        for j, val in enumerate(row):
-                            if str(val).lower().strip() in ['cell name', 'tên cell', 'cell_name']:
+                    
+                    for i in range(min(20, len(df))):
+                        row_vals = [str(v).lower().strip() for v in df.iloc[i].values if pd.notna(v)]
+                        for j, val in enumerate(row_vals):
+                            if val in ['cell name', 'tên cell', 'cell_name']:
                                 header_row_idx, cell_col_idx = i, j
                                 break
                         if header_row_idx != -1: break
                         
                     if header_row_idx != -1 and cell_col_idx != -1:
                         headers = [" - ".join([str(df.iloc[i, j]).strip() for i in range(header_row_idx + 1) if str(df.iloc[i, j]).strip() not in ['nan', 'None', '']]) or f"Col_{j}" for j in range(len(df.columns))]
+                        
+                        df_data = df.iloc[header_row_idx + 1:].copy()
+                        df_data.columns = headers
+                        dict_records = df_data.to_dict('records')
+                        del df
+                        del df_data
+                        gc.collect()
+
                         records = []
                         inserted_count = 0
-                        BATCH_SIZE = 500
+                        BATCH_SIZE = 1000
                         
-                        for i in range(header_row_idx + 1, len(df)):
-                            row_data = df.iloc[i]
-                            c_name = str(row_data[cell_col_idx]).strip()
-                            if not c_name or str(c_name).lower() in ['nan', 'none', 'null', ''] or len(str(c_name)) < 5 or str(c_name).isdigit(): continue
+                        cell_col_name = headers[cell_col_idx]
+                        val1_col_name = headers[cell_col_idx + 2] if cell_col_idx + 2 < len(headers) else None
+                        val2_col_name = headers[cell_col_idx + 3] if cell_col_idx + 3 < len(headers) else None
+                        
+                        for row_data in dict_records:
+                            c_name = str(row_data.get(cell_col_name, '')).strip()
+                            if not c_name or c_name.lower() in ['nan', 'none', 'null', ''] or len(c_name) < 5 or c_name.isdigit(): continue
                             
-                            try: val1 = float(row_data[cell_col_idx + 2])
+                            try: val1 = float(str(row_data.get(val1_col_name, 0)).replace(',','.'))
                             except: val1 = 0.0
-                            try: val2 = float(row_data[cell_col_idx + 3])
+                            try: val2 = float(str(row_data.get(val2_col_name, 0)).replace(',','.'))
                             except: val2 = 0.0
                             
                             if math.isnan(val1): val1 = 0.0
                             if math.isnan(val2): val2 = 0.0
                                 
                             percent, score = max(val1, val2), min(val1, val2)
-                            details_dict = {headers[j]: str(row_data[j]).strip() for j in range(len(headers)) if pd.notna(row_data[j]) and str(row_data[j]).strip() not in ['nan', 'None', '']}
+                            details_dict = {k: str(v).strip() for k, v in row_data.items() if pd.notna(v) and str(v).strip() not in ['nan', 'None', '']}
                             details_json = json.dumps(details_dict, ensure_ascii=False)
                             
                             records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
@@ -601,8 +616,7 @@ def import_data():
                                 db.session.commit()
                                 inserted_count += len(records)
                                 records = []
-                                gc.collect()
-                                
+                        
                         if records:
                             db.session.bulk_insert_mappings(TargetModel, records)
                             db.session.commit()
