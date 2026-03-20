@@ -492,18 +492,23 @@ def import_data():
                         for k, v in row.items():
                             if pd.isna(v): continue
                             val_str = str(v).strip()
-                            if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null']: continue
+                            # Loại bỏ các ký tự rác phổ biến trong file Excel
+                            if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null', '?']: continue
                             
                             if k in valid_cols:
                                 col_type = str(Model.__table__.columns[k].type)
                                 if 'FLOAT' in col_type or 'INTEGER' in col_type:
                                     try:
-                                        v_num = float(val_str)
-                                        if 'INTEGER' in col_type: v_num = int(v_num)
+                                        # Hỗ trợ parse số thập phân dùng dấu phẩy tiếng Việt (vd: 17,5)
+                                        v_clean = val_str.replace(',', '.')
+                                        v_num = float(v_clean)
+                                        if 'INTEGER' in col_type: v_num = int(math.floor(v_num))
                                         clean_row[k] = v_num
                                     except:
-                                        clean_row[k] = val_str
+                                        # NẾU CỘT LÀ SỐ NHƯNG LÀ CHỮ RÁC KHÔNG CONVERT ĐƯỢC -> ĐỂ NULL
+                                        clean_row[k] = None
                                 else:
+                                    # NẾU CỘT LÀ STRING -> GIỮ NGUYÊN VẸN CÓ DẤU (Địa chỉ, Tên, v.v...)
                                     clean_row[k] = val_str
                             else: 
                                 extra[header_mapping.get(k, k)] = val_str
