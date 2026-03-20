@@ -9,13 +9,13 @@ import random
 import math
 import requests
 import urllib.parse
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime, timedelta
 from flask import Flask, render_template_string, request, redirect, url_for, flash, send_file, Response, stream_with_context, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from sqlalchemy import text, func, inspect, or_
+from sqlalchemy import text, func, inspect, or_, and_
 from itertools import zip_longest
 from collections import defaultdict
 
@@ -461,7 +461,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES 
+# 4. TEMPLATES
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -1552,312 +1552,716 @@ CONTENT_TEMPLATE = """
                 <div class="mt-4"><h5 class="fw-bold text-primary">Result:</h5><textarea class="form-control font-monospace bg-light border-0" rows="12" readonly>{{ script_result }}</textarea></div>
                 {% endif %}
              </div></div>
-
         {% endif %}
     </div>
 </div>
 {% endblock %}
 """
 
-app.jinja_loader = jinja2.DictLoader({
-    'base': BASE_LAYOUT,
-    'backup_restore': BACKUP_RESTORE_TEMPLATE
-})
-
-def render_page(tpl, **kwargs):
-    if tpl == BACKUP_RESTORE_TEMPLATE: return render_template_string(tpl, **kwargs)
-    return render_template_string(tpl, **kwargs)
-
-# ==============================================================================
-# 5. ROUTES IMPLEMENTATION
-# ==============================================================================
-
-@app.route('/import', methods=['GET', 'POST'])
+@app.route('/azimuth')
 @login_required
-def import_data():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    if request.method == 'POST':
-        files = request.files.getlist('file')
-        itype = request.form.get('type')
-        cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
-        Model = cfg.get(itype)
+def azimuth():
+    return render_page(CONTENT_TEMPLATE, title="Tính toán và Vẽ Azimuth", active_page='azimuth')
+
+@app.route('/optimize')
+@login_required
+def optimize():
+    action = request.args.get('action')
+    qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
+    qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
+    all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
+    
+    selected_week = request.args.get('week_name')
+    if not selected_week and all_weeks:
+        selected_week = all_weeks[0]
+    
+    bad_cells_dict = {}
+    
+    if selected_week:
+        l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
+
+        qoe_bad = QoE4G.query.filter((QoE4G.week_name == selected_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
+        qos_bad = QoS4G.query.filter((QoS4G.week_name == selected_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
+        
+        def is_trash(c_name):
+            c_str = str(c_name).strip().upper()
+            if not c_str or c_str in ['NAN', 'NONE', 'NULL']: return True
+            if len(c_str) < 5: return True
+            if c_str.replace('.', '', 1).isdigit(): return True
+            if c_str in l900_cells: return True
+            if c_str.startswith('VNP-4G') or c_str.startswith('MBF_TH'): return True
+            return False
+
+        for r in qoe_bad:
+            if is_trash(r.cell_name): continue
+            bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
+            
+        for r in qos_bad:
+            if is_trash(r.cell_name): continue
+            if r.cell_name not in bad_cells_dict:
+                bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
+            else:
+                bad_cells_dict[r.cell_name]['qos_score'] = r.qos_score
+                bad_cells_dict[r.cell_name]['qos_percent'] = r.qos_percent
+        
+        if bad_cells_dict:
+            cell_names = list(bad_cells_dict.keys())
+            latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
+            
+            if latest_dates:
+                kpi_records = db.session.query(
+                    KPI4G.ten_cell,
+                    func.avg(KPI4G.res_blk_dl).label('avg_prb'),
+                    func.avg(KPI4G.user_dl_avg_thput).label('avg_thput'),
+                    func.avg(KPI4G.cqi_4g).label('avg_cqi'),
+                    func.avg(KPI4G.service_drop_all).label('avg_drop')
+                ).filter(
+                    KPI4G.ten_cell.in_(cell_names),
+                    KPI4G.thoi_gian.in_(latest_dates)
+                ).group_by(KPI4G.ten_cell).all()
+                
+                for r in kpi_records:
+                    c = r.ten_cell
+                    if c in bad_cells_dict:
+                        prb = r.avg_prb or 0
+                        thput = r.avg_thput or 0
+                        cqi = r.avg_cqi or 0
+                        drop = r.avg_drop or 0
+                        
+                        issues = []
+                        actions = []
+                        
+                        if prb > 20 and thput < 10:
+                            issues.append("Nghẽn (Congestion)")
+                            actions.append("Cân bằng tải L1800->L2100 / Thêm Carrier")
+                        if cqi < 93:
+                            issues.append("Vô tuyến kém / Nhiễu")
+                            actions.append("Chỉnh Tx Power / Tối ưu Tilt, Azimuth")
+                        if drop > 0.3 and prb <= 20:
+                            issues.append("Lỗi Thiết bị / Truyền dẫn")
+                            actions.append("NOC reset Card / UCTT đo kiểm Quang, VSWR")
+                            
+                        if not issues:
+                            issues.append("Chưa rõ nguyên nhân")
+                            actions.append("Theo dõi sâu / Phân tích tham số")
+                            
+                        bad_cells_dict[c].update({
+                            'prb': round(prb, 2),
+                            'thput': round(thput, 2),
+                            'cqi': round(cqi, 2),
+                            'drop': round(drop, 2),
+                            'issues': issues,
+                            'actions': actions
+                        })
+                    
+    optimized_data = []
+    for cell, data in bad_cells_dict.items():
+        data['cell_name'] = cell
+        if 'issues' not in data:
+             data.update({'prb': '-', 'thput': '-', 'cqi': '-', 'drop': '-', 'issues': ['Thiếu dữ liệu KPI ngày'], 'actions': ['Cần Import KPI']})
+        optimized_data.append(data)
+        
+    if action == 'export':
+        export_list = []
+        for data in optimized_data:
+            export_list.append({
+                'Cell Name': data.get('cell_name', ''),
+                'QoE Score': data.get('qoe_score', ''),
+                'QoE %': data.get('qoe_percent', ''),
+                'QoS Score': data.get('qos_score', ''),
+                'QoS %': data.get('qos_percent', ''),
+                'PRB (%)': data.get('prb', ''),
+                'Thput (Mbps)': data.get('thput', ''),
+                'CQI (%)': data.get('cqi', ''),
+                'Drop (%)': data.get('drop', ''),
+                'Chẩn đoán': " | ".join(data.get('issues', [])),
+                'Giải pháp': " | ".join(data.get('actions', []))
+            })
+        df = pd.DataFrame(export_list)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Toi_Uu')
+        output.seek(0)
+        safe_week_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', selected_week) if selected_week else 'Week'
+        return send_file(output, download_name=f'ToiUu_{safe_week_name}.xlsx', as_attachment=True)
+        
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="Tối ưu QoE/QoS (NPO)", active_page='optimize', optimized_data=optimized_data, latest_week=selected_week, all_weeks=all_weeks)
+
+@app.route('/gis', methods=['GET', 'POST'])
+@login_required
+def gis():
+    action_type = request.form.get('action', 'search') if request.method == 'POST' else 'search'
+    tech = request.form.get('tech', '4g') if request.method == 'POST' else request.args.get('tech', '4g')
+    site_code_input = request.form.get('site_code', '').strip() if request.method == 'POST' else request.args.get('site_code', '').strip()
+    cell_name_input = request.form.get('cell_name', '').strip() if request.method == 'POST' else request.args.get('cell_name', '').strip()
+    
+    show_its = False
+    its_data = []
+    matched_sites = set()
+    gis_data = []
+
+    def clean_val(v):
+        if v is None: return None
+        s = str(v).strip()
+        if s == '-' or s == '' or s.lower() in ['nan', 'null', 'none']: return None
+        try:
+            f = float(s)
+            if f.is_integer(): return str(int(f))
+            return str(f)
+        except ValueError: return s.upper()
+
+    def safe_float(val, default=0.0):
+        if val is None: return default
+        s = str(val).strip()
+        if not s or s == '-': return default
+        try: return float(s)
+        except ValueError: return default
+
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    db_mapping = {}
+    
+    if Model and action_type == 'show_log':
+        if tech == '4g' and hasattr(Model, 'enodeb_id') and hasattr(Model, 'lcrid'):
+            res = db.session.query(Model.site_code, Model.enodeb_id, Model.lcrid).all()
+            for sc, en, lc in res:
+                c_en, c_lc = clean_val(en), clean_val(lc)
+                if sc and c_en and c_lc: db_mapping[f"{c_en}_{c_lc}"] = sc
+        elif tech == '3g' and hasattr(Model, 'ci'):
+            res = db.session.query(Model.site_code, Model.ci).all()
+            for sc, ci in res:
+                c_ci = clean_val(ci)
+                if sc and c_ci: db_mapping[c_ci] = sc
+        elif tech == '5g' and hasattr(Model, 'gnodeb_id') and hasattr(Model, 'lcrid'):
+            res = db.session.query(Model.site_code, Model.gnodeb_id, Model.lcrid).all()
+            for sc, gn, lc in res:
+                c_gn, c_lc = clean_val(gn), clean_val(lc)
+                if sc and c_gn and c_lc: db_mapping[f"{c_gn}_{c_lc}"] = sc
+    
+    if request.method == 'POST' and 'its_file' in request.files:
+        files = request.files.getlist('its_file')
+        for file in files:
+            if file and file.filename:
+                show_its = True
+                try:
+                    file_bytes = file.read()
+                    if not file_bytes:
+                        continue
+                    
+                    content = file_bytes.decode('utf-8-sig', errors='ignore')
+                    lines = content.splitlines()
+                    if len(lines) > 1:
+                        header_line = lines[0]
+                        sep = '|' if '|' in header_line else (',' if ',' in header_line else '\t')
+                        headers = [h.strip().lower() for h in header_line.split(sep)]
+                        
+                        try:
+                            lat_idx = next(i for i, h in enumerate(headers) if h in ['latitude', 'lat'])
+                            lon_idx = next(i for i, h in enumerate(headers) if h in ['longitude', 'lon', 'long'])
+                        except StopIteration:
+                            lat_idx, lon_idx = -1, -1
+                            
+                        node_idx = next((i for i, h in enumerate(headers) if h in ['node', 'enodebid', 'enodeb_id']), -1)
+                        cell_idx = next((i for i, h in enumerate(headers) if h in ['cellid', 'ci', 'cell_id']), -1)
+                        level_idx = next((i for i, h in enumerate(headers) if h in ['level', 'rsrp', 'rscp', 'rxlev']), -1)
+                        tech_idx = next((i for i, h in enumerate(headers) if h in ['networktech', 'tech', 'network_tech']), -1)
+                        qual_idx = next((i for i, h in enumerate(headers) if h in ['qual', 'ecno', 'sinr', 'snr', 'rsrq']), -1)
+
+                        if lat_idx != -1 and lon_idx != -1:
+                            data_lines = lines[1:]
+                            for line in data_lines:
+                                if not line.strip(): continue
+                                parts = line.split(sep)
+                                if len(parts) <= max(lat_idx, lon_idx): continue
+                                
+                                try:
+                                    lat_str, lon_str = parts[lat_idx].strip(), parts[lon_idx].strip()
+                                    if not lat_str or lat_str == '-' or not lon_str or lon_str == '-': continue
+                                    lat, lon = float(lat_str), float(lon_str)
+                                    
+                                    n = clean_val(parts[node_idx]) if node_idx >= 0 and len(parts) > node_idx else None
+                                    c = clean_val(parts[cell_idx]) if cell_idx >= 0 and len(parts) > cell_idx else None
+                                    
+                                    if action_type == 'show_log':
+                                        if tech == '4g' and n and c:
+                                            if f"{n}_{c}" in db_mapping: matched_sites.add(db_mapping[f"{n}_{c}"])
+                                        elif tech == '3g' and c:
+                                            if c in db_mapping: matched_sites.add(db_mapping[c])
+                                        elif tech == '5g' and n and c:
+                                            if f"{n}_{c}" in db_mapping: matched_sites.add(db_mapping[f"{n}_{c}"])
+                                                
+                                    lvl = safe_float(parts[level_idx] if level_idx >= 0 and len(parts) > level_idx else '')
+                                    qual_str = parts[qual_idx].strip() if qual_idx >= 0 and len(parts) > qual_idx else ''
+                                    tech_str = parts[tech_idx].strip().upper() if tech_idx >= 0 and len(parts) > tech_idx else tech.upper()
+                                    
+                                    its_data.append({'lat': lat, 'lon': lon, 'level': lvl, 'qual': qual_str, 'tech': tech_str, 'cellid': c or '', 'node': n or ''})
+                                except ValueError: pass
+                except Exception as e: flash(f'Lỗi xử lý file {file.filename}: {e}', 'danger')
+        
+        if len(its_data) > 20000:
+            its_data = random.sample(its_data, 20000)
+            flash(f'Đã giới hạn hiển thị ngẫu nhiên 20,000 điểm đo từ tổng số để chống treo trình duyệt.', 'warning')
+            
+    if Model:
+        if action_type == 'show_log' and show_its:
+            query = db.session.query(Model)
+            if matched_sites: query = query.filter(Model.site_code.in_(list(matched_sites)[:900]))
+            else: query = query.filter(text("1=0"))
+            records = query.all()
+        else:
+            records_dict = {}
+            target_lat, target_lon = None, None
+            found_search = False
+            
+            if site_code_input or cell_name_input:
+                search_q = db.session.query(Model)
+                if site_code_input: search_q = search_q.filter(Model.site_code.ilike(f"%{site_code_input}%"))
+                if cell_name_input:
+                    filters = [Model.cell_code.ilike(f"%{cell_name_input}%")]
+                    if hasattr(Model, 'cell_name'): filters.append(Model.cell_name.ilike(f"%{cell_name_input}%"))
+                    search_q = search_q.filter(or_(*filters))
+                
+                for r in search_q.limit(50).all():
+                    records_dict[r.id] = r
+                    if not found_search and r.latitude and r.longitude:
+                        try:
+                            target_lat, target_lon = float(r.latitude), float(r.longitude)
+                            found_search = True
+                        except: pass
+            
+            if found_search and target_lat and target_lon:
+                lat_min, lat_max = target_lat - 0.15, target_lat + 0.15
+                lon_min, lon_max = target_lon - 0.15, target_lon + 0.15
+                nearby = db.session.query(Model).filter(
+                    Model.latitude >= lat_min, Model.latitude <= lat_max,
+                    Model.longitude >= lon_min, Model.longitude <= lon_max
+                ).limit(2000).all()
+                for r in nearby: records_dict[r.id] = r
+            else:
+                for r in db.session.query(Model).limit(3000).all(): records_dict[r.id] = r
+                
+            records = list(records_dict.values())
+
+        cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
+        for r in records:
+            try:
+                lat, lon = float(r.latitude), float(r.longitude)
+                azi = int(r.azimuth) if getattr(r, 'azimuth', None) is not None else 0
+                if 8 <= lat <= 24 and 102 <= lon <= 110:
+                    gis_data.append({'cell_name': getattr(r, 'cell_name', getattr(r, 'site_name', str(r.cell_code))), 'site_code': r.site_code, 'lat': lat, 'lon': lon, 'azi': azi, 'tech': tech, 'info': {c: getattr(r, c) or '' for c in cols}})
+            except: pass
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="Bản đồ Trực quan (GIS)", active_page='gis', selected_tech=tech, site_code_input=site_code_input, cell_name_input=cell_name_input, gis_data=gis_data, its_data=its_data, show_its=show_its, action_type=action_type)
+
+@app.route('/kpi')
+@login_required
+def kpi():
+    selected_tech = request.args.get('tech', '4g')
+    cell_name_input = request.args.get('cell_name', '').strip()
+    poi_input = request.args.get('poi_name', '').strip()
+    charts = {} 
+
+    colors = generate_colors(20)
+    target_cells = []
+    KPI_Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(selected_tech)
+    RF_Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(selected_tech)
+
+    if poi_input:
+        POI_Model = {'4g': POI4G, '5g': POI5G}.get(selected_tech)
+        if POI_Model: target_cells = [r.cell_code for r in POI_Model.query.filter(POI_Model.poi_name == poi_input).all()]
+    elif cell_name_input:
+        if RF_Model:
+            matched_rf = RF_Model.query.filter(or_(RF_Model.site_code.ilike(f"%{cell_name_input}%"), RF_Model.cell_code.ilike(f"%{cell_name_input}%"))).all()
+            if matched_rf: target_cells.extend([r.cell_code for r in matched_rf])
+        if KPI_Model:
+            matched_kpi = KPI_Model.query.filter(KPI_Model.ten_cell.ilike(f"%{cell_name_input}%")).with_entities(KPI_Model.ten_cell).distinct().all()
+            if matched_kpi: target_cells.extend([r[0] for r in matched_kpi])
+        if not target_cells: target_cells = [c.strip() for c in re.split(r'[,\s;]+', cell_name_input) if c.strip()]
+            
+    if target_cells:
+        unique_cells = []
+        seen = set()
+        for c in target_cells:
+            if not c: continue
+            c_clean = str(c).strip().upper()
+            if c_clean not in seen:
+                seen.add(c_clean)
+                unique_cells.append(str(c).strip())
+        target_cells = unique_cells
+
+    if target_cells and KPI_Model:
+        data = KPI_Model.query.filter(KPI_Model.ten_cell.in_(target_cells)).all()
+        try: data.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+        except: pass 
+
+        if data:
+            all_labels = sorted(list(set([x.thoi_gian for x in data])), key=lambda d: datetime.strptime(d, '%d/%m/%Y'))
+            data_by_cell = defaultdict(list)
+            for x in data: data_by_cell[str(x.ten_cell).strip().upper()].append(x)
+
+            metrics_config = {
+                '3g': [{'key': 'pstraffic', 'label': 'PSTRAFFIC (GB)'}, {'key': 'traffic', 'label': 'TRAFFIC (Erl)'}, {'key': 'psconges', 'label': 'PS CONGESTION (%)'}, {'key': 'csconges', 'label': 'CS CONGESTION (%)'}],
+                '4g': [{'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'}, {'key': 'user_dl_avg_thput', 'label': 'USER DL AVG THPUT (Mbps)'}, {'key': 'res_blk_dl', 'label': 'RES BLOCK DL (%)'}, {'key': 'cqi_4g', 'label': 'CQI 4G'}],
+                '5g': [{'key': 'traffic', 'label': 'TOTAL TRAFFIC (GB)'}, {'key': 'user_dl_avg_throughput', 'label': 'USER DL AVG THPUT (Mbps)'}, {'key': 'cqi_5g', 'label': 'CQI 5G'}]
+            }
+            
+            current_metrics = metrics_config.get(selected_tech, [])
+            for metric in current_metrics:
+                datasets = []
+                for i, cell_code in enumerate(target_cells):
+                    cell_data = data_by_cell.get(cell_code.upper(), [])
+                    data_map = {item.thoi_gian: (getattr(item, metric['key'], 0) or 0) for item in cell_data}
+                    datasets.append({'label': cell_code, 'data': [data_map.get(lbl, None) for lbl in all_labels], 'borderColor': colors[i % len(colors)], 'fill': False, 'spanGaps': True})
+                charts[f"chart_{metric['key']}"] = {'title': metric['label'], 'labels': all_labels, 'datasets': datasets}
+
+    poi_list = []
+    with app.app_context():
+        try:
+            p4 = [r[0] for r in db.session.query(POI4G.poi_name).distinct()]
+            p5 = [r[0] for r in db.session.query(POI5G.poi_name).distinct()]
+            poi_list = sorted(list(set(p4 + p5)))
+        except: pass
+
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="Báo cáo KPI", active_page='kpi', selected_tech=selected_tech, cell_name_input=cell_name_input, selected_poi=poi_input, poi_list=poi_list, charts=charts)
+
+@app.route('/qoe-qos')
+@login_required
+def qoe_qos():
+    cell_name_input = request.args.get('cell_name', '').strip()
+    charts = {}
+    has_data = False
+    qoe_details, qos_details, qoe_headers, qos_headers = [], [], [], []
+    
+    if cell_name_input:
+        qoe_records = QoE4G.query.filter(QoE4G.cell_name.ilike(f"%{cell_name_input}%")).order_by(QoE4G.id.asc()).all()
+        qos_records = QoS4G.query.filter(QoS4G.cell_name.ilike(f"%{cell_name_input}%")).order_by(QoS4G.id.asc()).all()
+        
+        if qoe_records or qos_records:
+            has_data = True
+            all_weeks = sorted(list(set([r.week_name for r in qoe_records] + [r.week_name for r in qos_records])))
+            
+            if qoe_records:
+                qoe_score_map = {r.week_name: (r.qoe_score or 0) for r in qoe_records}
+                qoe_percent_map = {r.week_name: (r.qoe_percent or 0) for r in qoe_records}
+                charts['qoe_score_chart'] = {'title': 'Biểu đồ Điểm QoE', 'labels': all_weeks, 'datasets': [{'label': 'Điểm QoE (1-5)', 'data': [qoe_score_map.get(w, None) for w in all_weeks], 'borderColor': '#0078d4', 'fill': False, 'borderWidth': 3}]}
+                charts['qoe_percent_chart'] = {'title': 'Biểu đồ Tỷ lệ QoE (%)', 'labels': all_weeks, 'datasets': [{'label': '% QoE', 'data': [qoe_percent_map.get(w, None) for w in all_weeks], 'borderColor': '#107c10', 'fill': False, 'borderWidth': 3}]}
+                for r in qoe_records:
+                    if r.details:
+                        try:
+                            d = json.loads(r.details)
+                            if not qoe_headers: qoe_headers = list(d.keys())
+                            qoe_details.append({'week': r.week_name, 'data': d})
+                        except: pass
+            
+            if qos_records:
+                qos_score_map = {r.week_name: (r.qos_score or 0) for r in qos_records}
+                qos_percent_map = {r.week_name: (r.qos_percent or 0) for r in qos_records}
+                charts['qos_score_chart'] = {'title': 'Biểu đồ Điểm QoS', 'labels': all_weeks, 'datasets': [{'label': 'Điểm QoS (1-5)', 'data': [qos_score_map.get(w, None) for w in all_weeks], 'borderColor': '#ffaa44', 'fill': False, 'borderWidth': 3}]}
+                charts['qos_percent_chart'] = {'title': 'Biểu đồ Tỷ lệ QoS (%)', 'labels': all_weeks, 'datasets': [{'label': '% QoS', 'data': [qos_percent_map.get(w, None) for w in all_weeks], 'borderColor': '#e3008c', 'fill': False, 'borderWidth': 3}]}
+                for r in qos_records:
+                    if r.details:
+                        try:
+                            d = json.loads(r.details)
+                            if not qos_headers: qos_headers = list(d.keys())
+                            qos_details.append({'week': r.week_name, 'data': d})
+                        except: pass
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="QoE & QoS Analytics", active_page='qoe_qos', cell_name_input=cell_name_input, charts=charts, has_data=has_data, qoe_details=qoe_details, qos_details=qos_details, qoe_headers=qoe_headers, qos_headers=qos_headers)
+
+@app.route('/poi')
+@login_required
+def poi():
+    pname = request.args.get('poi_name', '').strip()
+    charts = {}
+    pois = []
+    try:
+        p4 = [r[0] for r in db.session.query(POI4G.poi_name).distinct()]
+        p5 = [r[0] for r in db.session.query(POI5G.poi_name).distinct()]
+        pois = sorted(list(set(p4 + p5)))
+    except: pass
+    
+    if pname:
+        c4 = [r[0] for r in db.session.query(POI4G.cell_code).filter_by(poi_name=pname).all()]
+        c5 = [r[0] for r in db.session.query(POI5G.cell_code).filter_by(poi_name=pname).all()]
+        
+        if c4:
+            k4 = db.session.query(KPI4G.thoi_gian, KPI4G.traffic, KPI4G.user_dl_avg_thput).filter(KPI4G.ten_cell.in_(c4)).all()
+            if k4:
+                try: k4.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+                except: pass
+                dates4 = sorted(list(set(x.thoi_gian for x in k4)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+                agg_traf, agg_thput = defaultdict(float), defaultdict(list)
+                for r in k4:
+                    if r.thoi_gian in dates4:
+                        agg_traf[r.thoi_gian] += (r.traffic or 0)
+                        if r.user_dl_avg_thput is not None: agg_thput[r.thoi_gian].append(r.user_dl_avg_thput)
+
+                ds_traf_agg = [{'label': 'Total 4G Traffic (GB)', 'data': [agg_traf[d] for d in dates4], 'borderColor': 'blue', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
+                ds_thput_agg = [{'label': 'Avg 4G Thput (Mbps)', 'data': [(sum(agg_thput[d])/len(agg_thput[d])) if agg_thput[d] else 0 for d in dates4], 'borderColor': 'green', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
+
+                charts['4g_traf'] = {'title': 'Total 4G Traffic (GB)', 'labels': dates4, 'datasets': ds_traf_agg}
+                charts['4g_thp'] = {'title': 'Avg 4G Thput (Mbps)', 'labels': dates4, 'datasets': ds_thput_agg}
+        
+        if c5:
+            k5 = db.session.query(KPI5G.thoi_gian, KPI5G.traffic, KPI5G.user_dl_avg_throughput).filter(KPI5G.ten_cell.in_(c5)).all()
+            if k5:
+                try: k5.sort(key=lambda x: datetime.strptime(x.thoi_gian, '%d/%m/%Y'))
+                except: pass
+                dates5 = sorted(list(set(x.thoi_gian for x in k5)), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+                agg_traf5, agg_thput5 = defaultdict(float), defaultdict(list)
+                for r in k5:
+                    if r.thoi_gian in dates5:
+                        agg_traf5[r.thoi_gian] += (r.traffic or 0)
+                        if r.user_dl_avg_throughput is not None: agg_thput5[r.thoi_gian].append(r.user_dl_avg_throughput)
+                
+                ds_traf_agg5 = [{'label': 'Total 5G Traffic (GB)', 'data': [agg_traf5[d] for d in dates5], 'borderColor': 'orange', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
+                ds_thput_agg5 = [{'label': 'Avg 5G Thput (Mbps)', 'data': [(sum(agg_thput5[d])/len(agg_thput5[d])) if agg_thput5[d] else 0 for d in dates5], 'borderColor': 'purple', 'fill': False, 'borderWidth': 3, 'spanGaps': True}]
+                
+                charts['5g_traf'] = {'title': 'Total 5G Traffic (GB)', 'labels': dates5, 'datasets': ds_traf_agg5}
+                charts['5g_thp'] = {'title': 'Avg 5G Thput (Mbps)', 'labels': dates5, 'datasets': ds_thput_agg5}
+
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="POI Report", active_page='poi', poi_list=pois, selected_poi=pname, poi_charts=charts)
+
+@app.route('/conges-3g')
+@login_required
+def conges_3g():
+    conges_data, target_dates = [], []
+    action = request.args.get('action')
+    if action in ['execute', 'export']:
+        try:
+            all_dates = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().all()]
+            date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
+            if len(date_objs) >= 3:
+                target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:3]]
+                records = db.session.query(KPI3G.ten_cell, KPI3G.traffic, KPI3G.csconges, KPI3G.pstraffic, KPI3G.psconges).filter(
+                    KPI3G.thoi_gian.in_(target_dates),
+                    ((KPI3G.csconges > 2) & (KPI3G.cs_so_att > 100)) | ((KPI3G.psconges > 2) & (KPI3G.ps_so_att > 500))
+                ).all()
+                groups = defaultdict(list)
+                for r in records: groups[r.ten_cell].append(r)
+                for cell, rows in groups.items():
+                    if len(rows) == 3:
+                        conges_data.append({
+                            'cell_name': cell,
+                            'avg_cs_traffic': round(sum(r.traffic or 0 for r in rows)/3, 2),
+                            'avg_cs_conges': round(sum(r.csconges or 0 for r in rows)/3, 2),
+                            'avg_ps_traffic': round(sum(r.pstraffic or 0 for r in rows)/3, 2),
+                            'avg_ps_conges': round(sum(r.psconges or 0 for r in rows)/3, 2)
+                        })
+        except: pass
+    gc.collect()
+
+    if action == 'export':
+        df = pd.DataFrame(conges_data)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Congestion 3G')
+        output.seek(0)
+        return send_file(output, download_name='Congestion3G.xlsx', as_attachment=True)
+    return render_page(CONTENT_TEMPLATE, title="Congestion 3G", active_page='conges_3g', conges_data=conges_data, dates=target_dates)
+
+@app.route('/worst-cell')
+@login_required
+def worst_cell():
+    duration = int(request.args.get('duration', 1))
+    action = request.args.get('action')
+    all_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().all()]
+    date_objs = sorted([datetime.strptime(d, '%d/%m/%Y') for d in all_dates if d], reverse=True)
+    target_dates = [d.strftime('%d/%m/%Y') for d in date_objs[:duration]]
+    
+    results = []
+    if target_dates:
+        latest_date = target_dates[0]
+        l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
+        active_latest_cells = {c[0] for c in db.session.query(KPI4G.ten_cell).filter(KPI4G.thoi_gian == latest_date).all()}
+
+        records = db.session.query(KPI4G.ten_cell, KPI4G.user_dl_avg_thput, KPI4G.res_blk_dl, KPI4G.cqi_4g, KPI4G.service_drop_all).filter(
+            KPI4G.thoi_gian.in_(target_dates),
+            ~KPI4G.ten_cell.startswith('MBF_TH'), ~KPI4G.ten_cell.startswith('VNP-4G'),
+            ((KPI4G.user_dl_avg_thput < 7000) | (KPI4G.res_blk_dl > 20) | (KPI4G.cqi_4g < 93) | (KPI4G.service_drop_all > 0.3))
+        ).all()
+    
+        groups = defaultdict(list)
+        for r in records: 
+            if r.ten_cell in active_latest_cells and r.ten_cell not in l900_cells:
+                groups[r.ten_cell].append(r)
+        
+        for cell, rows in groups.items():
+            if len(rows) == duration:
+                results.append({
+                    'cell_name': cell,
+                    'avg_thput': round(sum(r.user_dl_avg_thput or 0 for r in rows)/duration, 2),
+                    'avg_res_blk': round(sum(r.res_blk_dl or 0 for r in rows)/duration, 2),
+                    'avg_cqi': round(sum(r.cqi_4g or 0 for r in rows)/duration, 2),
+                    'avg_drop': round(sum(r.service_drop_all or 0 for r in rows)/duration, 2)
+                })
+                
+    gc.collect()
+    
+    if action == 'export':
+        df = pd.DataFrame(results)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False, sheet_name='Worst Cells')
+        output.seek(0)
+        return send_file(output, download_name=f'WorstCell_{duration}days.xlsx', as_attachment=True)
+
+    return render_page(CONTENT_TEMPLATE, title="Worst Cell", active_page='worst_cell', worst_cells=results, dates=target_dates, duration=duration)
+
+@app.route('/traffic-down')
+@login_required
+def traffic_down():
+    tech = request.args.get('tech', '4g')
+    action = request.args.get('action')
+    zero_traffic, degraded, degraded_pois, analysis_date = [], [], [], "N/A"
+    
+    if action in ['execute', 'export_zero', 'export_degraded', 'export_poi_degraded']:
+        Model = {'3g': KPI3G, '4g': KPI4G, '5g': KPI5G}.get(tech)
+        POI_Model = {'4g': POI4G, '5g': POI5G}.get(tech)
         
         if Model:
-            valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
-            for file in files:
-                try:
-                    if file.filename.endswith('.csv'):
-                        df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', header=None, dtype=str)
-                    else:
-                        df_raw = pd.read_excel(file, header=None, dtype=str)
-                    
-                    header_idx = 0
-                    max_matches = 0
-                    kw = ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý', 'thiết bị', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain']
-                    
-                    if len(df_raw) > 0:
-                        for i in range(min(20, len(df_raw))):
-                            row_vals = [str(v).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
-                            matches = sum(1 for k in kw if any(k in val for val in row_vals))
-                            if matches > max_matches:
-                                max_matches = matches
-                                header_idx = i
-                    
-                    if max_matches > 0:
-                        raw_cols = [str(c).strip() for c in df_raw.iloc[header_idx].values]
-                        seen = {}
-                        for j, c in enumerate(raw_cols):
-                            if c in seen:
-                                seen[c] += 1
-                                raw_cols[j] = f"{c}_{seen[c]}"
-                            else:
-                                seen[c] = 0
-                        df_raw.columns = raw_cols
-                        df_raw = df_raw.iloc[header_idx + 1:].reset_index(drop=True)
-                    else:
-                        df_raw.columns = [str(c) for c in df_raw.iloc[0].values]
-                        df_raw = df_raw.iloc[1:].reset_index(drop=True)
+            dates_raw = [d[0] for d in db.session.query(Model.thoi_gian).distinct().all()]
+            dates_obj = sorted([datetime.strptime(d, '%d/%m/%Y') for d in dates_raw if d], reverse=True)
+            if dates_obj:
+                latest = dates_obj[0]
+                analysis_date = latest.strftime('%d/%m/%Y')
+                needed = [latest] + [latest - timedelta(days=i) for i in range(1, 8)]
+                needed_str = [d.strftime('%d/%m/%Y') for d in needed]
+                
+                records = db.session.query(Model.ten_cell, Model.thoi_gian, Model.traffic).filter(Model.thoi_gian.in_(needed_str)).all()
+                data_map = defaultdict(dict)
+                for r in records:
+                    if r.ten_cell.startswith('MBF_TH') or r.ten_cell.startswith('VNP-4G'): continue
+                    try: data_map[r.ten_cell][datetime.strptime(r.thoi_gian, '%d/%m/%Y')] = r.traffic or 0
+                    except: pass
+                
+                last_week = latest - timedelta(days=7)
+                for cell, d_map in data_map.items():
+                    t0 = d_map.get(latest, 0)
+                    t_last = d_map.get(last_week, 0)
+                    if t0 < 0.1:
+                        avg7 = sum(d_map.get(latest - timedelta(days=i), 0) for i in range(1,8)) / 7
+                        if avg7 > 2: zero_traffic.append({'cell_name': cell, 'traffic_today': round(t0,3), 'avg_last_7': round(avg7,3)})
+                    if t_last > 1 and t0 < 0.7 * t_last:
+                        degraded.append({'cell_name': cell, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
+                
+                if POI_Model:
+                    poi_map = {r.cell_code: r.poi_name for r in db.session.query(POI_Model).all()}
+                    poi_traffic = defaultdict(lambda: {'today': 0, 'last_week': 0})
+                    for cell, d_map in data_map.items():
+                        if cell in poi_map:
+                            p_name = poi_map[cell]
+                            poi_traffic[p_name]['today'] += d_map.get(latest, 0)
+                            poi_traffic[p_name]['last_week'] += d_map.get(last_week, 0)
+                    for pname, traf in poi_traffic.items():
+                        t0 = traf['today']
+                        t_last = traf['last_week']
+                        if t_last > 5 and t0 < 0.7 * t_last:
+                             degraded_pois.append({'poi_name': pname, 'traffic_today': round(t0,3), 'traffic_last_week': round(t_last,3), 'degrade_percent': round((1-t0/t_last)*100, 1)})
 
-                    df_raw = df_raw.dropna(how='all')
-                    original_columns = list(df_raw.columns)
-                    df_raw.columns = [clean_header(c) for c in df_raw.columns]
-                    header_mapping = dict(zip(df_raw.columns, original_columns))
-                    
-                    records = []
-                    inserted_count = 0
-                    BATCH_SIZE = 500
-                    
-                    for index, row in df_raw.iterrows():
-                        clean_row, extra = {}, {}
-                        for k, v in row.items():
-                            if pd.isna(v): continue
-                            val_str = str(v).strip()
-                            if val_str in ['', '-', 'nan', 'None', 'N/A', 'null', 'NULL']: continue
-                            
-                            if k in valid_cols:
-                                col_type = str(Model.__table__.columns[k].type)
-                                if 'FLOAT' in col_type or 'INTEGER' in col_type:
-                                    try:
-                                        v_num = float(val_str)
-                                        if 'INTEGER' in col_type: v_num = int(v_num)
-                                        clean_row[k] = v_num
-                                    except:
-                                        clean_row[k] = val_str
-                                else:
-                                    clean_row[k] = val_str
-                            else: 
-                                extra[header_mapping.get(k, k)] = val_str
-                        
-                        c_code = clean_row.get('cell_code') or clean_row.get('cell_name') or clean_row.get('ten_tren_he_thong') or clean_row.get('ma_node') or clean_row.get('site_code')
-                        
-                        if not c_code and extra:
-                            for ex_k, ex_v in extra.items():
-                                w_lower = str(ex_k).lower()
-                                if any(word in w_lower for word in ['cell', 'site', 'trạm', 'node', 'hệ thống']):
-                                    c_code = ex_v
-                                    break
-                        
-                        if c_code and str(c_code).strip() not in ['', 'nan', 'None']:
-                            c_code_clean = str(c_code).strip()
-                            clean_row['cell_code'] = c_code_clean
-                            
-                            if hasattr(Model, 'extra_data') and extra: 
-                                clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
-                                
-                            records.append(clean_row)
-                            
-                        if len(records) >= BATCH_SIZE:
-                            db.session.bulk_insert_mappings(Model, records)
-                            db.session.commit()
-                            inserted_count += len(records)
-                            records = [] 
-                            gc.collect()
-                    
-                    if records:
-                        db.session.bulk_insert_mappings(Model, records)
-                        db.session.commit()
-                        inserted_count += len(records)
-                        
-                    if inserted_count > 0:
-                        flash(f'Đã import thành công {inserted_count} dòng vào {itype.upper()}.', 'success')
-                    else:
-                        found_cols = ", ".join([str(c) for c in original_columns[:10]])
-                        flash(f'Lỗi file {file.filename}: Không tìm thấy dữ liệu hợp lệ. Các cột tìm thấy: {found_cols}', 'warning')
-                        
-                except Exception as e: 
-                    err_msg = str(e)
-                    db.session.rollback()
-                    if 'Unknown column' in err_msg:
-                        flash('CẤU TRÚC DB BỊ LỖI: Bạn cần Reset Database cấu hình trước khi import!', 'danger')
-                    else:
-                        flash(f'Lỗi file {file.filename}: {err_msg}', 'danger')
-        
-        elif itype in ['qoe4g', 'qos4g']:
-            week_name = request.form.get('week_name', 'Tuần')
-            TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
-            for file in files:
-                try:
-                    df = pd.read_excel(file, header=None, dtype=str) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None, dtype=str)
-                    header_row_idx, cell_col_idx = -1, -1
-                    for i, row in df.iterrows():
-                        for j, val in enumerate(row):
-                            if str(val).lower().strip() in ['cell name', 'tên cell', 'cell_name']:
-                                header_row_idx, cell_col_idx = i, j
-                                break
-                        if header_row_idx != -1: break
-                        
-                    if header_row_idx != -1 and cell_col_idx != -1:
-                        headers = [" - ".join([str(df.iloc[i, j]).strip() for i in range(header_row_idx + 1) if str(df.iloc[i, j]).strip() not in ['nan', 'None', '']]) or f"Col_{j}" for j in range(len(df.columns))]
-                        records = []
-                        inserted_count = 0
-                        BATCH_SIZE = 500
-                        
-                        for i in range(header_row_idx + 1, len(df)):
-                            row_data = df.iloc[i]
-                            c_name = str(row_data[cell_col_idx]).strip()
-                            if not c_name or str(c_name).lower() in ['nan', 'none', 'null', ''] or len(str(c_name)) < 5 or str(c_name).isdigit(): continue
-                            
-                            try: val1 = float(row_data[cell_col_idx + 2])
-                            except: val1 = 0.0
-                            try: val2 = float(row_data[cell_col_idx + 3])
-                            except: val2 = 0.0
-                            
-                            if math.isnan(val1): val1 = 0.0
-                            if math.isnan(val2): val2 = 0.0
-                                
-                            percent, score = max(val1, val2), min(val1, val2)
-                            details_dict = {headers[j]: str(row_data[j]).strip() for j in range(len(headers)) if pd.notna(row_data[j]) and str(row_data[j]).strip() not in ['nan', 'None', '']}
-                            details_json = json.dumps(details_dict, ensure_ascii=False)
-                            
-                            records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
-                            
-                            if len(records) >= BATCH_SIZE:
-                                db.session.bulk_insert_mappings(TargetModel, records)
-                                db.session.commit()
-                                inserted_count += len(records)
-                                records = []
-                                gc.collect()
-                                
-                        if records:
-                            db.session.bulk_insert_mappings(TargetModel, records)
-                            db.session.commit()
-                            inserted_count += len(records)
-                            
-                        flash(f'Import thành công {inserted_count} dòng.', 'success')
-                except Exception as e: flash(f'Lỗi: {e}', 'danger')
+        gc.collect()
 
-        return redirect(url_for('import_data'))
-    
-    d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
-    d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
-    d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    today = datetime.now()
-    year, week_num, _ = today.isocalendar()
-    start_of_week = today - timedelta(days=today.weekday())
-    end_of_week = start_of_week + timedelta(days=6)
-    default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
-    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
+        if action == 'export_zero':
+            df = pd.DataFrame(zero_traffic)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'ZeroTraffic_{tech}.xlsx', as_attachment=True)
+        elif action == 'export_degraded':
+            df = pd.DataFrame(degraded)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'DegradedTraffic_{tech}.xlsx', as_attachment=True)
+        elif action == 'export_poi_degraded':
+            df = pd.DataFrame(degraded_pois)
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer: df.to_excel(writer, index=False)
+            output.seek(0)
+            return send_file(output, download_name=f'POIDegraded_{tech}.xlsx', as_attachment=True)
 
-@app.route('/sync-rf3g', methods=['POST'])
+    return render_page(CONTENT_TEMPLATE, title="Traffic Down", active_page='traffic_down', zero_traffic=zero_traffic, degraded=degraded, degraded_pois=degraded_pois, tech=tech, analysis_date=analysis_date)
+
+@app.route('/rf')
 @login_required
-def sync_rf3g():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    try:
-        db.session.query(RF3G).delete()
-        cells = {str(c.cell_code).strip().upper(): c for c in Cell3G.query.all() if c.cell_code}
-        configs = {str(c.cell_code).strip().upper(): c for c in Config3G.query.all() if c.cell_code}
+def rf():
+    tech = request.args.get('tech', '4g')
+    action = request.args.get('action')
+    search_query = request.args.get('cell_search', '').strip()
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    
+    query = Model.query
+    if search_query:
+        query = query.filter(or_(Model.cell_code.ilike(f"%{search_query}%"), Model.site_code.ilike(f"%{search_query}%")))
         
-        all_codes = set(cells.keys()) | set(configs.keys())
-        
-        rf3g_records = []
-        inserted_count = 0
-        BATCH_SIZE = 500
-        
-        for code in all_codes:
-            c = cells.get(code)
-            cfg = configs.get(code)
-            
-            merged_extra = {}
-            if c and c.extra_data:
-                try: merged_extra.update(json.loads(c.extra_data))
-                except: pass
-            if cfg and cfg.extra_data:
-                try: merged_extra.update(json.loads(cfg.extra_data))
-                except: pass
-            
-            record = RF3G(
-                cell_code=code,
-                site_code=getattr(c, 'site_code', getattr(cfg, 'site_code', None)),
-                ma_node=getattr(c, 'ma_node', getattr(cfg, 'ma_node', None)),
-                cell_name=getattr(cfg, 'cell_name', getattr(c, 'ten_tren_he_thong', None)),
-                cell_name_alias=getattr(cfg, 'cell_name_alias', None),
-                site_name=getattr(cfg, 'site_name', getattr(c, 'ten_loai_tram', None)),
-                loai_tram=getattr(c, 'ten_loai_tram', getattr(cfg, 'loai_tram', None)),
-                thiet_bi=getattr(c, 'thiet_bi', getattr(cfg, 'thiet_bi', None)),
-                tinh_tp=getattr(c, 'tinh_tp', getattr(cfg, 'tinh_tp', None)),
-                don_vi_quan_ly=getattr(cfg, 'don_vi_quan_ly', getattr(c, 'ten_don_vi', None)),
-                ma_csht=getattr(cfg, 'ma_csht', None),
-                csht_site=getattr(c, 'csht_site', None),
-                csht_cell=getattr(c, 'csht_cell', None),
-                ten_don_vi=getattr(c, 'ten_don_vi', getattr(cfg, 'don_vi_quan_ly', None)),
-                latitude=getattr(c, 'latitude', getattr(cfg, 'latitude', None)),
-                longitude=getattr(c, 'longitude', getattr(cfg, 'longitude', None)),
-                azimuth=getattr(c, 'azimuth', getattr(cfg, 'azimuth', None)),
-                mechanical_tilt=getattr(c, 'mechanical_tilt', getattr(cfg, 'mechanical_tilt', None)),
-                electrical_tilt=getattr(c, 'electrical_tilt', getattr(cfg, 'electrical_tilt', None)),
-                total_tilt=getattr(c, 'total_tilt', getattr(cfg, 'total_tilt', None)),
-                antenna_type=getattr(cfg, 'antenna_type', getattr(c, 'loai_anten', None)),
-                loai_anten=getattr(c, 'loai_anten', None),
-                hang_sx_anten=getattr(c, 'hang_sx_anten', None),
-                anten_dai_tan=getattr(c, 'anten_dai_tan', None),
-                anten_dung_chung=getattr(c, 'anten_dung_chung', None),
-                anten_so_port=getattr(c, 'anten_so_port', None),
-                antenna_gain=getattr(c, 'antenna_gain', getattr(cfg, 'antenna_gain', None)),
-                antenna_high=getattr(c, 'antenna_high', getattr(cfg, 'antenna_high', None)),
-                bang_tan=getattr(c, 'bang_tan', getattr(cfg, 'bang_tan', None)),
-                lac=getattr(cfg, 'lac', getattr(c, 'lac', None)),
-                ci=getattr(cfg, 'ci', getattr(c, 'ci', None)),
-                rac=getattr(cfg, 'rac', None),
-                dl_uarfcn=getattr(cfg, 'dl_uarfcn', None),
-                dl_psc=getattr(c, 'dl_psc', getattr(cfg, 'dl_psc', None)),
-                cpich_power=getattr(cfg, 'cpich_power', getattr(c, 'cpich_power', None)),
-                max_power=getattr(cfg, 'max_power', None),
-                total_power=getattr(cfg, 'total_power', getattr(c, 'total_power', None)),
-                dc_support=getattr(cfg, 'dc_support', None),
-                oam_ip=getattr(cfg, 'oam_ip', None),
-                cell_type=getattr(cfg, 'cell_type', None),
-                no_of_carrier=getattr(cfg, 'no_of_carrier', None),
-                special_coverage=getattr(cfg, 'special_coverage', None),
-                trang_thai=getattr(c, 'trang_thai', getattr(cfg, 'trang_thai', None)),
-                ten_quan_ly=getattr(c, 'ten_quan_ly', None),
-                sdt_nguoi_quan_ly=getattr(c, 'sdt_nguoi_quan_ly', None),
-                ngay_hoat_dong=getattr(c, 'ngay_hoat_dong', None),
-                hoan_canh_ra_doi=getattr(c, 'hoan_canh_ra_doi', None),
-                dia_chi=getattr(c, 'dia_chi', None),
-                extra_data=json.dumps(merged_extra, ensure_ascii=False) if merged_extra else None
-            )
-            rf3g_records.append(record)
-            
-            if len(rf3g_records) >= BATCH_SIZE:
-                db.session.bulk_save_objects(rf3g_records)
-                db.session.commit()
-                inserted_count += len(rf3g_records)
-                rf3g_records = []
-                gc.collect()
-            
-        if rf3g_records:
-            db.session.bulk_save_objects(rf3g_records)
-            db.session.commit()
-            inserted_count += len(rf3g_records)
-            
-        if inserted_count > 0:
-            flash(f'Đã ghép nối và đồng bộ {inserted_count} trạm 3G thành công!', 'success')
-        else:
-            flash('Không có dữ liệu 3G để đồng bộ. Vui lòng kiểm tra lại.', 'warning')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
-    return redirect(url_for('import_data'))
+    if action == 'export':
+        def generate():
+            yield '\ufeff'.encode('utf-8')
+            cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
+            yield (','.join(cols) + '\n').encode('utf-8')
+            seen_export = set()
+            for row in query.all():
+                if row.cell_code not in seen_export:
+                    seen_export.add(row.cell_code)
+                    yield (','.join([str(getattr(row, c) or '').replace(',', ';') for c in cols]) + '\n').encode('utf-8')
+        return Response(stream_with_context(generate()), mimetype='text/csv', headers={"Content-Disposition": f"attachment; filename=RF_{tech}.csv"})
+
+    rows = query.all()
+    cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
+    data = []
+    seen_cells = set()
+    
+    for r in rows:
+        if r.cell_code not in seen_cells:
+            seen_cells.add(r.cell_code)
+            data.append({c: getattr(r, c) for c in cols} | {'id': r.id})
+            if not search_query and len(data) >= 100:
+                break
+                
+    return render_page(CONTENT_TEMPLATE, title="RF Database", active_page='rf', current_tech=tech, rf_columns=cols, rf_data=data, search_query=search_query)
+
+@app.route('/rf/delete/<tech>/<int:id>')
+@login_required
+def rf_delete(tech, id):
+    if current_user.role != 'admin': return redirect(url_for('rf', tech=tech))
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    db.session.delete(db.session.get(Model, id))
+    db.session.commit()
+    flash('Đã xóa', 'success')
+    return redirect(url_for('rf', tech=tech))
+
+@app.route('/rf/detail/<tech>/<int:id>')
+@login_required
+def rf_detail(tech, id):
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    clean_obj = {k: v for k, v in obj.__dict__.items() if not k.startswith('_')}
+    return render_page(RF_DETAIL_TEMPLATE, obj=clean_obj, tech=tech)
+
+@app.route('/rf/add', methods=['GET', 'POST'])
+@login_required
+def rf_add():
+    if current_user.role != 'admin': return redirect(url_for('rf', tech=request.args.get('tech', '3g')))
+    tech = request.args.get('tech', '3g')
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    if request.method == 'POST':
+        data = {k: v for k, v in request.form.items() if k in Model.__table__.columns.keys()}
+        db.session.add(Model(**data)); db.session.commit(); flash('Added', 'success')
+        return redirect(url_for('rf', tech=tech))
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Add RF {tech}", columns=cols, tech=tech, obj={})
+
+@app.route('/rf/edit/<tech>/<int:id>', methods=['GET', 'POST'])
+@login_required
+def rf_edit(tech, id):
+    if current_user.role != 'admin': return redirect(url_for('rf', tech=tech))
+    Model = {'3g': RF3G, '4g': RF4G, '5g': RF5G}.get(tech)
+    obj = db.session.get(Model, id)
+    if request.method == 'POST':
+        for k,v in request.form.items(): setattr(obj, k, v)
+        db.session.commit(); flash('Updated', 'success'); return redirect(url_for('rf', tech=tech))
+    cols = [c.key for c in Model.__table__.columns if c.key != 'id']
+    return render_page(RF_FORM_TEMPLATE, title=f"Edit RF {tech}", columns=cols, tech=tech, obj=obj.__dict__)
 
 if __name__ == '__main__':
     app.run(debug=True)
