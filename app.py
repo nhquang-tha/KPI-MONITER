@@ -82,23 +82,63 @@ def clean_header(col_name):
         'LAT': 'latitude', 'LONG': 'longitude', 'KINH ĐỘ': 'longitude', 'VĨ ĐỘ': 'latitude',
         'TILT': 'total_tilt', 'ANTEN': 'antena', 'THIẾT BỊ': 'equipment',
         'FREQ': 'frequency', 'TRẠM': 'site_code', 'NODEB': 'site_code', 'NODEB NAME': 'site_name',
-        # MAPPING TỪ FILE CELL_3G
-        'Tên người quản lý': 'nguoi_quan_ly', 'SDT người quản lý': 'sdt_nguoi_quan_ly', 'Ngày hoạt động': 'ngay_hoat_dong',
-        'Hoàn cảnh ra đời': 'hoan_canh_ra_doi', 'Tên quản lý': 'ten_quan_ly', 'Antenna gain': 'antenna_gain',
-        'Antenna high': 'antenna_high', 'Mechanical tilt': 'mechanical_tilt', 'Mechainical tilt': 'mechanical_tilt',
-        'Electrical tilt': 'electrical_tilt', 'Địa chỉ': 'dia_chi', 'Mã CSHT CỦA CELL': 'csht_cell',
-        'Mã CSHT CỦA TRẠM': 'csht_site', 'Tên đơn vị': 'ten_don_vi', 'Tên thiết bị': 'thiet_bi',
-        'Tên trên hệ thống': 'ten_tren_he_thong', 'dl_psc': 'dl_psc', 'cpich_power': 'cpich_power',
-        'Total power': 'total_power', 'Băng tần': 'bang_tan', 'Tên loại trạm': 'ten_loai_tram',
-        'Loại ăn ten': 'loai_anten', 'Antenna Tên hãng SX': 'hang_sx_anten', 'Antenna Dải tần hoạt động': 'anten_dai_tan',
-        'Antenna dùng chung': 'anten_dung_chung', 'Antenna số port': 'anten_so_port',
-        # MAPPING TỪ FILE CONFIG3G
-        'Mã Trạm': 'ma_tram', 'Đơn vị quản lý': 'don_vi_quan_ly', 'Mã CSHT': 'ma_csht',
-        'Loại trạm': 'loai_tram', 'Site Name': 'site_name', 'Cell Name (Alias)': 'cell_name_alias',
-        'Cell Name': 'cell_name', 'RAC': 'rac', 'DC_support': 'dc_support', 'cpichPower': 'cpich_power',
-        'totalPower': 'total_power', 'maxPower': 'max_power', 'OAM IP': 'oam_ip', 'MechanicalTilt': 'mechanical_tilt',
-        'ElectricalTilt': 'electrical_tilt', 'TotalTilt': 'total_tilt', 'AntennaType': 'antenna_type',
-        'AntennaHigh': 'antenna_high', 'AntennaGain': 'antenna_gain'
+        # MAPPING CHUẨN THEO HÌNH 1 (CELL_3G)
+        'Tên người quản lý': 'nguoi_quan_ly',
+        'SDT người quản lý': 'sdt_nguoi_quan_ly',
+        'Ngày hoạt động': 'ngay_hoat_dong',
+        'Hoàn cảnh ra đời': 'hoan_canh_ra_doi',
+        'Tên quản lý': 'ten_quan_ly',
+        'Azimuth': 'azimuth',
+        'Antenna gain': 'antenna_gain',
+        'Antenna high': 'antenna_high',
+        'Mechainical tilt': 'mechanical_tilt',
+        'Mechanical tilt': 'mechanical_tilt',
+        'Electrical tilt': 'electrical_tilt',
+        'Total tilt': 'total_tilt',
+        'Địa chỉ': 'dia_chi',
+        'Mã CSHT CỦA CELL': 'csht_cell',
+        'Mã CSHT CỦA TRẠM': 'csht_site',
+        'Longtitude': 'longitude',
+        'Longitude': 'longitude',
+        'Latitude': 'latitude',
+        'Tên đơn vị': 'ten_don_vi',
+        'Tên thiết bị': 'thiet_bi',
+        'Tên trên hệ thống': 'ten_tren_he_thong',
+        'lac': 'lac',
+        'ci': 'ci',
+        'dl_psc': 'dl_psc',
+        'cpich_power': 'cpich_power',
+        'Total power': 'total_power',
+        'Băng tần': 'bang_tan',
+        'Tên loại trạm': 'ten_loai_tram',
+        'Loại ăn ten': 'loai_anten',
+        'Antenna Tên hãng SX': 'hang_sx_anten',
+        'Antenna Dải tần hoạt động': 'anten_dai_tan',
+        'Antenna dùng chung': 'anten_dung_chung',
+        'Antenna số port': 'anten_so_port',
+        # MAPPING CHUẨN THEO HÌNH 2 (CONFIG3G)
+        'Mã Trạm': 'ma_tram',
+        'Đơn vị quản lý': 'don_vi_quan_ly',
+        'Thiết bị': 'thiet_bi',
+        'Mã CSHT': 'ma_csht',
+        'Loại trạm': 'loai_tram',
+        'Site Name': 'site_name',
+        'Cell Name (Alias)': 'cell_name_alias',
+        'Cell Name': 'cell_name',
+        'RAC': 'rac',
+        'DL_UARFCN': 'dl_uarfcn',
+        'dlPsc': 'dl_psc',
+        'DC_support': 'dc_support',
+        'cpichPower': 'cpich_power',
+        'totalPower': 'total_power',
+        'maxPower': 'max_power',
+        'OAM IP': 'oam_ip',
+        'MechanicalTilt': 'mechanical_tilt',
+        'ElectricalTilt': 'electrical_tilt',
+        'TotalTilt': 'total_tilt',
+        'AntennaType': 'antenna_type',
+        'AntennaHigh': 'antenna_high',
+        'AntennaGain': 'antenna_gain'
     }
     col_upper = col_name.upper()
     for key, val in special_map.items():
@@ -231,11 +271,13 @@ class RF3G(db.Model):
     swap = db.Column(db.String(50))
     start_day = db.Column(db.String(50))
     ghi_chu = db.Column(db.String(255))
-    # Trường gộp
-    ma_tram = db.Column(db.String(50))
-    lac = db.Column(db.String(50))
-    ci = db.Column(db.String(50))
-    psc = db.Column(db.String(50))
+    # Mở rộng trọn bộ các trường từ Cell3G/Config3G
+    don_vi_quan_ly = db.Column(db.String(100))
+    ma_csht = db.Column(db.String(50))
+    antenna_type = db.Column(db.String(100))
+    antenna_gain = db.Column(db.Float)
+    total_power = db.Column(db.Float)
+    oam_ip = db.Column(db.String(50))
     extra_data = db.Column(db.Text)
 
 # --- Other Models (RF4G, RF5G, KPI...) keep as is ---
@@ -428,7 +470,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TELEGRAM BOT & ROUTES
+# 4. BOT & ROUTES
 # ==============================================================================
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -457,7 +499,6 @@ def sync_rf3g():
         cells = {str(c.cell_code).strip().upper(): c for c in Cell3G.query.all() if c.cell_code}
         configs = {str(c.cell_name).strip().upper(): c for c in Config3G.query.all() if c.cell_name}
         
-        # Lấy danh sách tất cả các mã cell từ cả 2 bảng
         all_codes = set(cells.keys()) | set(configs.keys())
         
         rf3g_records = []
@@ -473,7 +514,6 @@ def sync_rf3g():
                 try: merged_extra.update(json.loads(cfg.extra_data))
                 except: pass
             
-            # Gộp dữ liệu thông minh
             record = RF3G(
                 cell_code=code,
                 site_code=getattr(c, 'site_code', getattr(cfg, 'ma_tram', None)),
@@ -482,6 +522,11 @@ def sync_rf3g():
                 longitude=getattr(c, 'longitude', getattr(cfg, 'longitude', None)),
                 azimuth=getattr(c, 'azimuth', getattr(cfg, 'azimuth', None)),
                 total_tilt=getattr(c, 'total_tilt', getattr(cfg, 'total_tilt', None)),
+                # Thông tin bổ sung từ Config
+                don_vi_quan_ly=getattr(cfg, 'don_vi_quan_ly', getattr(c, 'ten_don_vi', None)),
+                ma_csht=getattr(cfg, 'ma_csht', getattr(c, 'csht_cell', None)),
+                antenna_type=getattr(cfg, 'antenna_type', getattr(c, 'loai_anten', None)),
+                antenna_gain=getattr(cfg, 'antenna_gain', getattr(c, 'antenna_gain', None)),
                 frequency=getattr(cfg, 'bang_tan', getattr(c, 'bang_tan', None)),
                 psc=getattr(cfg, 'dl_psc', getattr(c, 'dl_psc', None)),
                 bsc_lac=getattr(cfg, 'lac', getattr(c, 'lac', None)),
@@ -495,7 +540,7 @@ def sync_rf3g():
             db.session.commit()
             flash(f'Đã ghép nối và đồng bộ {len(rf3g_records)} trạm 3G thành công!', 'success')
         else:
-            flash('Không có dữ liệu 3G để đồng bộ. Vui lòng kiểm tra lại file đã upload.', 'warning')
+            flash('Không có dữ liệu 3G để đồng bộ.', 'warning')
     except Exception as e:
         db.session.rollback()
         flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
@@ -537,11 +582,10 @@ def import_data():
             for file in files:
                 try:
                     df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip') if file.filename.endswith('.csv') else pd.read_excel(file)
-                    # Dò header thông minh
                     header_idx = -1
                     for i, row in df_raw.head(20).iterrows():
                         row_vals = [str(v).lower() for v in row.values if pd.notna(v)]
-                        if any(k in " ".join(row_vals) for k in ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống']):
+                        if any(k in " ".join(row_vals) for k in ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý']):
                             header_idx = i
                             break
                     if header_idx != -1:
@@ -560,7 +604,7 @@ def import_data():
                             if k in valid_cols: clean_row[k] = v
                             else: extra[header_mapping.get(k, k)] = str(v)
                         
-                        # Định danh mã cell
+                        # Định danh mã cell thông minh cho 3G
                         c_code = clean_row.get('cell_code') or clean_row.get('cell_name') or clean_row.get('ten_tren_he_thong')
                         if not c_code and extra:
                             for ex_k, ex_v in extra.items():
@@ -590,13 +634,33 @@ def import_data():
     default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
     return render_template('content.html', title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
 
-# --- Other routes (GIS, KPI, Scripts...) keep as is from conversation history ---
+@app.route('/reset-data', methods=['POST'])
+@login_required
+def reset_data():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    target = request.form.get('target')
+    try:
+        if target == 'rf':
+            # Xóa các bảng 3G cụ thể để tạo lại schema
+            db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
+            db.session.execute(text("DROP TABLE IF EXISTS config_3g"))
+            db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
+            db.session.execute(text("DROP TABLE IF EXISTS rf_4g"))
+            db.session.execute(text("DROP TABLE IF EXISTS rf_5g"))
+            db.session.commit()
+            db.create_all()
+            flash('Đã Reset và cập nhật cấu trúc bảng RF thành công!', 'success')
+        elif target == 'poi':
+            db.session.query(POI4G).delete(); db.session.query(POI5G).delete()
+            db.session.commit(); flash('Đã reset dữ liệu POI!', 'success')
+    except Exception as e: db.session.rollback(); flash(f'Lỗi: {e}', 'danger')
+    return redirect(url_for('import_data'))
+
+# --- Keep other routes (GIS, KPI, etc.) as they are ---
 
 @app.route('/gis', methods=['GET', 'POST'])
 @login_required
-def gis():
-    # Keep previous logic but ensuring it works with new RF3G columns
-    return render_template('content.html', title="Bản đồ Trực quan (GIS)", active_page='gis')
+def gis(): return render_template('content.html', title="Bản đồ Trực quan (GIS)", active_page='gis')
 
 if __name__ == '__main__':
     app.run(debug=True)
