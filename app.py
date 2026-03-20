@@ -2130,20 +2130,20 @@ def import_data():
                 try:
                     df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip') if file.filename.endswith('.csv') else pd.read_excel(file)
                     
-                    # 1. Kiểm tra xem dòng 0 (Mặc định của Pandas) có phải là header chưa
-                    cols_str = " ".join([str(c).lower() for c in df_raw.columns])
-                    kw = ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý', 'thiết bị', 'latitude', 'longitude']
-                    header_found = any(k in cols_str for k in kw)
+                    # --- THUẬT TOÁN TÌM HEADER THÔNG MINH (MẠNH MẼ HƠN) ---
+                    header_idx = 0
+                    max_matches = 0
+                    kw = ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý', 'thiết bị', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain']
                     
-                    # 2. Nếu dòng 0 chưa phải là Header, mới tiến hành quét 20 dòng đầu tiên
-                    if not header_found:
-                        header_idx = -1
-                        for i, row in df_raw.head(20).iterrows():
-                            row_vals = [str(v).lower() for v in row.values if pd.notna(v)]
-                            if any(k in " ".join(row_vals) for k in kw):
+                    if len(df_raw) > 0:
+                        for i in range(min(20, len(df_raw))):
+                            row_vals = [str(v).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
+                            matches = sum(1 for k in kw if any(k in val for val in row_vals))
+                            if matches > max_matches:
+                                max_matches = matches
                                 header_idx = i
-                                break
-                        if header_idx != -1:
+                                
+                        if header_idx > 0:
                             df_raw.columns = df_raw.iloc[header_idx]
                             df_raw = df_raw.iloc[header_idx + 1:].reset_index(drop=True)
                     
@@ -2156,14 +2156,18 @@ def import_data():
                     for row in df_raw.to_dict('records'):
                         clean_row, extra = {}, {}
                         for k, v in row.items():
-                            if pd.isna(v) or str(v).strip() == '': continue
+                            if pd.isna(v): continue
+                            val_str = str(v).strip()
+                            # Bỏ qua các giá trị rỗng hoặc nhiễu rác (tránh lỗi định dạng số trong DB)
+                            if val_str in ['', '-', 'nan', 'None', 'N/A', 'null', 'NULL']: continue
+                            
                             if k in valid_cols: 
                                 clean_row[k] = v
                             else: 
                                 extra[header_mapping.get(k, k)] = str(v)
                         
-                        # Trích xuất mã định danh linh hoạt cho từng loại bảng
-                        c_code = clean_row.get('cell_code')
+                        # Trích xuất mã định danh linh hoạt cho TẤT CẢ loại bảng
+                        c_code = clean_row.get('cell_code') or clean_row.get('cell_name') or clean_row.get('ten_tren_he_thong') or clean_row.get('ma_node') or clean_row.get('site_code')
                         
                         # Fallback quét trong extra nếu chưa tìm thấy mã
                         if not c_code and extra:
@@ -2175,6 +2179,7 @@ def import_data():
                         
                         if c_code and str(c_code).strip() not in ['', 'nan', 'None']:
                             c_code_clean = str(c_code).strip()
+                            # Đảm bảo LUÔN LUÔN có cell_code để thuật toán Sync 3G hoạt động được
                             clean_row['cell_code'] = c_code_clean
                             
                             if hasattr(Model, 'extra_data') and extra: 
@@ -2188,10 +2193,11 @@ def import_data():
                         flash(f'Đã import thành công {len(records)} dòng vào {itype.upper()}.', 'success')
                     else:
                         found_cols = ", ".join([str(c) for c in original_columns[:10]])
-                        flash(f'Lỗi file {file.filename}: Không tìm thấy cột định danh Cell/Trạm. Các cột tìm thấy: {found_cols}', 'warning')
+                        flash(f'Lỗi file {file.filename}: Không tìm thấy dữ liệu hợp lệ (File thiếu mã Cell). Các cột tìm thấy: {found_cols}', 'warning')
                         
                 except Exception as e: 
                     err_msg = str(e)
+                    db.session.rollback()
                     if 'Unknown column' in err_msg:
                         flash(f'CẤU TRÚC DB BỊ LỖI: Bạn chưa xóa cấu trúc DB cũ. Hãy vào tab "Reset Data" (màu đỏ) và bấm "Reset Toàn Bộ Dữ Liệu RF" trước khi Import nhé!', 'danger')
                     else:
