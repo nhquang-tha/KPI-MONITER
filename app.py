@@ -83,64 +83,22 @@ def clean_header(col_name):
         'LAT': 'latitude', 'LONG': 'longitude', 'KINH ĐỘ': 'longitude', 'VĨ ĐỘ': 'latitude',
         'TILT': 'total_tilt', 'ANTEN': 'antena', 'THIẾT BỊ': 'equipment',
         'FREQ': 'frequency', 'TRẠM': 'site_code', 'NODEB': 'site_code', 'NODEB NAME': 'site_name',
-        
         # --- MAPPING TỪ HÌNH 1 (CELL_3G) & HÌNH 2 (CONFIG3G) ---
-        'STT': 'stt',
-        'Mã Node': 'ma_node',
-        'Site Code': 'site_code',
-        'Mã Cell': 'cell_code',
-        'Thiết bị': 'thiet_bi',
-        'Tỉnh/TP': 'tinh_tp',
-        'Đơn vị quản lý': 'don_vi_quan_ly',
-        'Mã CSHT': 'ma_csht',
-        'Loại trạm': 'loai_tram',
-        'Site Name': 'site_name',
-        'Cell Name': 'cell_name',
-        'Cell Name (Alias)': 'cell_name_alias',
-        'ci': 'ci',
-        'lac': 'lac',
-        'rac': 'rac',
-        'Băng tần': 'bang_tan',
-        'dlPsc': 'dl_psc',
-        'DL_UARFCN': 'dl_uarfcn',
-        'cpichPower': 'cpich_power',
-        'maxPower': 'max_power',
-        'totalPower': 'total_power',
-        'DC_support': 'dc_support',
-        'OAM IP': 'oam_ip',
-        'MechanicalTilt': 'mechanical_tilt',
-        'ElectricalTilt': 'electrical_tilt',
-        'TotalTilt': 'total_tilt',
-        'AntennaType': 'antenna_type',
-        'AntennaGain': 'antenna_gain',
-        'AntennaHigh': 'antenna_high',
-        'Cell Type': 'cell_type',
-        'noOfCarrier': 'no_of_carrier',
-        'SpecialCoverage': 'special_coverage',
-        'Trạng thái': 'trang_thai',
-        'Note': 'ghi_chu',
-        'Tên quản lý': 'ten_quan_ly',
-        'Tên người quản lý': 'ten_quan_ly',
-        'SDT người quản lý': 'sdt_nguoi_quan_ly',
-        'Ngày hoạt động': 'ngay_hoat_dong',
-        'Hoàn cảnh ra đời': 'hoan_canh_ra_doi',
-        'Loại ăn ten': 'loai_anten',
-        'Antenna Tên hãng SX': 'hang_sx_anten',
-        'Antenna Dải tần hoạt động': 'anten_dai_tan',
-        'Antenna dùng chung': 'anten_dung_chung',
-        'Antenna số port': 'anten_so_port',
-        'Tên loại trạm': 'ten_loai_tram',
-        'Địa chỉ': 'dia_chi',
-        'Mã CSHT CỦA TRẠM': 'csht_site',
-        'Mã CSHT CỦA CELL': 'csht_cell',
-        'Tên đơn vị': 'ten_don_vi',
-        'Mechainical tilt': 'mechanical_tilt',
-        'Mechanical tilt': 'mechanical_tilt',
-        'Electrical tilt': 'electrical_tilt',
-        'Total tilt': 'total_tilt',
-        'Antenna gain': 'antenna_gain',
-        'Antenna high': 'antenna_high',
-        'Total power': 'total_power',
+        'STT': 'stt', 'Mã Node': 'ma_node', 'Site Code': 'site_code', 'Mã Cell': 'cell_code', 'Thiết bị': 'thiet_bi',
+        'Tỉnh/TP': 'tinh_tp', 'Đơn vị quản lý': 'don_vi_quan_ly', 'Mã CSHT': 'ma_csht', 'Loại trạm': 'loai_tram',
+        'Site Name': 'site_name', 'Cell Name': 'cell_name', 'Cell Name (Alias)': 'cell_name_alias', 'ci': 'ci',
+        'lac': 'lac', 'rac': 'rac', 'Băng tần': 'bang_tan', 'dlPsc': 'dl_psc', 'DL_UARFCN': 'dl_uarfcn',
+        'cpichPower': 'cpich_power', 'maxPower': 'max_power', 'totalPower': 'total_power', 'DC_support': 'dc_support',
+        'OAM IP': 'oam_ip', 'MechanicalTilt': 'mechanical_tilt', 'ElectricalTilt': 'electrical_tilt', 'TotalTilt': 'total_tilt',
+        'AntennaType': 'antenna_type', 'AntennaGain': 'antenna_gain', 'AntennaHigh': 'antenna_high', 'Cell Type': 'cell_type',
+        'noOfCarrier': 'no_of_carrier', 'SpecialCoverage': 'special_coverage', 'Trạng thái': 'trang_thai', 'Note': 'ghi_chu',
+        'Tên quản lý': 'ten_quan_ly', 'Tên người quản lý': 'ten_quan_ly', 'SDT người quản lý': 'sdt_nguoi_quan_ly',
+        'Ngày hoạt động': 'ngay_hoat_dong', 'Hoàn cảnh ra đời': 'hoan_canh_ra_doi', 'Loại ăn ten': 'loai_anten',
+        'Antenna Tên hãng SX': 'hang_sx_anten', 'Antenna Dải tần hoạt động': 'anten_dai_tan', 'Antenna dùng chung': 'anten_dung_chung',
+        'Antenna số port': 'anten_so_port', 'Tên loại trạm': 'ten_loai_tram', 'Địa chỉ': 'dia_chi',
+        'Mã CSHT CỦA TRẠM': 'csht_site', 'Mã CSHT CỦA CELL': 'csht_cell', 'Tên đơn vị': 'ten_don_vi',
+        'Mechainical tilt': 'mechanical_tilt', 'Mechanical tilt': 'mechanical_tilt', 'Electrical tilt': 'electrical_tilt',
+        'Total tilt': 'total_tilt', 'Antenna gain': 'antenna_gain', 'Antenna high': 'antenna_high', 'Total power': 'total_power',
         'Tên trên hệ thống': 'ten_tren_he_thong'
     }
     col_upper = col_name.upper()
@@ -515,7 +473,7 @@ def init_database():
 init_database()
 
 # ==============================================================================
-# 4. TEMPLATES (DEFINED AT MODULE LEVEL - DO NOT INDENT)
+# 4. TEMPLATES
 # ==============================================================================
 
 BASE_LAYOUT = """
@@ -562,7 +520,6 @@ BASE_LAYOUT = """
         .table-responsive::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
         .table-responsive::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
-        /* CSS Overlay cho Sidebar trên Mobile */
         #sidebar-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); z-index: 999; backdrop-filter: blur(2px); transition: all 0.3s ease; }
         #sidebar-overlay.active { display: block; }
     </style>
@@ -619,8 +576,6 @@ BASE_LAYOUT = """
                     {% endfor %}
                 {% endif %}
             {% endwith %}
-
-            <!-- Dynamic Content -->
             {% block content %}{% endblock %}
         </div>
     </div>
@@ -1678,6 +1633,136 @@ CONTENT_TEMPLATE = """
 {% endblock %}
 """
 
+@app.route('/azimuth')
+@login_required
+def azimuth():
+    return render_page(CONTENT_TEMPLATE, title="Tính toán và Vẽ Azimuth", active_page='azimuth')
+
+@app.route('/optimize')
+@login_required
+def optimize():
+    action = request.args.get('action')
+    qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
+    qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
+    all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
+    
+    selected_week = request.args.get('week_name')
+    if not selected_week and all_weeks:
+        selected_week = all_weeks[0]
+    
+    bad_cells_dict = {}
+    
+    if selected_week:
+        l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
+
+        qoe_bad = QoE4G.query.filter((QoE4G.week_name == selected_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
+        qos_bad = QoS4G.query.filter((QoS4G.week_name == selected_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
+        
+        def is_trash(c_name):
+            c_str = str(c_name).strip().upper()
+            if not c_str or c_str in ['NAN', 'NONE', 'NULL']: return True
+            if len(c_str) < 5: return True
+            if c_str.replace('.', '', 1).isdigit(): return True
+            if c_str in l900_cells: return True
+            if c_str.startswith('VNP-4G') or c_str.startswith('MBF_TH'): return True
+            return False
+
+        for r in qoe_bad:
+            if is_trash(r.cell_name): continue
+            bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
+            
+        for r in qos_bad:
+            if is_trash(r.cell_name): continue
+            if r.cell_name not in bad_cells_dict:
+                bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
+            else:
+                bad_cells_dict[r.cell_name]['qos_score'] = r.qos_score
+                bad_cells_dict[r.cell_name]['qos_percent'] = r.qos_percent
+        
+        if bad_cells_dict:
+            cell_names = list(bad_cells_dict.keys())
+            latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
+            
+            if latest_dates:
+                kpi_records = db.session.query(
+                    KPI4G.ten_cell,
+                    func.avg(KPI4G.res_blk_dl).label('avg_prb'),
+                    func.avg(KPI4G.user_dl_avg_thput).label('avg_thput'),
+                    func.avg(KPI4G.cqi_4g).label('avg_cqi'),
+                    func.avg(KPI4G.service_drop_all).label('avg_drop')
+                ).filter(
+                    KPI4G.ten_cell.in_(cell_names),
+                    KPI4G.thoi_gian.in_(latest_dates)
+                ).group_by(KPI4G.ten_cell).all()
+                
+                for r in kpi_records:
+                    c = r.ten_cell
+                    if c in bad_cells_dict:
+                        prb = r.avg_prb or 0
+                        thput = r.avg_thput or 0
+                        cqi = r.avg_cqi or 0
+                        drop = r.avg_drop or 0
+                        
+                        issues = []
+                        actions = []
+                        
+                        if prb > 20 and thput < 10:
+                            issues.append("Nghẽn (Congestion)")
+                            actions.append("Cân bằng tải L1800->L2100 / Thêm Carrier")
+                        if cqi < 93:
+                            issues.append("Vô tuyến kém / Nhiễu")
+                            actions.append("Chỉnh Tx Power / Tối ưu Tilt, Azimuth")
+                        if drop > 0.3 and prb <= 20:
+                            issues.append("Lỗi Thiết bị / Truyền dẫn")
+                            actions.append("NOC reset Card / UCTT đo kiểm Quang, VSWR")
+                            
+                        if not issues:
+                            issues.append("Chưa rõ nguyên nhân")
+                            actions.append("Theo dõi sâu / Phân tích tham số")
+                            
+                        bad_cells_dict[c].update({
+                            'prb': round(prb, 2),
+                            'thput': round(thput, 2),
+                            'cqi': round(cqi, 2),
+                            'drop': round(drop, 2),
+                            'issues': issues,
+                            'actions': actions
+                        })
+                    
+    optimized_data = []
+    for cell, data in bad_cells_dict.items():
+        data['cell_name'] = cell
+        if 'issues' not in data:
+             data.update({'prb': '-', 'thput': '-', 'cqi': '-', 'drop': '-', 'issues': ['Thiếu dữ liệu KPI ngày'], 'actions': ['Cần Import KPI']})
+        optimized_data.append(data)
+        
+    if action == 'export':
+        export_list = []
+        for data in optimized_data:
+            export_list.append({
+                'Cell Name': data.get('cell_name', ''),
+                'QoE Score': data.get('qoe_score', ''),
+                'QoE %': data.get('qoe_percent', ''),
+                'QoS Score': data.get('qos_score', ''),
+                'QoS %': data.get('qos_percent', ''),
+                'PRB (%)': data.get('prb', ''),
+                'Thput (Mbps)': data.get('thput', ''),
+                'CQI (%)': data.get('cqi', ''),
+                'Drop (%)': data.get('drop', ''),
+                'Chẩn đoán': " | ".join(data.get('issues', [])),
+                'Giải pháp': " | ".join(data.get('actions', []))
+            })
+        df = pd.DataFrame(export_list)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Toi_Uu')
+        output.seek(0)
+        safe_week_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', selected_week) if selected_week else 'Week'
+        return send_file(output, download_name=f'ToiUu_{safe_week_name}.xlsx', as_attachment=True)
+        
+    gc.collect()
+    return render_page(CONTENT_TEMPLATE, title="Tối ưu QoE/QoS (NPO)", active_page='optimize', optimized_data=optimized_data, latest_week=selected_week, all_weeks=all_weeks)
+
 @app.route('/gis', methods=['GET', 'POST'])
 @login_required
 def gis():
@@ -2290,6 +2375,74 @@ def script():
         script_result = "\n".join(lines)
 
     return render_page(CONTENT_TEMPLATE, title="Generate Script", active_page='script', script_result=script_result)
+
+@app.route('/backup', methods=['POST'])
+@login_required
+def backup_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    selected_tables = request.form.getlist('tables')
+    if not selected_tables: return redirect(url_for('backup_restore'))
+    stream = BytesIO()
+    models_map = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+    with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for fname in selected_tables:
+            if fname in models_map:
+                Model = models_map[fname]
+                cols = [c.key for c in Model.__table__.columns]
+                data = db.session.query(Model).all()
+                df = pd.DataFrame([{c: getattr(row, c) for c in cols} for row in data]) if data else pd.DataFrame(columns=cols)
+                zf.writestr(fname, df.to_csv(index=False, encoding='utf-8-sig'))
+    stream.seek(0); gc.collect()
+    return send_file(stream, as_attachment=True, download_name=f'backup_{datetime.now().strftime("%Y%m%d")}.zip')
+
+@app.route('/restore', methods=['POST'])
+@login_required
+def restore_db():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    file = request.files['file']
+    if file:
+        try:
+            file_bytes = BytesIO(file.read())
+            with zipfile.ZipFile(file_bytes) as zf:
+                models = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+                for fname in zf.namelist():
+                    if fname in models:
+                        Model = models[fname]
+                        with zf.open(fname) as f: df = pd.read_csv(f, encoding='utf-8-sig')
+                        db.session.query(Model).delete()
+                        records = [{k: (v if not pd.isna(v) else None) for k, v in r.items() if k in [c.key for c in Model.__table__.columns]} for r in df.to_dict('records')]
+                        if records: db.session.bulk_insert_mappings(Model, records)
+                db.session.commit(); flash('Restore Success', 'success')
+        except Exception as e: db.session.rollback(); flash(f'Error: {e}', 'danger')
+    return redirect(url_for('backup_restore'))
+
+@app.route('/backup-restore')
+@login_required
+def backup_restore(): return render_page(BACKUP_RESTORE_TEMPLATE, title="Backup", active_page='backup_restore')
+
+@app.route('/users')
+@login_required
+def manage_users(): return render_page(USER_MANAGEMENT_TEMPLATE, users=User.query.all(), active_page='users')
+
+@app.route('/users/add', methods=['POST'])
+@login_required
+def add_user(): 
+    u = User(username=request.form['username'], role=request.form['role']); u.set_password(request.form['password'])
+    db.session.add(u); db.session.commit(); return redirect(url_for('manage_users'))
+
+@app.route('/users/delete/<int:id>')
+@login_required
+def delete_user(id): db.session.delete(db.session.get(User, id)); db.session.commit(); return redirect(url_for('manage_users'))
+
+@app.route('/profile')
+@login_required
+def profile(): return render_page(PROFILE_TEMPLATE, active_page='profile')
+
+@app.route('/change-password', methods=['POST'])
+@login_required
+def change_password(): 
+    if current_user.check_password(request.form['current_password']): current_user.set_password(request.form['new_password']); db.session.commit(); flash('Done', 'success')
+    return redirect(url_for('profile'))
 
 if __name__ == '__main__':
     app.run(debug=True)
