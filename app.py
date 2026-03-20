@@ -492,13 +492,10 @@ def load_user(user_id):
 
 def init_database():
     with app.app_context():
-        # --- CƠ CHẾ AUTO-MIGRATION THÔNG MINH ---
-        # Tự động nhận diện và sửa lỗi Schema nếu bảng config_3g thiếu cột
         try:
             inspector = inspect(db.engine)
             if 'config_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('config_3g')]
-                # Nếu phát hiện bảng cũ bị thiếu cột chuẩn
                 if 'don_vi_quan_ly' not in existing_columns or 'cell_code' not in existing_columns:
                     print("--> Phat hien cau truc bang RF/Config 3G cu. Tien hanh Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
@@ -1868,6 +1865,294 @@ def render_page(tpl, **kwargs):
 # 5. ROUTES
 # ==============================================================================
 
+@app.route('/import', methods=['GET', 'POST'])
+@login_required
+def import_data():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    if request.method == 'POST':
+        files = request.files.getlist('file')
+        itype = request.form.get('type')
+        cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+        Model = cfg.get(itype)
+        
+        if Model:
+            valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
+            for file in files:
+                try:
+                    # 1. Đọc file thuần chuỗi để tránh crash ngầm (NaN, NaT, Inf)
+                    if file.filename.endswith('.csv'):
+                        df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', header=None, dtype=str)
+                    else:
+                        df_raw = pd.read_excel(file, header=None, dtype=str)
+                    
+                    # 2. Thuật toán tìm Header siêu cường (Quét 20 dòng đầu tìm dòng có nhiều từ khóa chuyên ngành nhất)
+                    header_idx = 0
+                    max_matches = 0
+                    kw = ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý', 'thiết bị', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain']
+                    
+                    if len(df_raw) > 0:
+                        for i in range(min(20, len(df_raw))):
+                            row_vals = [str(v).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
+                            matches = sum(1 for k in kw if any(k in val for val in row_vals))
+                            if matches > max_matches:
+                                max_matches = matches
+                                header_idx = i
+                    
+                    if max_matches > 0:
+                        # Lấy dòng Header, khử trùng lặp cột (nếu file Excel có 2 cột trùng tên)
+                        raw_cols = [str(c).strip() for c in df_raw.iloc[header_idx].values]
+                        seen = {}
+                        for j, c in enumerate(raw_cols):
+                            if c in seen:
+                                seen[c] += 1
+                                raw_cols[j] = f"{c}_{seen[c]}"
+                            else:
+                                seen[c] = 0
+                        df_raw.columns = raw_cols
+                        df_raw = df_raw.iloc[header_idx + 1:].reset_index(drop=True)
+                    else:
+                        df_raw.columns = [str(c) for c in df_raw.iloc[0].values]
+                        df_raw = df_raw.iloc[1:].reset_index(drop=True)
+
+                    df_raw = df_raw.dropna(how='all')
+                    original_columns = list(df_raw.columns)
+                    df_raw.columns = [clean_header(c) for c in df_raw.columns]
+                    header_mapping = dict(zip(df_raw.columns, original_columns))
+                    
+                    # 3. Chuẩn bị Batch Insert để cứu Server Render khỏi quá tải (OOM / Timeout)
+                    records = []
+                    inserted_count = 0
+                    BATCH_SIZE = 500  # Nhồi 500 dòng một lần thay vì nhồi 10.000 dòng gây sập kết nối DB TiDB
+                    
+                    for index, row in df_raw.iterrows():
+                        clean_row, extra = {}, {}
+                        for k, v in row.items():
+                            if pd.isna(v): continue
+                            val_str = str(v).strip()
+                            if val_str in ['', '-', 'nan', 'None', 'N/A', 'null', 'NULL']: continue
+                            
+                            # Tự động parse Float/Int nếu Model yêu cầu, giúp bảo vệ CSDL
+                            if k in valid_cols:
+                                col_type = str(Model.__table__.columns[k].type)
+                                if 'FLOAT' in col_type or 'INTEGER' in col_type:
+                                    try:
+                                        v_num = float(val_str)
+                                        if 'INTEGER' in col_type: v_num = int(v_num)
+                                        clean_row[k] = v_num
+                                    except:
+                                        clean_row[k] = val_str # Rơi về String nếu lỗi
+                                else:
+                                    clean_row[k] = val_str
+                            else: 
+                                extra[header_mapping.get(k, k)] = val_str
+                        
+                        # 4. Trích xuất mã Cell an toàn
+                        c_code = clean_row.get('cell_code') or clean_row.get('cell_name') or clean_row.get('ten_tren_he_thong') or clean_row.get('ma_node') or clean_row.get('site_code')
+                        
+                        if not c_code and extra:
+                            for ex_k, ex_v in extra.items():
+                                w_lower = str(ex_k).lower()
+                                if any(word in w_lower for word in ['cell', 'site', 'trạm', 'node', 'hệ thống']):
+                                    c_code = ex_v
+                                    break
+                        
+                        if c_code and str(c_code).strip() not in ['', 'nan', 'None']:
+                            c_code_clean = str(c_code).strip()
+                            clean_row['cell_code'] = c_code_clean
+                            
+                            if hasattr(Model, 'extra_data') and extra: 
+                                clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
+                                
+                            records.append(clean_row)
+                            
+                        # Lô đạt ngưỡng 500 dòng thì chốt và ghi vào CSDL, giải phóng RAM
+                        if len(records) >= BATCH_SIZE:
+                            db.session.bulk_insert_mappings(Model, records)
+                            db.session.commit()
+                            inserted_count += len(records)
+                            records = [] 
+                            gc.collect()
+                    
+                    # 5. Lưu nốt phần còn dư ở cuối
+                    if records:
+                        db.session.bulk_insert_mappings(Model, records)
+                        db.session.commit()
+                        inserted_count += len(records)
+                        
+                    if inserted_count > 0:
+                        flash(f'Đã import thành công {inserted_count} dòng vào {itype.upper()}.', 'success')
+                    else:
+                        found_cols = ", ".join([str(c) for c in original_columns[:10]])
+                        flash(f'Lỗi file {file.filename}: Không tìm thấy dữ liệu hợp lệ (File thiếu cột mã Cell). Các cột nhận diện được: {found_cols}', 'warning')
+                        
+                except Exception as e: 
+                    err_msg = str(e)
+                    db.session.rollback()
+                    if 'Unknown column' in err_msg:
+                        flash(f'CẤU TRÚC DB BỊ LỖI: Bạn chưa xóa cấu trúc DB cũ. Hãy vào tab "Reset Data" (màu đỏ) và bấm "Reset Toàn Bộ Dữ Liệu RF" trước khi Import nhé!', 'danger')
+                    else:
+                        flash(f'Lỗi file {file.filename}: {err_msg}', 'danger')
+        
+        elif itype in ['qoe4g', 'qos4g']:
+            week_name = request.form.get('week_name', 'Tuần')
+            TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
+            for file in files:
+                try:
+                    df = pd.read_excel(file, header=None, dtype=str) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None, dtype=str)
+                    header_row_idx, cell_col_idx = -1, -1
+                    for i, row in df.iterrows():
+                        for j, val in enumerate(row):
+                            if str(val).lower().strip() in ['cell name', 'tên cell', 'cell_name']:
+                                header_row_idx, cell_col_idx = i, j
+                                break
+                        if header_row_idx != -1: break
+                        
+                    if header_row_idx != -1 and cell_col_idx != -1:
+                        headers = [" - ".join([str(df.iloc[i, j]).strip() for i in range(header_row_idx + 1) if str(df.iloc[i, j]).strip() not in ['nan', 'None', '']]) or f"Col_{j}" for j in range(len(df.columns))]
+                        records = []
+                        inserted_count = 0
+                        BATCH_SIZE = 500
+                        
+                        for i in range(header_row_idx + 1, len(df)):
+                            row_data = df.iloc[i]
+                            c_name = str(row_data[cell_col_idx]).strip()
+                            if not c_name or str(c_name).lower() in ['nan', 'none', 'null', ''] or len(str(c_name)) < 5 or str(c_name).isdigit(): continue
+                            
+                            try: val1 = float(row_data[cell_col_idx + 2])
+                            except: val1 = 0.0
+                            try: val2 = float(row_data[cell_col_idx + 3])
+                            except: val2 = 0.0
+                            
+                            if math.isnan(val1): val1 = 0.0
+                            if math.isnan(val2): val2 = 0.0
+                                
+                            percent, score = max(val1, val2), min(val1, val2)
+                            details_dict = {headers[j]: str(row_data[j]).strip() for j in range(len(headers)) if pd.notna(row_data[j]) and str(row_data[j]).strip() not in ['nan', 'None', '']}
+                            details_json = json.dumps(details_dict, ensure_ascii=False)
+                            
+                            records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
+                            
+                            if len(records) >= BATCH_SIZE:
+                                db.session.bulk_insert_mappings(TargetModel, records)
+                                db.session.commit()
+                                inserted_count += len(records)
+                                records = []
+                                gc.collect()
+                                
+                        if records:
+                            db.session.bulk_insert_mappings(TargetModel, records)
+                            db.session.commit()
+                            inserted_count += len(records)
+                            
+                        flash(f'Import thành công {inserted_count} dòng.', 'success')
+                except Exception as e: flash(f'Lỗi: {e}', 'danger')
+
+        return redirect(url_for('import_data'))
+
+@app.route('/sync-rf3g', methods=['POST'])
+@login_required
+def sync_rf3g():
+    if current_user.role != 'admin': return redirect(url_for('index'))
+    try:
+        db.session.query(RF3G).delete()
+        cells = {str(c.cell_code).strip().upper(): c for c in Cell3G.query.all() if c.cell_code}
+        configs = {str(c.cell_code).strip().upper(): c for c in Config3G.query.all() if c.cell_code}
+        
+        all_codes = set(cells.keys()) | set(configs.keys())
+        
+        rf3g_records = []
+        inserted_count = 0
+        BATCH_SIZE = 500  # Đồng bộ theo mẻ nhỏ chống sập TiDB
+        
+        for code in all_codes:
+            c = cells.get(code)
+            cfg = configs.get(code)
+            
+            merged_extra = {}
+            if c and c.extra_data:
+                try: merged_extra.update(json.loads(c.extra_data))
+                except: pass
+            if cfg and cfg.extra_data:
+                try: merged_extra.update(json.loads(cfg.extra_data))
+                except: pass
+            
+            record = RF3G(
+                cell_code=code,
+                site_code=getattr(c, 'site_code', getattr(cfg, 'site_code', None)),
+                ma_node=getattr(c, 'ma_node', getattr(cfg, 'ma_node', None)),
+                cell_name=getattr(cfg, 'cell_name', getattr(c, 'ten_tren_he_thong', None)),
+                cell_name_alias=getattr(cfg, 'cell_name_alias', None),
+                site_name=getattr(cfg, 'site_name', getattr(c, 'ten_loai_tram', None)),
+                loai_tram=getattr(c, 'ten_loai_tram', getattr(cfg, 'loai_tram', None)),
+                thiet_bi=getattr(c, 'thiet_bi', getattr(cfg, 'thiet_bi', None)),
+                tinh_tp=getattr(c, 'tinh_tp', getattr(cfg, 'tinh_tp', None)),
+                don_vi_quan_ly=getattr(cfg, 'don_vi_quan_ly', getattr(c, 'ten_don_vi', None)),
+                ma_csht=getattr(cfg, 'ma_csht', None),
+                csht_site=getattr(c, 'csht_site', None),
+                csht_cell=getattr(c, 'csht_cell', None),
+                ten_don_vi=getattr(c, 'ten_don_vi', getattr(cfg, 'don_vi_quan_ly', None)),
+                latitude=getattr(c, 'latitude', getattr(cfg, 'latitude', None)),
+                longitude=getattr(c, 'longitude', getattr(cfg, 'longitude', None)),
+                azimuth=getattr(c, 'azimuth', getattr(cfg, 'azimuth', None)),
+                mechanical_tilt=getattr(c, 'mechanical_tilt', getattr(cfg, 'mechanical_tilt', None)),
+                electrical_tilt=getattr(c, 'electrical_tilt', getattr(cfg, 'electrical_tilt', None)),
+                total_tilt=getattr(c, 'total_tilt', getattr(cfg, 'total_tilt', None)),
+                antenna_type=getattr(cfg, 'antenna_type', getattr(c, 'loai_anten', None)),
+                loai_anten=getattr(c, 'loai_anten', None),
+                hang_sx_anten=getattr(c, 'hang_sx_anten', None),
+                anten_dai_tan=getattr(c, 'anten_dai_tan', None),
+                anten_dung_chung=getattr(c, 'anten_dung_chung', None),
+                anten_so_port=getattr(c, 'anten_so_port', None),
+                antenna_gain=getattr(c, 'antenna_gain', getattr(cfg, 'antenna_gain', None)),
+                antenna_high=getattr(c, 'antenna_high', getattr(cfg, 'antenna_high', None)),
+                bang_tan=getattr(c, 'bang_tan', getattr(cfg, 'bang_tan', None)),
+                lac=getattr(cfg, 'lac', getattr(c, 'lac', None)),
+                ci=getattr(cfg, 'ci', getattr(c, 'ci', None)),
+                rac=getattr(cfg, 'rac', None),
+                dl_uarfcn=getattr(cfg, 'dl_uarfcn', None),
+                dl_psc=getattr(c, 'dl_psc', getattr(cfg, 'dl_psc', None)),
+                cpich_power=getattr(cfg, 'cpich_power', getattr(c, 'cpich_power', None)),
+                max_power=getattr(cfg, 'max_power', None),
+                total_power=getattr(cfg, 'total_power', getattr(c, 'total_power', None)),
+                dc_support=getattr(cfg, 'dc_support', None),
+                oam_ip=getattr(cfg, 'oam_ip', None),
+                cell_type=getattr(cfg, 'cell_type', None),
+                no_of_carrier=getattr(cfg, 'no_of_carrier', None),
+                special_coverage=getattr(cfg, 'special_coverage', None),
+                trang_thai=getattr(c, 'trang_thai', getattr(cfg, 'trang_thai', None)),
+                ten_quan_ly=getattr(c, 'ten_quan_ly', None),
+                sdt_nguoi_quan_ly=getattr(c, 'sdt_nguoi_quan_ly', None),
+                ngay_hoat_dong=getattr(c, 'ngay_hoat_dong', None),
+                hoan_canh_ra_doi=getattr(c, 'hoan_canh_ra_doi', None),
+                dia_chi=getattr(c, 'dia_chi', None),
+                extra_data=json.dumps(merged_extra, ensure_ascii=False) if merged_extra else None
+            )
+            rf3g_records.append(record)
+            
+            if len(rf3g_records) >= BATCH_SIZE:
+                db.session.bulk_save_objects(rf3g_records)
+                db.session.commit()
+                inserted_count += len(rf3g_records)
+                rf3g_records = []
+                gc.collect()
+            
+        if rf3g_records:
+            db.session.bulk_save_objects(rf3g_records)
+            db.session.commit()
+            inserted_count += len(rf3g_records)
+            
+        if inserted_count > 0:
+            flash(f'Đã ghép nối và đồng bộ {inserted_count} trạm 3G thành công!', 'success')
+        else:
+            flash('Không có dữ liệu 3G để đồng bộ. Vui lòng kiểm tra lại file đã upload.', 'warning')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
+    return redirect(url_for('import_data'))
+
+# ==============================================================================
+# KEEP REMAINING ROUTES BELOW
+# ==============================================================================
 def send_telegram_message(chat_id, text_content):
     if not TELEGRAM_BOT_TOKEN: return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -2114,217 +2399,6 @@ def index():
     except Exception as e: pass
     gc.collect()
     return render_page(CONTENT_TEMPLATE, title="Dashboard", active_page='dashboard', dashboard_data=dashboard_data)
-
-@app.route('/import', methods=['GET', 'POST'])
-@login_required
-def import_data():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    if request.method == 'POST':
-        files = request.files.getlist('file')
-        itype = request.form.get('type')
-        cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
-        Model = cfg.get(itype)
-        if Model:
-            valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
-            for file in files:
-                try:
-                    df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip') if file.filename.endswith('.csv') else pd.read_excel(file)
-                    
-                    # --- THUẬT TOÁN TÌM HEADER THÔNG MINH (MẠNH MẼ HƠN) ---
-                    header_idx = 0
-                    max_matches = 0
-                    kw = ['cell', 'site', 'trạm', 'uarfcn', 'hệ thống', 'quản lý', 'thiết bị', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain']
-                    
-                    if len(df_raw) > 0:
-                        for i in range(min(20, len(df_raw))):
-                            row_vals = [str(v).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
-                            matches = sum(1 for k in kw if any(k in val for val in row_vals))
-                            if matches > max_matches:
-                                max_matches = matches
-                                header_idx = i
-                                
-                        if header_idx > 0:
-                            df_raw.columns = df_raw.iloc[header_idx]
-                            df_raw = df_raw.iloc[header_idx + 1:].reset_index(drop=True)
-                    
-                    df_raw = df_raw.dropna(how='all')
-                    original_columns = list(df_raw.columns)
-                    df_raw.columns = [clean_header(c) for c in df_raw.columns]
-                    header_mapping = dict(zip(df_raw.columns, original_columns))
-                    
-                    records = []
-                    for row in df_raw.to_dict('records'):
-                        clean_row, extra = {}, {}
-                        for k, v in row.items():
-                            if pd.isna(v): continue
-                            val_str = str(v).strip()
-                            # Bỏ qua các giá trị rỗng hoặc nhiễu rác (tránh lỗi định dạng số trong DB)
-                            if val_str in ['', '-', 'nan', 'None', 'N/A', 'null', 'NULL']: continue
-                            
-                            if k in valid_cols: 
-                                clean_row[k] = v
-                            else: 
-                                extra[header_mapping.get(k, k)] = str(v)
-                        
-                        # Trích xuất mã định danh linh hoạt cho TẤT CẢ loại bảng
-                        c_code = clean_row.get('cell_code') or clean_row.get('cell_name') or clean_row.get('ten_tren_he_thong') or clean_row.get('ma_node') or clean_row.get('site_code')
-                        
-                        # Fallback quét trong extra nếu chưa tìm thấy mã
-                        if not c_code and extra:
-                            for ex_k, ex_v in extra.items():
-                                w_lower = str(ex_k).lower()
-                                if any(word in w_lower for word in ['cell', 'site', 'trạm', 'node', 'hệ thống']):
-                                    c_code = ex_v
-                                    break
-                        
-                        if c_code and str(c_code).strip() not in ['', 'nan', 'None']:
-                            c_code_clean = str(c_code).strip()
-                            # Đảm bảo LUÔN LUÔN có cell_code để thuật toán Sync 3G hoạt động được
-                            clean_row['cell_code'] = c_code_clean
-                            
-                            if hasattr(Model, 'extra_data') and extra: 
-                                clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
-                                
-                            records.append(clean_row)
-                    
-                    if records:
-                        db.session.bulk_insert_mappings(Model, records)
-                        db.session.commit()
-                        flash(f'Đã import thành công {len(records)} dòng vào {itype.upper()}.', 'success')
-                    else:
-                        found_cols = ", ".join([str(c) for c in original_columns[:10]])
-                        flash(f'Lỗi file {file.filename}: Không tìm thấy dữ liệu hợp lệ (File thiếu mã Cell). Các cột tìm thấy: {found_cols}', 'warning')
-                        
-                except Exception as e: 
-                    err_msg = str(e)
-                    db.session.rollback()
-                    if 'Unknown column' in err_msg:
-                        flash(f'CẤU TRÚC DB BỊ LỖI: Bạn chưa xóa cấu trúc DB cũ. Hãy vào tab "Reset Data" (màu đỏ) và bấm "Reset Toàn Bộ Dữ Liệu RF" trước khi Import nhé!', 'danger')
-                    else:
-                        flash(f'Lỗi file {file.filename}: {err_msg}', 'danger')
-        return redirect(url_for('import_data'))
-        
-    d3 = [d[0] for d in db.session.query(KPI3G.thoi_gian).distinct().order_by(KPI3G.thoi_gian.desc()).all()]
-    d4 = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).all()]
-    d5 = [d[0] for d in db.session.query(KPI5G.thoi_gian).distinct().order_by(KPI5G.thoi_gian.desc()).all()]
-    today = datetime.now()
-    year, week_num, _ = today.isocalendar()
-    start_of_week = today - timedelta(days=today.weekday())
-    end_of_week = start_of_week + timedelta(days=6)
-    default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
-    return render_page(CONTENT_TEMPLATE, title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
-
-@app.route('/sync-rf3g', methods=['POST'])
-@login_required
-def sync_rf3g():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    try:
-        db.session.query(RF3G).delete()
-        cells = {str(c.cell_code).strip().upper(): c for c in Cell3G.query.all() if c.cell_code}
-        configs = {str(c.cell_code).strip().upper(): c for c in Config3G.query.all() if c.cell_code}
-        
-        all_codes = set(cells.keys()) | set(configs.keys())
-        
-        rf3g_records = []
-        for code in all_codes:
-            c = cells.get(code)
-            cfg = configs.get(code)
-            
-            merged_extra = {}
-            if c and c.extra_data:
-                try: merged_extra.update(json.loads(c.extra_data))
-                except: pass
-            if cfg and cfg.extra_data:
-                try: merged_extra.update(json.loads(cfg.extra_data))
-                except: pass
-            
-            record = RF3G(
-                cell_code=code,
-                site_code=getattr(c, 'site_code', getattr(cfg, 'site_code', None)),
-                ma_node=getattr(c, 'ma_node', getattr(cfg, 'ma_node', None)),
-                cell_name=getattr(cfg, 'cell_name', getattr(c, 'ten_tren_he_thong', None)),
-                cell_name_alias=getattr(cfg, 'cell_name_alias', None),
-                site_name=getattr(cfg, 'site_name', getattr(c, 'ten_loai_tram', None)),
-                loai_tram=getattr(c, 'ten_loai_tram', getattr(cfg, 'loai_tram', None)),
-                thiet_bi=getattr(c, 'thiet_bi', getattr(cfg, 'thiet_bi', None)),
-                tinh_tp=getattr(c, 'tinh_tp', getattr(cfg, 'tinh_tp', None)),
-                don_vi_quan_ly=getattr(cfg, 'don_vi_quan_ly', getattr(c, 'ten_don_vi', None)),
-                ma_csht=getattr(cfg, 'ma_csht', None),
-                csht_site=getattr(c, 'csht_site', None),
-                csht_cell=getattr(c, 'csht_cell', None),
-                ten_don_vi=getattr(c, 'ten_don_vi', getattr(cfg, 'don_vi_quan_ly', None)),
-                latitude=getattr(c, 'latitude', getattr(cfg, 'latitude', None)),
-                longitude=getattr(c, 'longitude', getattr(cfg, 'longitude', None)),
-                azimuth=getattr(c, 'azimuth', getattr(cfg, 'azimuth', None)),
-                mechanical_tilt=getattr(c, 'mechanical_tilt', getattr(cfg, 'mechanical_tilt', None)),
-                electrical_tilt=getattr(c, 'electrical_tilt', getattr(cfg, 'electrical_tilt', None)),
-                total_tilt=getattr(c, 'total_tilt', getattr(cfg, 'total_tilt', None)),
-                antenna_type=getattr(cfg, 'antenna_type', getattr(c, 'loai_anten', None)),
-                loai_anten=getattr(c, 'loai_anten', None),
-                hang_sx_anten=getattr(c, 'hang_sx_anten', None),
-                anten_dai_tan=getattr(c, 'anten_dai_tan', None),
-                anten_dung_chung=getattr(c, 'anten_dung_chung', None),
-                anten_so_port=getattr(c, 'anten_so_port', None),
-                antenna_gain=getattr(c, 'antenna_gain', getattr(cfg, 'antenna_gain', None)),
-                antenna_high=getattr(c, 'antenna_high', getattr(cfg, 'antenna_high', None)),
-                bang_tan=getattr(c, 'bang_tan', getattr(cfg, 'bang_tan', None)),
-                lac=getattr(cfg, 'lac', getattr(c, 'lac', None)),
-                ci=getattr(cfg, 'ci', getattr(c, 'ci', None)),
-                rac=getattr(cfg, 'rac', None),
-                dl_uarfcn=getattr(cfg, 'dl_uarfcn', None),
-                dl_psc=getattr(c, 'dl_psc', getattr(cfg, 'dl_psc', None)),
-                cpich_power=getattr(cfg, 'cpich_power', getattr(c, 'cpich_power', None)),
-                max_power=getattr(cfg, 'max_power', None),
-                total_power=getattr(cfg, 'total_power', getattr(c, 'total_power', None)),
-                dc_support=getattr(cfg, 'dc_support', None),
-                oam_ip=getattr(cfg, 'oam_ip', None),
-                cell_type=getattr(cfg, 'cell_type', None),
-                no_of_carrier=getattr(cfg, 'no_of_carrier', None),
-                special_coverage=getattr(cfg, 'special_coverage', None),
-                trang_thai=getattr(c, 'trang_thai', getattr(cfg, 'trang_thai', None)),
-                ten_quan_ly=getattr(c, 'ten_quan_ly', None),
-                sdt_nguoi_quan_ly=getattr(c, 'sdt_nguoi_quan_ly', None),
-                ngay_hoat_dong=getattr(c, 'ngay_hoat_dong', None),
-                hoan_canh_ra_doi=getattr(c, 'hoan_canh_ra_doi', None),
-                dia_chi=getattr(c, 'dia_chi', None),
-                extra_data=json.dumps(merged_extra, ensure_ascii=False) if merged_extra else None
-            )
-            rf3g_records.append(record)
-            
-        if rf3g_records:
-            db.session.bulk_save_objects(rf3g_records)
-            db.session.commit()
-            flash(f'Đã ghép nối và đồng bộ {len(rf3g_records)} trạm 3G thành công!', 'success')
-        else:
-            flash('Không có dữ liệu 3G để đồng bộ. Vui lòng kiểm tra lại file đã upload.', 'warning')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
-    return redirect(url_for('import_data'))
-
-@app.route('/reset-data', methods=['POST'])
-@login_required
-def reset_data():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    target = request.form.get('target')
-    try:
-        if target == 'rf':
-            # Xóa các bảng 3G cụ thể để tạo lại schema
-            db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
-            db.session.execute(text("DROP TABLE IF EXISTS config_3g"))
-            db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
-            db.session.execute(text("DROP TABLE IF EXISTS rf_4g"))
-            db.session.execute(text("DROP TABLE IF EXISTS rf_5g"))
-            db.session.commit()
-            db.create_all()
-            flash('Đã Reset và cập nhật cấu trúc bảng RF thành công!', 'success')
-        elif target == 'poi':
-            db.session.query(POI4G).delete(); db.session.query(POI5G).delete()
-            db.session.commit(); flash('Đã reset dữ liệu POI!', 'success')
-    except Exception as e: db.session.rollback(); flash(f'Lỗi: {e}', 'danger')
-    return redirect(url_for('import_data'))
-
-# --- Keep other routes (GIS, KPI, etc.) as they are ---
 
 @app.route('/gis', methods=['GET', 'POST'])
 @login_required
