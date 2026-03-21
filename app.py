@@ -99,7 +99,29 @@ class Cell3G(db.Model):
     extra_data = db.Column(db.Text)
 
 class Config3G(db.Model):
-    __tablename__='config_3g'; id=db.Column(db.Integer, primary_key=True); csht_cell=db.Column(db.String(100)); cell_name=db.Column(db.String(255)); cell_code=db.Column(db.String(100), index=True); site_code=db.Column(db.String(100)); latitude=db.Column(db.Float); longitude=db.Column(db.Float); equipment=db.Column(db.String(100)); frequency=db.Column(db.String(50)); psc=db.Column(db.String(50)); dl_uarfcn=db.Column(db.String(50)); bsc_lac=db.Column(db.String(50)); ci=db.Column(db.String(50)); anten_height=db.Column(db.Float); azimuth=db.Column(db.Integer); m_t=db.Column(db.Float); e_t=db.Column(db.Float); total_tilt=db.Column(db.Float); oam_ip=db.Column(db.String(100)); antena=db.Column(db.Text); loai_tram=db.Column(db.String(100)); extra_data=db.Column(db.Text)
+    __tablename__='config_3g'
+    id = db.Column(db.Integer, primary_key=True)
+    csht_cell = db.Column(db.String(100))
+    cell_name = db.Column(db.String(255))
+    cell_code = db.Column(db.String(100), index=True)
+    site_code = db.Column(db.String(100))
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
+    equipment = db.Column(db.String(100))
+    frequency = db.Column(db.String(50))
+    psc = db.Column(db.String(50))
+    dl_uarfcn = db.Column(db.String(50))
+    bsc_lac = db.Column(db.String(50))
+    ci = db.Column(db.String(50))
+    anten_height = db.Column(db.Float)
+    azimuth = db.Column(db.Integer)
+    m_t = db.Column(db.Float)
+    e_t = db.Column(db.Float)
+    total_tilt = db.Column(db.Float)
+    oam_ip = db.Column(db.String(100))
+    antena = db.Column(db.Text)
+    loai_tram = db.Column(db.String(100))
+    extra_data = db.Column(db.Text)
 
 class RF3G(db.Model):
     __tablename__='rf_3g'
@@ -158,7 +180,6 @@ def init_database():
             inspector = inspect(db.engine)
             if 'rf_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('rf_3g')]
-                # Nếu bảng rf_3g còn chứa các cột cũ (ví dụ: ma_node), tiến hành xóa để tạo lại bảng chuẩn
                 if 'ma_node' in existing_columns:
                     print("--> Phát hiện cấu trúc bảng RF 3G cũ. Tiến hành Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
@@ -406,18 +427,24 @@ def import_data():
             
             for file in files:
                 try:
+                    file_content = file.read()
                     if file.filename.endswith('.csv'):
-                        df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', header=None, dtype=str)
+                        df_raw = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None)
                     else:
-                        df_raw = pd.read_excel(file, header=None, dtype=str)
+                        df_raw = pd.read_excel(BytesIO(file_content), header=None)
                     
+                    df_raw.dropna(how='all', inplace=True)
+                    df_raw.dropna(axis=1, how='all', inplace=True)
+                    df_raw = df_raw.reset_index(drop=True)
+                    df_raw = df_raw.astype(str)
+
                     header_idx = 0
                     max_matches = 0
                     kw_clean = ['cell', 'site', 'tram', 'uarfcn', 'he thong', 'quan ly', 'thiet bi', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain', 'dia chi', 'csht']
                     
                     if len(df_raw) > 0:
                         for i in range(min(20, len(df_raw))):
-                            row_vals = [remove_accents(str(v)).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
+                            row_vals = [remove_accents(str(v)).lower() for v in df_raw.iloc[i].values if str(v).lower() not in ['nan', 'none']]
                             matches = sum(1 for k in kw_clean if any(k in val for val in row_vals))
                             if matches > max_matches:
                                 max_matches = matches
@@ -438,7 +465,6 @@ def import_data():
                         df_raw.columns = [str(c) for c in df_raw.iloc[0].values]
                         df_raw = df_raw.iloc[1:].reset_index(drop=True)
 
-                    df_raw = df_raw.dropna(how='all')
                     original_columns = list(df_raw.columns)
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
                     header_mapping = dict(zip(df_raw.columns, original_columns))
@@ -454,16 +480,15 @@ def import_data():
                     for row in dict_records:
                         clean_row, extra = {}, {}
                         for k, v in row.items():
-                            if pd.isna(v): continue
                             val_str = str(v).strip()
                             if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null', '?']: continue
                             
                             if k in valid_cols:
                                 if k in float_cols:
-                                    try: clean_row[k] = float(val_str.replace(',', '.'))
+                                    try: clean_row[k] = float(val_str.replace(',', '.').replace(' ', ''))
                                     except: clean_row[k] = None
                                 elif k in int_cols:
-                                    try: clean_row[k] = int(math.floor(float(val_str.replace(',', '.'))))
+                                    try: clean_row[k] = int(math.floor(float(val_str.replace(',', '.').replace(' ', ''))))
                                     except: clean_row[k] = None
                                 else:
                                     clean_row[k] = val_str
@@ -518,11 +543,21 @@ def import_data():
             TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
             for file in files:
                 try:
-                    df = pd.read_excel(file, header=None, dtype=str) if file.filename.endswith('.xlsx') else pd.read_csv(file, header=None, dtype=str)
+                    file_content = file.read()
+                    if file.filename.endswith('.csv'):
+                        df = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None)
+                    else:
+                        df = pd.read_excel(BytesIO(file_content), header=None)
+                    
+                    df.dropna(how='all', inplace=True)
+                    df.dropna(axis=1, how='all', inplace=True)
+                    df = df.reset_index(drop=True)
+                    df = df.astype(str)
+                    
                     header_row_idx, cell_col_idx = -1, -1
                     
                     for i in range(min(20, len(df))):
-                        row_vals = [str(v).lower().strip() for v in df.iloc[i].values if pd.notna(v)]
+                        row_vals = [str(v).lower().strip() for v in df.iloc[i].values if str(v).lower() not in ['nan', 'none']]
                         for j, val in enumerate(row_vals):
                             if val in ['cell name', 'tên cell', 'cell_name']:
                                 header_row_idx, cell_col_idx = i, j
@@ -560,7 +595,7 @@ def import_data():
                             if math.isnan(val2): val2 = 0.0
                                 
                             percent, score = max(val1, val2), min(val1, val2)
-                            details_dict = {k: str(v).strip() for k, v in row_data.items() if pd.notna(v) and str(v).strip() not in ['nan', 'None', '']}
+                            details_dict = {k: str(v).strip() for k, v in row_data.items() if str(v).strip().lower() not in ['nan', 'none', '']}
                             details_json = json.dumps(details_dict, ensure_ascii=False)
                             
                             records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
