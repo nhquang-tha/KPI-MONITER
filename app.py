@@ -52,21 +52,55 @@ def clean_header(col_name):
     if not isinstance(col_name, str): return str(col_name)
     c_clean = re.sub(r'[^a-z0-9]', '', remove_accents(col_name).lower())
     strong_map = {
-        'stt': 'stt', 'manode': 'ma_node', 'sitecode': 'site_code', 'macell': 'cell_code', 'cellid': 'cell_code',
-        'tentrenhethong': 'cell_code', 'antennatenhangsx': 'hang_sx', 'antennadungchung': 'swap',
-        'ngayhoatdong': 'start_day', 'hoancanhradoi': 'ghi_chu',
-        'macsht': 'csht_cell', 'cellnamealias': 'cell_name', 'cellname': 'cell_code', 'sitename': 'site_code',
-        'thietbi': 'equipment', 'bangtan': 'frequency', 'dlpsc': 'psc', 'dluarfcn': 'dl_uarfcn',
-        'lac': 'bsc_lac', 'ci': 'ci', 'antennahigh': 'anten_height', 'azimuth': 'azimuth',
-        'mechanicaltilt': 'm_t', 'electricaltilt': 'e_t', 'totaltilt': 'total_tilt', 'oamip': 'oam_ip',
-        'antennatype': 'antena', 'loaitram': 'loai_tram', 'latitude': 'latitude', 'lat': 'latitude',
-        'longitude': 'longitude', 'longtitude': 'longitude', 'long': 'longitude', 'enodebid': 'enodeb_id',
-        'gnodebid': 'gnodeb_id', 'pci': 'pci', 'tac': 'tac', 'mimo': 'mimo', 'mt': 'm_t', 'et': 'e_t',
-        'nrarfcn': 'nrarfcn', 'lcrid': 'lcrid', 'dongbo': 'dong_bo', 'matram': 'ma_tram', 'equipment': 'equipment',
-        'frequency': 'frequency', 'frenquency': 'frequency', 'networktech': 'networktech', 'ultrafficvolumegb': 'ul_traffic_volume_gb',
-        'dltrafficvolumegb': 'dl_traffic_volume_gb', 'totaldatatrafficvolumegb': 'traffic', 'celluplinkaveragethroughput': 'cell_uplink_average_throughput',
-        'celldownlinkaveragethroughput': 'cell_downlink_average_throughput', 'auserdownlinkaveragethroughput': 'user_dl_avg_throughput',
-        'cellavaibilityrate': 'cell_avaibility_rate', 'sgnbadditionsuccessrate': 'sgnb_addition_success_rate', 'sgnbabnormalreleaserate': 'sgnb_abnormal_release_rate',
+        'stt': 'stt', 
+        'manode': 'site_code', 
+        'sitecode': 'site_code', 
+        'macell': 'cell_code', 
+        'cellid': 'cell_code',
+        'tentrenhethong': 'cell_code', 
+        'cellnamealias': 'cell_name', 
+        'cellname': 'cell_code', 
+        'sitename': 'site_code',
+        'macshtcuacell': 'csht_cell', 
+        'tenthietbi': 'equipment', 
+        'thietbi': 'equipment', 
+        'bangtan': 'frequency', 
+        'frequency': 'frequency', 
+        'dlpsc': 'psc', 
+        'psc': 'psc',
+        'dluarfcn': 'dl_uarfcn', 
+        'uarfcn': 'dl_uarfcn', 
+        'lac': 'bsc_lac', 
+        'bsclac': 'bsc_lac', 
+        'ci': 'ci', 
+        'antennahigh': 'anten_height', 
+        'antenheight': 'anten_height',
+        'azimuth': 'azimuth', 
+        'mechanicaltilt': 'm_t', 
+        'mechainicaltilt': 'm_t', 
+        'electricaltilt': 'e_t', 
+        'totaltilt': 'total_tilt', 
+        'tilt': 'total_tilt', 
+        'loaianten': 'antena',
+        'antennatype': 'antena', 
+        'antennatenhangsx': 'hang_sx', 
+        'hangsx': 'hang_sx', 
+        'antennadungchung': 'swap',
+        'ngayhoatdong': 'start_day', 
+        'startday': 'start_day', 
+        'hoancanhradoi': 'ghi_chu', 
+        'ghichu': 'ghi_chu',
+        'latitude': 'latitude', 'lat': 'latitude',
+        'longitude': 'longitude', 'longtitude': 'longitude', 'long': 'longitude',
+        'enodebid': 'enodeb_id', 'gnodebid': 'gnodeb_id', 'pci': 'pci', 'tac': 'tac', 'mimo': 'mimo',
+        'nrarfcn': 'nrarfcn', 'lcrid': 'lcrid', 'dongbo': 'dong_bo',
+        'networktech': 'networktech', 'ultrafficvolumegb': 'ul_traffic_volume_gb',
+        'dltrafficvolumegb': 'dl_traffic_volume_gb', 'totaldatatrafficvolumegb': 'traffic', 
+        'celluplinkaveragethroughput': 'cell_uplink_average_throughput',
+        'celldownlinkaveragethroughput': 'cell_downlink_average_throughput', 
+        'auserdownlinkaveragethroughput': 'user_dl_avg_throughput',
+        'cellavaibilityrate': 'cell_avaibility_rate', 'sgnbadditionsuccessrate': 'sgnb_addition_success_rate', 
+        'sgnbabnormalreleaserate': 'sgnb_abnormal_release_rate',
         'cqi5g': 'cqi_5g', 'cqi4g': 'cqi_4g', 'poi': 'poi_name'
     }
     if c_clean in strong_map: return strong_map[c_clean]
@@ -87,41 +121,6 @@ class User(UserMixin, db.Model):
     __tablename__='user'; id=db.Column(db.Integer, primary_key=True); username=db.Column(db.String(50), unique=True, nullable=False); password_hash=db.Column(db.String(255), nullable=False); role=db.Column(db.String(20), default='user'); created_at=db.Column(db.DateTime, default=datetime.utcnow)
     def set_password(self, password): self.password_hash = generate_password_hash(password)
     def check_password(self, password): return check_password_hash(self.password_hash, password)
-
-class Cell3G(db.Model):
-    __tablename__='cell_3g'
-    id = db.Column(db.Integer, primary_key=True)
-    cell_code = db.Column(db.String(100), index=True) # "Tên trên hệ thống"
-    hang_sx = db.Column(db.String(255))               # "Antenna Tên hãng SX"
-    swap = db.Column(db.String(100))                  # "Antenna dùng chung"
-    start_day = db.Column(db.String(100))             # "Ngày hoạt động"
-    ghi_chu = db.Column(db.Text)                      # "Hoàn cảnh ra đời"
-    extra_data = db.Column(db.Text)
-
-class Config3G(db.Model):
-    __tablename__='config_3g'
-    id = db.Column(db.Integer, primary_key=True)
-    csht_cell = db.Column(db.String(100))
-    cell_name = db.Column(db.String(255))
-    cell_code = db.Column(db.String(100), index=True)
-    site_code = db.Column(db.String(100))
-    latitude = db.Column(db.Float)
-    longitude = db.Column(db.Float)
-    equipment = db.Column(db.String(100))
-    frequency = db.Column(db.String(50))
-    psc = db.Column(db.String(50))
-    dl_uarfcn = db.Column(db.String(50))
-    bsc_lac = db.Column(db.String(50))
-    ci = db.Column(db.String(50))
-    anten_height = db.Column(db.Float)
-    azimuth = db.Column(db.Integer)
-    m_t = db.Column(db.Float)
-    e_t = db.Column(db.Float)
-    total_tilt = db.Column(db.Float)
-    oam_ip = db.Column(db.String(100))
-    antena = db.Column(db.Text)
-    loai_tram = db.Column(db.String(100))
-    extra_data = db.Column(db.Text)
 
 class RF3G(db.Model):
     __tablename__='rf_3g'
@@ -178,20 +177,15 @@ def init_database():
     with app.app_context():
         try:
             inspector = inspect(db.engine)
-            if 'rf_3g' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('rf_3g')]
-                # Xóa bảng cũ nếu còn chứa trường dia_chi hoặc ma_node cũ
-                if 'ma_node' in existing_columns or 'dia_chi' in existing_columns:
-                    print("--> Phát hiện cấu trúc bảng RF 3G cũ. Tiến hành Auto-Reset Schema...")
-                    db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
-                    db.session.commit()
+            # Tự động dọn dẹp các bảng cũ không còn sử dụng
             if 'cell_3g' in inspector.get_table_names():
-                existing_columns = [col['name'] for col in inspector.get_columns('cell_3g')]
-                # Xóa bảng cũ nếu còn chứa trường dia_chi
-                if 'dia_chi' in existing_columns:
-                    print("--> Phát hiện cấu trúc bảng CELL 3G cũ có trường dia_chi. Tiến hành Auto-Reset Schema...")
-                    db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
-                    db.session.commit()
+                print("--> Đã loại bỏ kiến trúc cũ. Tiến hành xóa bảng CELL_3G thừa...")
+                db.session.execute(text("DROP TABLE IF EXISTS cell_3g"))
+                db.session.commit()
+            if 'config_3g' in inspector.get_table_names():
+                print("--> Đã loại bỏ kiến trúc cũ. Tiến hành xóa bảng CONFIG_3G thừa...")
+                db.session.execute(text("DROP TABLE IF EXISTS config_3g"))
+                db.session.commit()
         except Exception as e: print("Auto-migration check failed:", e)
 
         db.create_all()
@@ -415,7 +409,8 @@ def import_data():
     if request.method == 'POST':
         files = request.files.getlist('file')
         itype = request.form.get('type')
-        cfg = {'cell3g': Cell3G, 'config3g': Config3G, '3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
+        # Gộp tất cả các thao tác nhập RF 3G trực tiếp vào RF3G
+        cfg = {'3g': RF3G, '4g': RF4G, '5g': RF5G, 'kpi3g': KPI3G, 'kpi4g': KPI4G, 'kpi5g': KPI5G, 'poi4g': POI4G, 'poi5g': POI5G}
         Model = cfg.get(itype)
         
         if Model:
@@ -428,9 +423,7 @@ def import_data():
                     file_bytes = file.read()
                     if not file_bytes: continue
                     
-                    # 1. Đọc file siêu tốc dùng Engine C
                     if file.filename.lower().endswith('.csv'):
-                        # Tự động phát hiện dấu phân cách (Comma vs Semicolon)
                         sample = file_bytes[:4096].decode('utf-8-sig', errors='ignore')
                         first_line = sample.split('\n')[0] if '\n' in sample else sample
                         sep = ',' if first_line.count(',') >= first_line.count(';') else ';'
@@ -438,15 +431,13 @@ def import_data():
                     else:
                         df_raw = pd.read_excel(BytesIO(file_bytes), header=None, dtype=str)
                     
-                    # 2. Loại bỏ sạch sẽ các cột/dòng trống rỗng trước khi xử lý (Chống sập RAM)
                     df_raw.dropna(how='all', inplace=True)
                     df_raw.dropna(axis=1, how='all', inplace=True)
                     df_raw = df_raw.reset_index(drop=True)
 
-                    # 3. Định vị dòng chứa Header
                     header_idx = 0
                     max_matches = 0
-                    kw_clean = ['cell', 'site', 'tram', 'uarfcn', 'he thong', 'quan ly', 'thiet bi', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain', 'dia chi', 'csht']
+                    kw_clean = ['cell', 'site', 'tram', 'uarfcn', 'he thong', 'quan ly', 'thiet bi', 'lat', 'long', 'stt', 'node', 'bsc', 'rnc', 'azimuth', 'tilt', 'power', 'gain', 'csht']
                     
                     if len(df_raw) > 0:
                         for i in range(min(20, len(df_raw))):
@@ -456,7 +447,6 @@ def import_data():
                                 max_matches = matches
                                 header_idx = i
                     
-                    # 4. Gán tên cột và làm sạch Header
                     if max_matches > 0:
                         raw_cols = [str(c).strip() for c in df_raw.iloc[header_idx].values]
                         seen = {}
@@ -471,10 +461,10 @@ def import_data():
                         df_raw.columns = [str(c) for c in df_raw.iloc[0].values]
                         df_raw = df_raw.iloc[1:].reset_index(drop=True)
 
+                    original_columns = list(df_raw.columns)
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
                     
-                    # TRÁNH LỖI 'DataFrame' object has no attribute 'str':
-                    # Loại bỏ các cột trùng tên sau khi map (chỉ lấy cột đầu tiên)
+                    # Loại bỏ các cột trùng tên sau khi map
                     df_raw = df_raw.loc[:, ~df_raw.columns.duplicated()].copy()
                     
                     header_mapping = dict(zip(df_raw.columns, original_columns))
@@ -560,7 +550,7 @@ def import_data():
                         sample = file_bytes[:4096].decode('utf-8-sig', errors='ignore')
                         first_line = sample.split('\n')[0] if '\n' in sample else sample
                         sep = ',' if first_line.count(',') >= first_line.count(';') else ';'
-                        df = pd.read_csv(BytesIO(file_bytes), encoding='utf-8-sig', on_bad_lines='skip', sep=sep, header=None, dtype=str, low_memory=False)
+                        df = pd.read_csv(BytesIO(file_bytes), encoding='utf-8-sig', on_bad_lines='skip', sep=sep, header=None, dtype=str, low_memory=False, engine='c')
                     else:
                         df = pd.read_excel(BytesIO(file_bytes), header=None, dtype=str)
                     
@@ -585,7 +575,6 @@ def import_data():
                         df_data = df.iloc[header_row_idx + 1:].copy()
                         df_data.columns = headers
                         
-                        # Xử lý trùng lặp cột trong QoE/QoS
                         df_data = df_data.loc[:, ~df_data.columns.duplicated()].copy()
                         
                         dict_records = df_data.to_dict('records')
@@ -643,72 +632,6 @@ def import_data():
     end_of_week = start_of_week + timedelta(days=6)
     default_week_name = f"Tuần {week_num:02d} ({start_of_week.strftime('%d/%m')}-{end_of_week.strftime('%d/%m')})"
     return render_template('content.html', title="Data Import", active_page='import', kpi_rows=list(zip_longest(d3, d4, d5)), default_week_name=default_week_name)
-
-@app.route('/sync-rf3g', methods=['POST'])
-@login_required
-def sync_rf3g():
-    if current_user.role != 'admin': return redirect(url_for('index'))
-    try:
-        db.session.query(RF3G).delete()
-        cells = {str(c.cell_code).strip().upper(): c for c in Cell3G.query.all() if c.cell_code}
-        configs = {str(c.cell_code).strip().upper(): c for c in Config3G.query.all() if c.cell_code}
-        
-        all_codes = set(cells.keys()) | set(configs.keys())
-        
-        rf3g_records = []
-        inserted_count = 0
-        BATCH_SIZE = 1000
-        
-        for code in all_codes:
-            c = cells.get(code)
-            cfg = configs.get(code)
-            
-            record = RF3G(
-                csht_cell=getattr(cfg, 'csht_cell', None),
-                cell_name=getattr(cfg, 'cell_name', None),
-                cell_code=code,
-                site_code=getattr(cfg, 'site_code', None),
-                latitude=getattr(cfg, 'latitude', None),
-                longitude=getattr(cfg, 'longitude', None),
-                equipment=getattr(cfg, 'equipment', None),
-                frequency=getattr(cfg, 'frequency', None),
-                psc=getattr(cfg, 'psc', None),
-                dl_uarfcn=getattr(cfg, 'dl_uarfcn', None),
-                bsc_lac=getattr(cfg, 'bsc_lac', None),
-                ci=getattr(cfg, 'ci', None),
-                anten_height=getattr(cfg, 'anten_height', None),
-                azimuth=getattr(cfg, 'azimuth', None),
-                m_t=getattr(cfg, 'm_t', None),
-                e_t=getattr(cfg, 'e_t', None),
-                total_tilt=getattr(cfg, 'total_tilt', None),
-                antena=getattr(cfg, 'antena', None),
-                hang_sx=getattr(c, 'hang_sx', None),
-                swap=getattr(c, 'swap', None),
-                start_day=getattr(c, 'start_day', None),
-                ghi_chu=getattr(c, 'ghi_chu', None)
-            )
-            rf3g_records.append(record)
-            
-            if len(rf3g_records) >= BATCH_SIZE:
-                db.session.bulk_save_objects(rf3g_records)
-                db.session.commit()
-                inserted_count += len(rf3g_records)
-                rf3g_records = []
-                gc.collect()
-            
-        if rf3g_records:
-            db.session.bulk_save_objects(rf3g_records)
-            db.session.commit()
-            inserted_count += len(rf3g_records)
-            
-        if inserted_count > 0:
-            flash(f'Đã ghép nối và đồng bộ {inserted_count} trạm 3G thành công!', 'success')
-        else:
-            flash('Không có dữ liệu 3G để đồng bộ. Vui lòng kiểm tra lại.', 'warning')
-    except Exception as e:
-        db.session.rollback()
-        flash(f'Lỗi đồng bộ: {str(e)}', 'danger')
-    return redirect(url_for('import_data'))
 
 @app.route('/reset-data', methods=['POST'])
 @login_required
@@ -779,7 +702,7 @@ def gis():
             res = db.session.query(Model.site_code, Model.gnodeb_id, Model.lcrid).all()
             for sc, gn, lc in res:
                 c_gn, c_lc = clean_val(gn), clean_val(lc)
-                if sc and c_gn and c_lc: db_mapping[f"{c_en}_{c_lc}"] = sc
+                if sc and c_gn and c_lc: db_mapping[f"{c_gn}_{c_lc}"] = sc
     
     if request.method == 'POST' and 'its_file' in request.files:
         files = request.files.getlist('its_file')
@@ -1349,7 +1272,7 @@ def backup_db():
     selected_tables = request.form.getlist('tables')
     if not selected_tables: return redirect(url_for('backup_restore'))
     stream = BytesIO()
-    models_map = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+    models_map = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
     with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as zf:
         for fname in selected_tables:
             if fname in models_map:
@@ -1370,7 +1293,7 @@ def restore_db():
         try:
             file_bytes = BytesIO(file.read())
             with zipfile.ZipFile(file_bytes) as zf:
-                models = {'users.csv': User, 'cell3g.csv': Cell3G, 'config3g.csv': Config3G, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
+                models = {'users.csv': User, 'rf3g.csv': RF3G, 'rf4g.csv': RF4G, 'rf5g.csv': RF5G, 'poi4g.csv': POI4G, 'poi5g.csv': POI5G, 'kpi3g.csv': KPI3G, 'kpi4g.csv': KPI4G, 'kpi5g.csv': KPI5G, 'qoe_4g.csv': QoE4G, 'qos_4g.csv': QoS4G}
                 for fname in zf.namelist():
                     if fname in models:
                         Model = models[fname]
