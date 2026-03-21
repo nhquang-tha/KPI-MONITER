@@ -1,4 +1,5 @@
 import os
+import jinja2
 import pandas as pd
 import json
 import gc
@@ -181,7 +182,6 @@ def init_database():
             if 'rf_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('rf_3g')]
                 if 'ma_node' in existing_columns:
-                    print("--> Phát hiện cấu trúc bảng RF 3G cũ. Tiến hành Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
                     db.session.commit()
             if 'cell_3g' in inspector.get_table_names():
@@ -421,22 +421,23 @@ def import_data():
         Model = cfg.get(itype)
         
         if Model:
-            valid_cols = set(c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data'])
-            float_cols = {c.key for c in Model.__table__.columns if 'FLOAT' in str(c.type).upper()}
-            int_cols = {c.key for c in Model.__table__.columns if 'INTEGER' in str(c.type).upper()}
+            valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
+            float_cols = [c.key for c in Model.__table__.columns if 'FLOAT' in str(c.type).upper()]
+            int_cols = [c.key for c in Model.__table__.columns if 'INTEGER' in str(c.type).upper() and c.key != 'id']
             
             for file in files:
                 try:
                     file_content = file.read()
                     if file.filename.endswith('.csv'):
-                        df_raw = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None)
+                        first_line = file_content.split(b'\n')[0].decode('utf-8-sig', errors='ignore')
+                        sep = ';' if ';' in first_line else ','
+                        df_raw = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None, sep=sep, low_memory=False)
                     else:
                         df_raw = pd.read_excel(BytesIO(file_content), header=None)
                     
                     df_raw.dropna(how='all', inplace=True)
                     df_raw.dropna(axis=1, how='all', inplace=True)
                     df_raw = df_raw.reset_index(drop=True)
-                    df_raw = df_raw.astype(str)
 
                     header_idx = 0
                     max_matches = 0
@@ -444,7 +445,7 @@ def import_data():
                     
                     if len(df_raw) > 0:
                         for i in range(min(20, len(df_raw))):
-                            row_vals = [remove_accents(str(v)).lower() for v in df_raw.iloc[i].values if str(v).lower() not in ['nan', 'none']]
+                            row_vals = [remove_accents(str(v)).lower() for v in df_raw.iloc[i].values if pd.notna(v)]
                             matches = sum(1 for k in kw_clean if any(k in val for val in row_vals))
                             if matches > max_matches:
                                 max_matches = matches
@@ -465,70 +466,56 @@ def import_data():
                         df_raw.columns = [str(c) for c in df_raw.iloc[0].values]
                         df_raw = df_raw.iloc[1:].reset_index(drop=True)
 
-                    original_columns = list(df_raw.columns)
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
-                    header_mapping = dict(zip(df_raw.columns, original_columns))
                     
-                    dict_records = df_raw.to_dict('records')
+                    # SIÊU TỐI ƯU BỘ NHỚ VÀ TỐC ĐỘ: Lọc bỏ các cột rác trước khi duyệt
+                    cols_to_keep = [c for c in df_raw.columns if c in valid_cols]
+                    if not cols_to_keep:
+                        flash(f'Không tìm thấy cột hợp lệ nào cho {itype.upper()} trong file {file.filename}.', 'warning')
+                        continue
+                        
+                    df_valid = df_raw[cols_to_keep].copy()
                     del df_raw
                     gc.collect()
+                    
+                    # Vectorized Data Cleaning cực nhanh
+                    for c in df_valid.columns:
+                        if c in float_cols:
+                            df_valid[c] = df_valid[c].astype(str).str.replace(',', '.', regex=False).str.replace(' ', '', regex=False)
+                            df_valid[c] = pd.to_numeric(df_valid[c], errors='coerce')
+                        elif c in int_cols:
+                            df_valid[c] = df_valid[c].astype(str).str.replace(',', '.', regex=False).str.replace(' ', '', regex=False)
+                            df_valid[c] = pd.to_numeric(df_valid[c], errors='coerce').apply(lambda x: int(math.floor(x)) if pd.notnull(x) else None)
+                        else:
+                            df_valid[c] = df_valid[c].astype(str).str.strip()
+                            mask = df_valid[c].str.lower().isin(['', '-', 'nan', 'none', 'n/a', 'null', '?'])
+                            df_valid.loc[mask, c] = None
+                            
+                    if 'cell_code' not in df_valid.columns:
+                        if 'cell_name' in df_valid.columns: df_valid['cell_code'] = df_valid['cell_name']
+                        elif 'site_code' in df_valid.columns: df_valid['cell_code'] = df_valid['site_code']
+                        elif 'ma_node' in df_valid.columns: df_valid['cell_code'] = df_valid['ma_node']
+                        
+                    if 'cell_code' in df_valid.columns:
+                        df_valid.dropna(subset=['cell_code'], inplace=True)
+                        
+                    # Thay pd.NA bằng None để tương thích với SQLAlchemy Bulk Insert
+                    df_valid = df_valid.where(pd.notnull(df_valid), None)
+                    dict_records = df_valid.to_dict('records')
+                    del df_valid
+                    gc.collect()
 
-                    records = []
-                    inserted_count = 0
-                    BATCH_SIZE = 1000
+                    BATCH_SIZE = 2000
+                    inserted_count = len(dict_records)
                     
-                    for row in dict_records:
-                        clean_row, extra = {}, {}
-                        for k, v in row.items():
-                            val_str = str(v).strip()
-                            if val_str.lower() in ['', '-', 'nan', 'none', 'n/a', 'null', '?']: continue
-                            
-                            if k in valid_cols:
-                                if k in float_cols:
-                                    try: clean_row[k] = float(val_str.replace(',', '.').replace(' ', ''))
-                                    except: clean_row[k] = None
-                                elif k in int_cols:
-                                    try: clean_row[k] = int(math.floor(float(val_str.replace(',', '.').replace(' ', ''))))
-                                    except: clean_row[k] = None
-                                else:
-                                    clean_row[k] = val_str
-                            else: 
-                                extra[header_mapping.get(k, k)] = val_str
-                        
-                        c_code = clean_row.get('cell_code') or clean_row.get('cell_name') or clean_row.get('ten_tren_he_thong') or clean_row.get('ma_node') or clean_row.get('site_code')
-                        
-                        if not c_code and extra:
-                            for ex_k, ex_v in extra.items():
-                                w_lower = str(ex_k).lower()
-                                if any(word in w_lower for word in ['cell', 'site', 'trạm', 'node', 'hệ thống']):
-                                    c_code = ex_v
-                                    break
-                        
-                        if c_code and str(c_code).strip().lower() not in ['', 'nan', 'none', 'null']:
-                            c_code_clean = str(c_code).strip()
-                            clean_row['cell_code'] = c_code_clean
-                            
-                            if hasattr(Model, 'extra_data') and extra: 
-                                clean_row['extra_data'] = json.dumps(extra, ensure_ascii=False)
-                                
-                            records.append(clean_row)
-                            
-                        if len(records) >= BATCH_SIZE:
-                            db.session.bulk_insert_mappings(Model, records)
-                            db.session.commit()
-                            inserted_count += len(records)
-                            records = [] 
+                    for i in range(0, len(dict_records), BATCH_SIZE):
+                        db.session.bulk_insert_mappings(Model, dict_records[i:i+BATCH_SIZE])
+                    db.session.commit()
                     
-                    if records:
-                        db.session.bulk_insert_mappings(Model, records)
-                        db.session.commit()
-                        inserted_count += len(records)
-                        
                     if inserted_count > 0:
-                        flash(f'Đã import thành công {inserted_count} dòng vào {itype.upper()}.', 'success')
+                        flash(f'Đã Import siêu tốc {inserted_count} dòng vào {itype.upper()}!', 'success')
                     else:
-                        found_cols = ", ".join([str(c) for c in original_columns[:10]])
-                        flash(f'Lỗi file {file.filename}: Không tìm thấy dữ liệu hợp lệ. Các cột tìm thấy: {found_cols}', 'warning')
+                        flash(f'File {file.filename} không chứa dữ liệu hợp lệ.', 'warning')
                         
                 except Exception as e: 
                     err_msg = str(e)
@@ -545,7 +532,9 @@ def import_data():
                 try:
                     file_content = file.read()
                     if file.filename.endswith('.csv'):
-                        df = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None)
+                        first_line = file_content.split(b'\n')[0].decode('utf-8-sig', errors='ignore')
+                        sep = ';' if ';' in first_line else ','
+                        df = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None, sep=sep, low_memory=False)
                     else:
                         df = pd.read_excel(BytesIO(file_content), header=None)
                     
@@ -576,7 +565,7 @@ def import_data():
 
                         records = []
                         inserted_count = 0
-                        BATCH_SIZE = 1000
+                        BATCH_SIZE = 2000
                         
                         cell_col_name = headers[cell_col_idx]
                         val1_col_name = headers[cell_col_idx + 2] if cell_col_idx + 2 < len(headers) else None
@@ -611,7 +600,7 @@ def import_data():
                             db.session.commit()
                             inserted_count += len(records)
                             
-                        flash(f'Import thành công {inserted_count} dòng.', 'success')
+                        flash(f'Import siêu tốc thành công {inserted_count} dòng.', 'success')
                 except Exception as e: flash(f'Lỗi: {e}', 'danger')
 
         return redirect(url_for('import_data'))
@@ -639,19 +628,11 @@ def sync_rf3g():
         
         rf3g_records = []
         inserted_count = 0
-        BATCH_SIZE = 500
+        BATCH_SIZE = 1000
         
         for code in all_codes:
             c = cells.get(code)
             cfg = configs.get(code)
-            
-            merged_extra = {}
-            if c and c.extra_data:
-                try: merged_extra.update(json.loads(c.extra_data))
-                except: pass
-            if cfg and cfg.extra_data:
-                try: merged_extra.update(json.loads(cfg.extra_data))
-                except: pass
             
             record = RF3G(
                 csht_cell=getattr(cfg, 'csht_cell', None),
@@ -675,8 +656,7 @@ def sync_rf3g():
                 hang_sx=getattr(c, 'hang_sx', None),
                 swap=getattr(c, 'swap', None),
                 start_day=getattr(c, 'start_day', None),
-                ghi_chu=getattr(c, 'ghi_chu', None),
-                extra_data=json.dumps(merged_extra, ensure_ascii=False) if merged_extra else None
+                ghi_chu=getattr(c, 'ghi_chu', None)
             )
             rf3g_records.append(record)
             
