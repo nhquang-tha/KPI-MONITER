@@ -421,19 +421,22 @@ def import_data():
         Model = cfg.get(itype)
         
         if Model:
-            valid_cols = [c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data']]
-            float_cols = [c.key for c in Model.__table__.columns if 'FLOAT' in str(c.type).upper()]
-            int_cols = [c.key for c in Model.__table__.columns if 'INTEGER' in str(c.type).upper() and c.key != 'id']
+            valid_cols = set(c.key for c in Model.__table__.columns if c.key not in ['id', 'extra_data'])
+            float_cols = {c.key for c in Model.__table__.columns if 'FLOAT' in str(c.type).upper()}
+            int_cols = {c.key for c in Model.__table__.columns if 'INTEGER' in str(c.type).upper() and c.key != 'id'}
             
             for file in files:
                 try:
-                    file_content = file.read()
-                    if file.filename.endswith('.csv'):
-                        first_line = file_content.split(b'\n')[0].decode('utf-8-sig', errors='ignore')
-                        sep = ';' if ';' in first_line else ','
-                        df_raw = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None, sep=sep, low_memory=False)
+                    # Đọc file siêu tốc, tự động phát hiện Excel hay CSV
+                    if file.filename.lower().endswith('.csv'):
+                        df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
                     else:
-                        df_raw = pd.read_excel(BytesIO(file_content), header=None)
+                        try:
+                            df_raw = pd.read_excel(file, header=None)
+                        except Exception:
+                            # Xử lý trường hợp người dùng đổi tên file .csv thành .xlsx
+                            file.seek(0)
+                            df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
                     
                     df_raw.dropna(how='all', inplace=True)
                     df_raw.dropna(axis=1, how='all', inplace=True)
@@ -466,6 +469,7 @@ def import_data():
                         df_raw.columns = [str(c) for c in df_raw.iloc[0].values]
                         df_raw = df_raw.iloc[1:].reset_index(drop=True)
 
+                    original_columns = list(df_raw.columns)
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
                     
                     # SIÊU TỐI ƯU BỘ NHỚ VÀ TỐC ĐỘ: Lọc bỏ các cột rác trước khi duyệt
@@ -499,23 +503,37 @@ def import_data():
                     if 'cell_code' in df_valid.columns:
                         df_valid.dropna(subset=['cell_code'], inplace=True)
                         
-                    # Thay pd.NA bằng None để tương thích với SQLAlchemy Bulk Insert
                     df_valid = df_valid.where(pd.notnull(df_valid), None)
-                    dict_records = df_valid.to_dict('records')
-                    del df_valid
-                    gc.collect()
-
-                    BATCH_SIZE = 2000
-                    inserted_count = len(dict_records)
                     
-                    for i in range(0, len(dict_records), BATCH_SIZE):
-                        db.session.bulk_insert_mappings(Model, dict_records[i:i+BATCH_SIZE])
-                    db.session.commit()
+                    inserted_count = 0
+                    BATCH_SIZE = 1000
                     
+                    # Cắt nhỏ quá trình lưu để chống tràn RAM
+                    for start_idx in range(0, len(df_valid), BATCH_SIZE):
+                        chunk = df_valid.iloc[start_idx:start_idx+BATCH_SIZE]
+                        dict_records = chunk.to_dict('records')
+                        records = []
+                        
+                        for row in dict_records:
+                            c_code = row.get('cell_code')
+                            if c_code and str(c_code).strip().lower() not in ['', 'nan', 'none', 'null']:
+                                row['cell_code'] = str(c_code).strip()
+                                records.append(row)
+                                
+                        if records:
+                            db.session.bulk_insert_mappings(Model, records)
+                            db.session.commit()
+                            inserted_count += len(records)
+                            
+                        del chunk
+                        del dict_records
+                        gc.collect()
+                        
                     if inserted_count > 0:
                         flash(f'Đã Import siêu tốc {inserted_count} dòng vào {itype.upper()}!', 'success')
                     else:
-                        flash(f'File {file.filename} không chứa dữ liệu hợp lệ.', 'warning')
+                        found_cols = ", ".join([str(c) for c in original_columns[:10]])
+                        flash(f'Lỗi file {file.filename}: Không tìm thấy dữ liệu hợp lệ. Các cột tìm thấy: {found_cols}', 'warning')
                         
                 except Exception as e: 
                     err_msg = str(e)
@@ -530,13 +548,14 @@ def import_data():
             TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
             for file in files:
                 try:
-                    file_content = file.read()
-                    if file.filename.endswith('.csv'):
-                        first_line = file_content.split(b'\n')[0].decode('utf-8-sig', errors='ignore')
-                        sep = ';' if ';' in first_line else ','
-                        df = pd.read_csv(BytesIO(file_content), encoding='utf-8-sig', on_bad_lines='skip', header=None, sep=sep, low_memory=False)
+                    if file.filename.lower().endswith('.csv'):
+                        df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
                     else:
-                        df = pd.read_excel(BytesIO(file_content), header=None)
+                        try:
+                            df = pd.read_excel(file, header=None)
+                        except Exception:
+                            file.seek(0)
+                            df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
                     
                     df.dropna(how='all', inplace=True)
                     df.dropna(axis=1, how='all', inplace=True)
@@ -558,47 +577,47 @@ def import_data():
                         
                         df_data = df.iloc[header_row_idx + 1:].copy()
                         df_data.columns = headers
-                        dict_records = df_data.to_dict('records')
                         del df
-                        del df_data
                         gc.collect()
 
-                        records = []
                         inserted_count = 0
-                        BATCH_SIZE = 2000
+                        BATCH_SIZE = 1000
                         
                         cell_col_name = headers[cell_col_idx]
                         val1_col_name = headers[cell_col_idx + 2] if cell_col_idx + 2 < len(headers) else None
                         val2_col_name = headers[cell_col_idx + 3] if cell_col_idx + 3 < len(headers) else None
                         
-                        for row_data in dict_records:
-                            c_name = str(row_data.get(cell_col_name, '')).strip()
-                            if not c_name or c_name.lower() in ['nan', 'none', 'null', ''] or len(c_name) < 5 or c_name.isdigit(): continue
+                        for start_idx in range(0, len(df_data), BATCH_SIZE):
+                            chunk = df_data.iloc[start_idx:start_idx+BATCH_SIZE]
+                            dict_records = chunk.to_dict('records')
+                            records = []
                             
-                            try: val1 = float(str(row_data.get(val1_col_name, 0)).replace(',','.'))
-                            except: val1 = 0.0
-                            try: val2 = float(str(row_data.get(val2_col_name, 0)).replace(',','.'))
-                            except: val2 = 0.0
-                            
-                            if math.isnan(val1): val1 = 0.0
-                            if math.isnan(val2): val2 = 0.0
+                            for row_data in dict_records:
+                                c_name = str(row_data.get(cell_col_name, '')).strip()
+                                if not c_name or c_name.lower() in ['nan', 'none', 'null', ''] or len(c_name) < 5 or c_name.isdigit(): continue
                                 
-                            percent, score = max(val1, val2), min(val1, val2)
-                            details_dict = {k: str(v).strip() for k, v in row_data.items() if str(v).strip().lower() not in ['nan', 'none', '']}
-                            details_json = json.dumps(details_dict, ensure_ascii=False)
-                            
-                            records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
-                            
-                            if len(records) >= BATCH_SIZE:
+                                try: val1 = float(str(row_data.get(val1_col_name, 0)).replace(',','.'))
+                                except: val1 = 0.0
+                                try: val2 = float(str(row_data.get(val2_col_name, 0)).replace(',','.'))
+                                except: val2 = 0.0
+                                
+                                if math.isnan(val1): val1 = 0.0
+                                if math.isnan(val2): val2 = 0.0
+                                    
+                                percent, score = max(val1, val2), min(val1, val2)
+                                details_dict = {k: str(v).strip() for k, v in row_data.items() if str(v).strip().lower() not in ['nan', 'none', '']}
+                                details_json = json.dumps(details_dict, ensure_ascii=False)
+                                
+                                records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
+                                
+                            if records:
                                 db.session.bulk_insert_mappings(TargetModel, records)
                                 db.session.commit()
                                 inserted_count += len(records)
-                                records = []
-                        
-                        if records:
-                            db.session.bulk_insert_mappings(TargetModel, records)
-                            db.session.commit()
-                            inserted_count += len(records)
+                            
+                            del chunk
+                            del dict_records
+                            gc.collect()
                             
                         flash(f'Import siêu tốc thành công {inserted_count} dòng.', 'success')
                 except Exception as e: flash(f'Lỗi: {e}', 'danger')
