@@ -149,6 +149,7 @@ class RF3G(db.Model):
     swap = db.Column(db.String(100))
     start_day = db.Column(db.String(100))
     ghi_chu = db.Column(db.Text)
+    dia_chi = db.Column(db.Text)
     extra_data = db.Column(db.Text)
 
 class RF4G(db.Model):
@@ -181,7 +182,8 @@ def init_database():
             inspector = inspect(db.engine)
             if 'rf_3g' in inspector.get_table_names():
                 existing_columns = [col['name'] for col in inspector.get_columns('rf_3g')]
-                if 'ma_node' in existing_columns:
+                if 'ma_node' in existing_columns or 'dia_chi' not in existing_columns:
+                    print("--> Phát hiện cấu trúc bảng RF 3G cũ. Tiến hành Auto-Reset Schema...")
                     db.session.execute(text("DROP TABLE IF EXISTS rf_3g"))
                     db.session.commit()
             if 'cell_3g' in inspector.get_table_names():
@@ -427,17 +429,23 @@ def import_data():
             
             for file in files:
                 try:
-                    # Đọc file siêu tốc, tự động phát hiện Excel hay CSV
-                    if file.filename.lower().endswith('.csv'):
-                        df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
-                    else:
-                        try:
-                            df_raw = pd.read_excel(file, header=None)
-                        except Exception:
-                            # Xử lý trường hợp người dùng đổi tên file .csv thành .xlsx
-                            file.seek(0)
-                            df_raw = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
+                    file_bytes = file.read()
+                    if not file_bytes: continue
                     
+                    if file.filename.lower().endswith('.csv'):
+                        # Tự động nhận diện dấu phẩy phân cách bằng việc đọc 4096 bytes đầu tiên
+                        sample = file_bytes[:4096].decode('utf-8-sig', errors='ignore')
+                        first_line = sample.split('\n')[0] if '\n' in sample else sample
+                        sep = ','
+                        if first_line.count(';') > first_line.count(','): sep = ';'
+                        elif first_line.count('\t') > first_line.count(','): sep = '\t'
+                        
+                        # Sử dụng Engine C siêu tốc của Pandas
+                        df_raw = pd.read_csv(BytesIO(file_bytes), encoding='utf-8-sig', on_bad_lines='skip', sep=sep, header=None, dtype=str, low_memory=False)
+                    else:
+                        df_raw = pd.read_excel(BytesIO(file_bytes), header=None, dtype=str)
+                    
+                    # Dọn rác siêu tốc, cắt đứt các cột/dòng trống làm ngốn RAM
                     df_raw.dropna(how='all', inplace=True)
                     df_raw.dropna(axis=1, how='all', inplace=True)
                     df_raw = df_raw.reset_index(drop=True)
@@ -471,8 +479,9 @@ def import_data():
 
                     original_columns = list(df_raw.columns)
                     df_raw.columns = [clean_header(c) for c in df_raw.columns]
+                    header_mapping = dict(zip(df_raw.columns, original_columns))
                     
-                    # SIÊU TỐI ƯU BỘ NHỚ VÀ TỐC ĐỘ: Lọc bỏ các cột rác trước khi duyệt
+                    # SIÊU TỐI ƯU BỘ NHỚ VÀ TỐC ĐỘ: Lọc bỏ các cột rác trước khi duyệt để nhẹ RAM
                     cols_to_keep = [c for c in df_raw.columns if c in valid_cols]
                     if not cols_to_keep:
                         flash(f'Không tìm thấy cột hợp lệ nào cho {itype.upper()} trong file {file.filename}.', 'warning')
@@ -505,29 +514,32 @@ def import_data():
                         
                     df_valid = df_valid.where(pd.notnull(df_valid), None)
                     
+                    dict_records = df_valid.to_dict('records')
+                    del df_valid
+                    gc.collect()
+                    
                     inserted_count = 0
                     BATCH_SIZE = 1000
+                    records = []
                     
-                    # Cắt nhỏ quá trình lưu để chống tràn RAM
-                    for start_idx in range(0, len(df_valid), BATCH_SIZE):
-                        chunk = df_valid.iloc[start_idx:start_idx+BATCH_SIZE]
-                        dict_records = chunk.to_dict('records')
-                        records = []
-                        
-                        for row in dict_records:
-                            c_code = row.get('cell_code')
-                            if c_code and str(c_code).strip().lower() not in ['', 'nan', 'none', 'null']:
-                                row['cell_code'] = str(c_code).strip()
-                                records.append(row)
-                                
-                        if records:
+                    # Quá trình lưu chia nhỏ BATCH
+                    for row in dict_records:
+                        c_code = row.get('cell_code')
+                        if c_code and str(c_code).strip().lower() not in ['', 'nan', 'none', 'null']:
+                            row['cell_code'] = str(c_code).strip()
+                            records.append(row)
+                            
+                        if len(records) >= BATCH_SIZE:
                             db.session.bulk_insert_mappings(Model, records)
                             db.session.commit()
                             inserted_count += len(records)
-                            
-                        del chunk
-                        del dict_records
-                        gc.collect()
+                            records = []
+                            gc.collect()
+                    
+                    if records:
+                        db.session.bulk_insert_mappings(Model, records)
+                        db.session.commit()
+                        inserted_count += len(records)
                         
                     if inserted_count > 0:
                         flash(f'Đã Import siêu tốc {inserted_count} dòng vào {itype.upper()}!', 'success')
@@ -548,24 +560,27 @@ def import_data():
             TargetModel = QoE4G if itype == 'qoe4g' else QoS4G
             for file in files:
                 try:
+                    file_bytes = file.read()
+                    if not file_bytes: continue
+                    
                     if file.filename.lower().endswith('.csv'):
-                        df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
+                        sample = file_bytes[:4096].decode('utf-8-sig', errors='ignore')
+                        first_line = sample.split('\n')[0] if '\n' in sample else sample
+                        sep = ','
+                        if first_line.count(';') > first_line.count(','): sep = ';'
+                        elif first_line.count('\t') > first_line.count(','): sep = '\t'
+                        df = pd.read_csv(BytesIO(file_bytes), encoding='utf-8-sig', on_bad_lines='skip', sep=sep, header=None, dtype=str, low_memory=False)
                     else:
-                        try:
-                            df = pd.read_excel(file, header=None)
-                        except Exception:
-                            file.seek(0)
-                            df = pd.read_csv(file, encoding='utf-8-sig', on_bad_lines='skip', sep=None, engine='python', header=None)
+                        df = pd.read_excel(BytesIO(file_bytes), header=None, dtype=str)
                     
                     df.dropna(how='all', inplace=True)
                     df.dropna(axis=1, how='all', inplace=True)
                     df = df.reset_index(drop=True)
-                    df = df.astype(str)
                     
                     header_row_idx, cell_col_idx = -1, -1
                     
                     for i in range(min(20, len(df))):
-                        row_vals = [str(v).lower().strip() for v in df.iloc[i].values if str(v).lower() not in ['nan', 'none']]
+                        row_vals = [str(v).lower().strip() for v in df.iloc[i].values if pd.notna(v)]
                         for j, val in enumerate(row_vals):
                             if val in ['cell name', 'tên cell', 'cell_name']:
                                 header_row_idx, cell_col_idx = i, j
@@ -577,9 +592,12 @@ def import_data():
                         
                         df_data = df.iloc[header_row_idx + 1:].copy()
                         df_data.columns = headers
+                        dict_records = df_data.to_dict('records')
                         del df
+                        del df_data
                         gc.collect()
 
+                        records = []
                         inserted_count = 0
                         BATCH_SIZE = 1000
                         
@@ -587,37 +605,35 @@ def import_data():
                         val1_col_name = headers[cell_col_idx + 2] if cell_col_idx + 2 < len(headers) else None
                         val2_col_name = headers[cell_col_idx + 3] if cell_col_idx + 3 < len(headers) else None
                         
-                        for start_idx in range(0, len(df_data), BATCH_SIZE):
-                            chunk = df_data.iloc[start_idx:start_idx+BATCH_SIZE]
-                            dict_records = chunk.to_dict('records')
-                            records = []
+                        for row_data in dict_records:
+                            c_name = str(row_data.get(cell_col_name, '')).strip()
+                            if not c_name or c_name.lower() in ['nan', 'none', 'null', ''] or len(c_name) < 5 or c_name.isdigit(): continue
                             
-                            for row_data in dict_records:
-                                c_name = str(row_data.get(cell_col_name, '')).strip()
-                                if not c_name or c_name.lower() in ['nan', 'none', 'null', ''] or len(c_name) < 5 or c_name.isdigit(): continue
+                            try: val1 = float(str(row_data.get(val1_col_name, 0)).replace(',','.'))
+                            except: val1 = 0.0
+                            try: val2 = float(str(row_data.get(val2_col_name, 0)).replace(',','.'))
+                            except: val2 = 0.0
+                            
+                            if math.isnan(val1): val1 = 0.0
+                            if math.isnan(val2): val2 = 0.0
                                 
-                                try: val1 = float(str(row_data.get(val1_col_name, 0)).replace(',','.'))
-                                except: val1 = 0.0
-                                try: val2 = float(str(row_data.get(val2_col_name, 0)).replace(',','.'))
-                                except: val2 = 0.0
-                                
-                                if math.isnan(val1): val1 = 0.0
-                                if math.isnan(val2): val2 = 0.0
-                                    
-                                percent, score = max(val1, val2), min(val1, val2)
-                                details_dict = {k: str(v).strip() for k, v in row_data.items() if str(v).strip().lower() not in ['nan', 'none', '']}
-                                details_json = json.dumps(details_dict, ensure_ascii=False)
-                                
-                                records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
-                                
-                            if records:
+                            percent, score = max(val1, val2), min(val1, val2)
+                            details_dict = {k: str(v).strip() for k, v in row_data.items() if pd.notna(v) and str(v).strip().lower() not in ['nan', 'none', '']}
+                            details_json = json.dumps(details_dict, ensure_ascii=False)
+                            
+                            records.append({'cell_name': c_name, 'week_name': week_name, 'qoe_score' if itype == 'qoe4g' else 'qos_score': score, 'qoe_percent' if itype == 'qoe4g' else 'qos_percent': percent, 'details': details_json})
+                            
+                            if len(records) >= BATCH_SIZE:
                                 db.session.bulk_insert_mappings(TargetModel, records)
                                 db.session.commit()
                                 inserted_count += len(records)
-                            
-                            del chunk
-                            del dict_records
-                            gc.collect()
+                                records = []
+                                gc.collect()
+                        
+                        if records:
+                            db.session.bulk_insert_mappings(TargetModel, records)
+                            db.session.commit()
+                            inserted_count += len(records)
                             
                         flash(f'Import siêu tốc thành công {inserted_count} dòng.', 'success')
                 except Exception as e: flash(f'Lỗi: {e}', 'danger')
@@ -675,7 +691,8 @@ def sync_rf3g():
                 hang_sx=getattr(c, 'hang_sx', None),
                 swap=getattr(c, 'swap', None),
                 start_day=getattr(c, 'start_day', None),
-                ghi_chu=getattr(c, 'ghi_chu', None)
+                ghi_chu=getattr(c, 'ghi_chu', None),
+                dia_chi=getattr(c, 'dia_chi', None)
             )
             rf3g_records.append(record)
             
