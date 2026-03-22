@@ -402,6 +402,136 @@ def index():
     gc.collect()
     return render_template('content.html', title="Dashboard", active_page='dashboard', dashboard_data=dashboard_data)
 
+@app.route('/azimuth')
+@login_required
+def azimuth():
+    return render_template('content.html', title="Tính toán và Vẽ Azimuth", active_page='azimuth')
+
+@app.route('/optimize')
+@login_required
+def optimize():
+    action = request.args.get('action')
+    qoe_weeks = [r[0] for r in db.session.query(QoE4G.week_name).distinct().all()]
+    qos_weeks = [r[0] for r in db.session.query(QoS4G.week_name).distinct().all()]
+    all_weeks = sorted(list(set([w for w in qoe_weeks + qos_weeks if w])), reverse=True)
+    
+    selected_week = request.args.get('week_name')
+    if not selected_week and all_weeks:
+        selected_week = all_weeks[0]
+    
+    bad_cells_dict = {}
+    
+    if selected_week:
+        l900_cells = {c[0] for c in db.session.query(RF4G.cell_code).filter(RF4G.frequency.ilike('%L900%')).all()}
+
+        qoe_bad = QoE4G.query.filter((QoE4G.week_name == selected_week) & ((QoE4G.qoe_score <= 2) | (QoE4G.qoe_percent < 80))).all()
+        qos_bad = QoS4G.query.filter((QoS4G.week_name == selected_week) & ((QoS4G.qos_score <= 3) | (QoS4G.qos_percent < 90))).all()
+        
+        def is_trash(c_name):
+            c_str = str(c_name).strip().upper()
+            if not c_str or c_str in ['NAN', 'NONE', 'NULL']: return True
+            if len(c_str) < 5: return True
+            if c_str.replace('.', '', 1).isdigit(): return True
+            if c_str in l900_cells: return True
+            if c_str.startswith('VNP-4G') or c_str.startswith('MBF_TH'): return True
+            return False
+
+        for r in qoe_bad:
+            if is_trash(r.cell_name): continue
+            bad_cells_dict[r.cell_name] = {'qoe_score': r.qoe_score, 'qoe_percent': r.qoe_percent, 'qos_score': '-', 'qos_percent': '-'}
+            
+        for r in qos_bad:
+            if is_trash(r.cell_name): continue
+            if r.cell_name not in bad_cells_dict:
+                bad_cells_dict[r.cell_name] = {'qoe_score': '-', 'qoe_percent': '-', 'qos_score': r.qos_score, 'qos_percent': r.qos_percent}
+            else:
+                bad_cells_dict[r.cell_name]['qos_score'] = r.qos_score
+                bad_cells_dict[r.cell_name]['qos_percent'] = r.qos_percent
+        
+        if bad_cells_dict:
+            cell_names = list(bad_cells_dict.keys())
+            latest_dates = [d[0] for d in db.session.query(KPI4G.thoi_gian).distinct().order_by(KPI4G.thoi_gian.desc()).limit(3).all()]
+            
+            if latest_dates:
+                kpi_records = db.session.query(
+                    KPI4G.ten_cell,
+                    func.avg(KPI4G.res_blk_dl).label('avg_prb'),
+                    func.avg(KPI4G.user_dl_avg_thput).label('avg_thput'),
+                    func.avg(KPI4G.cqi_4g).label('avg_cqi'),
+                    func.avg(KPI4G.service_drop_all).label('avg_drop')
+                ).filter(
+                    KPI4G.ten_cell.in_(cell_names),
+                    KPI4G.thoi_gian.in_(latest_dates)
+                ).group_by(KPI4G.ten_cell).all()
+                
+                for r in kpi_records:
+                    c = r.ten_cell
+                    if c in bad_cells_dict:
+                        prb = r.avg_prb or 0
+                        thput = r.avg_thput or 0
+                        cqi = r.avg_cqi or 0
+                        drop = r.avg_drop or 0
+                        
+                        issues = []
+                        actions = []
+                        
+                        if prb > 20 and thput < 10:
+                            issues.append("Nghẽn (Congestion)")
+                            actions.append("Cân bằng tải L1800->L2100 / Thêm Carrier")
+                        if cqi < 93:
+                            issues.append("Vô tuyến kém / Nhiễu")
+                            actions.append("Chỉnh Tx Power / Tối ưu Tilt, Azimuth")
+                        if drop > 0.3 and prb <= 20:
+                            issues.append("Lỗi Thiết bị / Truyền dẫn")
+                            actions.append("NOC reset Card / UCTT đo kiểm Quang, VSWR")
+                            
+                        if not issues:
+                            issues.append("Chưa rõ nguyên nhân")
+                            actions.append("Theo dõi sâu / Phân tích tham số")
+                            
+                        bad_cells_dict[c].update({
+                            'prb': round(prb, 2),
+                            'thput': round(thput, 2),
+                            'cqi': round(cqi, 2),
+                            'drop': round(drop, 2),
+                            'issues': issues,
+                            'actions': actions
+                        })
+                    
+    optimized_data = []
+    for cell, data in bad_cells_dict.items():
+        data['cell_name'] = cell
+        if 'issues' not in data:
+             data.update({'prb': '-', 'thput': '-', 'cqi': '-', 'drop': '-', 'issues': ['Thiếu dữ liệu KPI ngày'], 'actions': ['Cần Import KPI']})
+        optimized_data.append(data)
+        
+    if action == 'export':
+        export_list = []
+        for data in optimized_data:
+            export_list.append({
+                'Cell Name': data.get('cell_name', ''),
+                'QoE Score': data.get('qoe_score', ''),
+                'QoE %': data.get('qoe_percent', ''),
+                'QoS Score': data.get('qos_score', ''),
+                'QoS %': data.get('qos_percent', ''),
+                'PRB (%)': data.get('prb', ''),
+                'Thput (Mbps)': data.get('thput', ''),
+                'CQI (%)': data.get('cqi', ''),
+                'Drop (%)': data.get('drop', ''),
+                'Chẩn đoán': " | ".join(data.get('issues', [])),
+                'Giải pháp': " | ".join(data.get('actions', []))
+            })
+        df = pd.DataFrame(export_list)
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Toi_Uu')
+        output.seek(0)
+        safe_week_name = re.sub(r'[^a-zA-Z0-9_\-]', '_', selected_week) if selected_week else 'Week'
+        return send_file(output, download_name=f'ToiUu_{safe_week_name}.xlsx', as_attachment=True)
+        
+    gc.collect()
+    return render_template('content.html', title="Tối ưu QoE/QoS (NPO)", active_page='optimize', optimized_data=optimized_data, latest_week=selected_week, all_weeks=all_weeks)
+
 @app.route('/import', methods=['GET', 'POST'])
 @login_required
 def import_data():
